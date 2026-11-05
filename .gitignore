@@ -1,0 +1,100 @@
+# ==========================================
+# Gradle & Build outputs
+# ==========================================
+.gradle/
+build/
+/*/build/
+out/
+gen/
+bin/
+
+# ==========================================
+# Kotlin
+# ==========================================
+.kotlin/
+kotlin-js-store/
+
+# ==========================================
+# Android Studio & IntelliJ IDEA
+# ==========================================
+*.iml
+.idea/
+.idea_modules/
+
+# Nếu muốn lưu cấu hình code style hoặc run configuration vào Git,
+# bạn có thể bỏ qua toàn bộ .idea/ và chỉ giữ các file mong muốn:
+# !.idea/codeStyles/
+# !.idea/copyright/
+# !.idea/runConfigurations/
+
+# Android Studio captures & navigation
+captures/
+.navigation/
+
+# ==========================================
+# Native Build (NDK, C/C++, CMake)
+# ==========================================
+.cxx/
+.externalNativeBuild/
+
+# ==========================================
+# Local configuration & Secrets (Bảo mật)
+# ==========================================
+local.properties
+secrets.properties
+signing.properties
+
+# Keystore & Certificates
+*.jks
+*.keystore
+*.p12
+*.key
+
+# Google Services / Firebase (Bỏ comment nếu không muốn commit file cấu hình Firebase)
+# google-services.json
+
+# ==========================================
+# Output Packages (APK, AAB, Bundle, Dex)
+# ==========================================
+*.apk
+*.ap_
+*.aab
+*.aar
+*.dex
+*.class
+
+# ==========================================
+# Log & Temp Files
+# ==========================================
+*.log
+*.tmp
+*.bak
+
+# ==========================================
+# VS Code
+# ==========================================
+.vscode/
+
+# ==========================================
+# OS Generated Files
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
