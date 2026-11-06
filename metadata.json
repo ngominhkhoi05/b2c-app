@@ -1,0 +1,6 @@
+{
+  "name": "B2C Shop",
+  "description": "Ứng dụng mua sắm B2C (Buyer App) chuẩn Material 3 với bộ Reusable Components cao cấp, tông màu Cam san hô & Xanh Navy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
