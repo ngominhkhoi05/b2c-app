@@ -8,6 +8,9 @@ import com.example.b2capp.core.model.ProductItem
 import com.example.b2capp.core.model.ShopChatInfo
 import com.example.b2capp.core.model.UserAddress
 import com.example.b2capp.core.model.UserProfile
+import com.example.b2capp.core.ui.components.ToastData
+import com.example.b2capp.core.ui.components.ToastType
+import com.example.b2capp.core.ui.components.createToastData
 import com.example.b2capp.data.SampleData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,7 +80,8 @@ data class B2CUiState(
     ),
     val detailSelectedQuantity: Int = 1,
     val interactiveRatingDemo: Float = 4.0f,
-    val toastMessage: String? = null
+    val toastMessage: String? = null,
+    val currentToast: ToastData? = null
 ) {
     val totalCartPrice: Long
         get() = cartItems.sumOf { it.totalPrice }
@@ -244,7 +248,8 @@ class B2CViewModel : ViewModel() {
                 showForgotPasswordScreen = false,
                 currentTab = 0,
                 userProfile = state.userProfile.copy(email = email),
-                toastMessage = "Đăng nhập thành công! Chào mừng bạn quay trở lại."
+                toastMessage = "Đăng nhập thành công! Chào mừng bạn quay trở lại.",
+                currentToast = createToastData("Đăng nhập thành công! Chào mừng bạn quay trở lại.", ToastType.SUCCESS)
             )
         }
     }
@@ -256,7 +261,8 @@ class B2CViewModel : ViewModel() {
                 showSignInScreen = true,
                 showSignUpScreen = false,
                 showForgotPasswordScreen = false,
-                toastMessage = "Đã đăng xuất tài khoản"
+                toastMessage = "Đã đăng xuất tài khoản",
+                currentToast = createToastData("Đã đăng xuất tài khoản", ToastType.INFO)
             )
         }
     }
@@ -347,10 +353,12 @@ class B2CViewModel : ViewModel() {
 
     fun updateUserProfile(profile: UserProfile) {
         _uiState.update {
+            val msg = "Cập nhật hồ sơ cá nhân thành công!"
             it.copy(
                 userProfile = profile,
                 showEditProfileScreen = false,
-                toastMessage = "Cập nhật hồ sơ cá nhân thành công!"
+                toastMessage = msg,
+                currentToast = createToastData(msg, ToastType.SUCCESS)
             )
         }
     }
@@ -376,14 +384,16 @@ class B2CViewModel : ViewModel() {
             val updated = state.addresses.map { addr ->
                 addr.copy(isDefault = (addr.id == addressId))
             }
-            state.copy(addresses = updated, toastMessage = "Đã cập nhật địa chỉ mặc định!")
+            val msg = "Đã cập nhật địa chỉ mặc định!"
+            state.copy(addresses = updated, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
         }
     }
 
     fun deleteAddress(addressId: String) {
         _uiState.update { state ->
             val updated = state.addresses.filterNot { it.id == addressId }
-            state.copy(addresses = updated, toastMessage = "Đã xóa địa chỉ khỏi sổ địa chỉ")
+            val msg = "Đã xóa địa chỉ khỏi sổ địa chỉ"
+            state.copy(addresses = updated, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
         }
     }
 
@@ -406,7 +416,8 @@ class B2CViewModel : ViewModel() {
                 list.add(newAddress)
             }
 
-            state.copy(addresses = list, toastMessage = "Đã lưu địa chỉ thành công!")
+            val msg = "Đã lưu địa chỉ thành công!"
+            state.copy(addresses = list, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
         }
     }
 
@@ -420,9 +431,11 @@ class B2CViewModel : ViewModel() {
             } else {
                 updatedList.add(CartItem(product, quantity))
             }
+            val msg = "Đã thêm $quantity x ${product.name} ($color, Size $size) vào giỏ hàng!"
             state.copy(
                 cartItems = updatedList,
-                toastMessage = "Đã thêm $quantity x ${product.name} ($color, Size $size) vào giỏ hàng!"
+                toastMessage = msg,
+                currentToast = createToastData(msg, ToastType.SUCCESS)
             )
         }
     }
@@ -457,10 +470,12 @@ class B2CViewModel : ViewModel() {
             } else {
                 updatedList.add(CartItem(currentProduct, qty))
             }
+            val msg = "Đã thêm $qty sản phẩm vào giỏ hàng thành công!"
             state.copy(
                 cartItems = updatedList,
                 selectedProductForSheet = null,
-                toastMessage = "Đã thêm $qty sản phẩm vào giỏ hàng thành công!"
+                toastMessage = msg,
+                currentToast = createToastData(msg, ToastType.SUCCESS)
             )
         }
     }
@@ -476,9 +491,11 @@ class B2CViewModel : ViewModel() {
 
     fun removeCartItem(productId: String) {
         _uiState.update { state ->
+            val msg = "Đã xóa sản phẩm khỏi giỏ hàng"
             state.copy(
                 cartItems = state.cartItems.filterNot { it.product.id == productId },
-                toastMessage = "Đã xóa sản phẩm khỏi giỏ hàng"
+                toastMessage = msg,
+                currentToast = createToastData(msg, ToastType.SUCCESS)
             )
         }
     }
@@ -488,19 +505,30 @@ class B2CViewModel : ViewModel() {
     }
 
     fun setInteractiveRating(rating: Int) {
+        val msg = "Cảm ơn bạn đã đánh giá $rating sao!"
         _uiState.update {
             it.copy(
                 interactiveRatingDemo = rating.toFloat(),
-                toastMessage = "Cảm ơn bạn đã đánh giá $rating sao!"
+                toastMessage = msg,
+                currentToast = createToastData(msg, ToastType.SUCCESS)
             )
         }
     }
 
-    fun showToast(message: String) {
-        _uiState.update { it.copy(toastMessage = message) }
+    fun showToast(message: String, type: ToastType? = null) {
+        _uiState.update {
+            it.copy(
+                toastMessage = message,
+                currentToast = createToastData(message, type)
+            )
+        }
     }
 
+    fun showErrorToast(message: String) = showToast(message, ToastType.ERROR)
+    fun showSuccessToast(message: String) = showToast(message, ToastType.SUCCESS)
+    fun showWarningToast(message: String) = showToast(message, ToastType.WARNING)
+
     fun clearToast() {
-        _uiState.update { it.copy(toastMessage = null) }
+        _uiState.update { it.copy(toastMessage = null, currentToast = null) }
     }
 }

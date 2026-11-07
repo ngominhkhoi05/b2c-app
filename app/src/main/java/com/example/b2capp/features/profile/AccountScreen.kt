@@ -27,7 +27,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WorkspacePremium
@@ -38,10 +37,9 @@ import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.LockReset
-import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.RateReview
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Card
@@ -158,8 +156,6 @@ fun AccountScreen(
             item {
                 NavyHeroProfileCard(
                     onCameraClick = { viewModel.openEditProfile() },
-                    onNotificationsClick = {},
-                    onSettingsClick = { viewModel.openEditProfile() },
                     onMembershipClick = { showUiKitDialog = true }
                 )
             }
@@ -170,7 +166,7 @@ fun AccountScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .offset(y = (-20).dp)
+                        .offset(y = (-14).dp)
                 ) {
                     MyOrdersCard(
                         onViewHistoryClick = onNavigateToOrders,
@@ -185,7 +181,7 @@ fun AccountScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .offset(y = (-10).dp),
+                        .offset(y = (-6).dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     B2CPayCard(
@@ -219,6 +215,17 @@ fun AccountScreen(
                             title = "Sổ địa chỉ nhận hàng",
                             subtitle = "3 địa chỉ đã lưu (Mặc định: Q.1, TP. HCM)",
                             onClick = { viewModel.openAddressBook() }
+                        )
+
+                        HorizontalDivider(color = BorderDivider.copy(alpha = 0.5f), thickness = 0.8.dp)
+
+                        MenuListItem(
+                            icon = Icons.Outlined.Person,
+                            iconTint = NavySecondary,
+                            iconBg = Color(0xFFEAF2FA),
+                            title = "Chỉnh sửa thông tin cá nhân",
+                            subtitle = "Cập nhật họ tên, số điện thoại, ngày sinh",
+                            onClick = { viewModel.openEditProfile() }
                         )
 
                         HorizontalDivider(color = BorderDivider.copy(alpha = 0.5f), thickness = 0.8.dp)
@@ -343,8 +350,6 @@ fun AccountScreen(
 @Composable
 private fun NavyHeroProfileCard(
     onCameraClick: () -> Unit,
-    onNotificationsClick: () -> Unit,
-    onSettingsClick: () -> Unit,
     onMembershipClick: () -> Unit
 ) {
     Box(
@@ -360,61 +365,9 @@ private fun NavyHeroProfileCard(
                     )
                 )
             )
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 36.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 26.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Hàng nút chuông & cài đặt bên góc phải
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                // Nút chuông thông báo trong vòng tròn mờ có chấm đỏ
-                Box(contentAlignment = Alignment.TopEnd) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.White.copy(alpha = 0.12f), CircleShape)
-                            .clickable(onClick = onNotificationsClick),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Notifications,
-                            contentDescription = "Thông báo",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    // Chấm đỏ thông báo
-                    Box(
-                        modifier = Modifier
-                            .size(9.dp)
-                            .background(Color(0xFFD32F2F), CircleShape)
-                            .border(1.dp, Color(0xFF0E3B64), CircleShape)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Nút bánh răng cài đặt trong vòng tròn mờ
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(Color.White.copy(alpha = 0.12f), CircleShape)
-                        .clickable(onClick = onSettingsClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = "Cài đặt",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
             // Hàng thông tin cá nhân: Avatar + Tên + Email + Huy hiệu
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -510,102 +463,6 @@ private fun NavyHeroProfileCard(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFFFB800)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Hàng Ví Xu (200 Xu) & Voucher của tôi (5 mã giảm)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Ví Xu
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Biểu tượng đồng xu vàng $
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color(0xFFB8860B), CircleShape)
-                            .border(1.5.dp, Color(0xFFFFD700), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "$",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Text(
-                            text = "Ví Xu",
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.75f)
-                        )
-                        Text(
-                            text = "200 Xu",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-
-                // Dải ngăn cách mờ
-                Box(
-                    modifier = Modifier
-                        .height(30.dp)
-                        .width(1.dp)
-                        .background(Color.White.copy(alpha = 0.2f))
-                )
-
-                Spacer(modifier = Modifier.width(14.dp))
-
-                // Voucher của tôi
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color(0xFFD32F2F), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ConfirmationNumber,
-                            contentDescription = "Voucher",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Text(
-                            text = "Voucher của tôi",
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.75f)
-                        )
-                        Text(
-                            text = "5 mã giảm",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
                         )
                     }
                 }

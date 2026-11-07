@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.profile
+package com.example.b2capp.features.profile
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -137,41 +137,24 @@ fun EditProfileScreen(
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Quay lại",
-                                tint = TextPrimary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Text(
-                            text = "Edit Profile",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color(0xFFBA2211), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = "Tài khoản",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Quay lại",
+                            tint = TextPrimary
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    Text(
+                        text = "Chỉnh sửa thông tin",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
                 }
             }
         }

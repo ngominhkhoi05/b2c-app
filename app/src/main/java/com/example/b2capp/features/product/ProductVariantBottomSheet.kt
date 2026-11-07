@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -179,6 +180,29 @@ fun ProductVariantBottomSheet(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
+                    // Nhãn phân biệt chế độ Popup
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (mode == VariantSheetMode.BUY_NOW) Color(0xFFFEE2E2) else Color(0xFFFFEDD5)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = when (mode) {
+                                VariantSheetMode.BUY_NOW -> "⚡ Mua ngay"
+                                VariantSheetMode.ADD_TO_CART -> "🛒 Thêm vào giỏ hàng"
+                                VariantSheetMode.SELECT_ONLY -> "Chọn phân loại"
+                            },
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (mode == VariantSheetMode.BUY_NOW) Color(0xFFB91C1C) else Color(0xFFC2410C)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     // Hàng giá & tag giảm giá
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -587,7 +611,18 @@ fun ProductVariantBottomSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Nút XÁC NHẬN lớn (kèm icon túi xách)
+                val confirmButtonText = when (mode) {
+                    VariantSheetMode.BUY_NOW -> "MUA NGAY"
+                    VariantSheetMode.ADD_TO_CART -> "THÊM VÀO GIỎ HÀNG"
+                    VariantSheetMode.SELECT_ONLY -> "XÁC NHẬN"
+                }
+
+                val confirmButtonIcon = when (mode) {
+                    VariantSheetMode.ADD_TO_CART -> Icons.Outlined.ShoppingCart
+                    else -> Icons.Outlined.ShoppingBag
+                }
+
+                // Nút hành động chính theo chế độ popup (Thêm vào giỏ hàng / Mua ngay / Xác nhận)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -605,14 +640,14 @@ fun ProductVariantBottomSheet(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ShoppingBag,
+                            imageVector = confirmButtonIcon,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "XÁC NHẬN",
+                            text = confirmButtonText,
                             color = Color.White,
                             fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,

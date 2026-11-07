@@ -1,5 +1,6 @@
 package com.example.b2capp.features.cart.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +32,7 @@ import com.example.b2capp.core.designsystem.theme.TextSecondary
 
 /**
  * Thanh tổng kết thanh toán cố định ở đáy giỏ hàng (Sticky Bottom Checkout Bar)
+ * Thiết kế cân đối chuẩn xác theo tỷ lệ, căn giữa hoàn hảo theo trục dọc.
  */
 @Composable
 fun CartBottomSummaryBar(
@@ -46,16 +47,15 @@ fun CartBottomSummaryBar(
 ) {
     Surface(
         color = SurfaceCard,
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 10.dp)
-            .border(0.8.dp, BorderDivider)
+        shadowElevation = 8.dp,
+        border = BorderStroke(0.8.dp, BorderDivider),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .height(56.dp)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Checkbox Tất cả
@@ -71,13 +71,13 @@ fun CartBottomSummaryBar(
                 Column {
                     Text(
                         text = "Tất cả",
-                        fontSize = 13.5.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
                     Text(
                         text = currentShopLabel,
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         color = TextSecondary
                     )
                 }
@@ -88,25 +88,25 @@ fun CartBottomSummaryBar(
             // Cụm Tổng tiền & Tiết kiệm
             Column(
                 horizontalAlignment = Alignment.End,
-                modifier = Modifier.padding(end = 12.dp)
+                modifier = Modifier.padding(end = 10.dp)
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = "Tổng: ",
                         fontSize = 11.5.sp,
                         color = TextSecondary,
-                        modifier = Modifier.padding(bottom = 2.dp)
+                        modifier = Modifier.padding(bottom = 1.dp)
                     )
                     Text(
                         text = formattedTotalPrice,
-                        fontSize = 18.sp,
+                        fontSize = 16.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFBA2211)
                     )
                 }
                 Text(
                     text = "Tiết kiệm $formattedSavings",
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFF1E8275)
                 )
@@ -115,23 +115,22 @@ fun CartBottomSummaryBar(
             // Nút MUA HÀNG (X)
             Box(
                 modifier = Modifier
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xFFBA2211))
                     .clickable(onClick = onCheckoutClick)
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 14.dp)
                     .testTag("btn_cart_checkout"),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = if (isEditMode) "XÓA ($totalItemsCount)" else "MUA HÀNG ($totalItemsCount)",
-                    fontSize = 13.5.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 0.3.sp
                 )
             }
         }
     }
 }
-

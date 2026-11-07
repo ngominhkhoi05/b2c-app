@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.product
+package com.example.b2capp.features.product
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -179,6 +179,15 @@ fun ProductReviewsScreen(
         "📷 Có hình ảnh (128)"
     )
 
+    val displayedReviews = remember(selectedFilter, allReviews) {
+        when {
+            selectedFilter.contains("5") -> allReviews.filter { it.rating == 5 }
+            selectedFilter.contains("4") -> allReviews.filter { it.rating == 4 }
+            selectedFilter.contains("hình") || selectedFilter.contains("ảnh") -> allReviews.filter { it.images.isNotEmpty() }
+            else -> allReviews
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -210,7 +219,7 @@ fun ProductReviewsScreen(
                     Spacer(modifier = Modifier.width(4.dp))
 
                     Text(
-                        text = "Product Variant Selection",
+                        text = "Đánh giá sản phẩm",
                         fontSize = 17.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -379,7 +388,7 @@ fun ProductReviewsScreen(
             }
 
             // 4. Danh sách các Bài Đánh giá
-            items(allReviews) { review ->
+            items(displayedReviews) { review ->
                 ReviewItemCard(
                     review = review,
                     helpfulCount = helpfulCountsMap[review.id] ?: review.helpfulCount,

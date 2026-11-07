@@ -1,6 +1,5 @@
-﻿package com.example.b2capp.features.product
+package com.example.b2capp.features.product
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,14 +8,13 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -28,32 +26,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.CardGiftcard
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -75,41 +60,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
-import com.example.b2capp.viewmodel.B2CUiState
-import com.example.b2capp.viewmodel.B2CViewModel
 import com.example.b2capp.core.designsystem.theme.NavySecondary
 import com.example.b2capp.core.designsystem.theme.StarRatingGold
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.viewmodel.B2CUiState
+import com.example.b2capp.viewmodel.B2CViewModel
 
 /**
  * Màn hình Viết Đánh Giá Sản Phẩm (WriteProductReviewScreen)
- * Thiết kế chính xác 100% theo WriteProductReviewScreen_9db117fe.png:
- * 1. Top Bar: Back icon, Title "Product Variant Selection", Share icon, Avatar tài khoản đỏ.
- * 2. Thẻ Đơn Hàng Đánh Giá:
- *    - Đánh giá đơn hàng + Tag "+200 Xu" + Link "Hướng dẫn".
- *    - Thumbnail Áo thun đen Coolmate, Mall Coolmate Official Store, Đen / Size L, ₫199.000.
- * 3. Thẻ ĐÁNH GIÁ CHUNG:
- *    - "Chất lượng sản phẩm thế nào?"
- *    - 5 Sao vàng lớn tương tác + Nhãn "✔ Tuyệt vời" (nền xanh ngọc).
- *    - 3 Tiêu chí: Đúng với mô tả (5 sao), Chất lượng vải (5 sao), Dịch vụ giao hàng (5 sao).
- *    - Bảng chip gợi ý nhanh (+ Chất vải dày dặn, + Form dáng chuẩn, + Giao hàng nhanh, + Đóng gói cẩn thận).
- * 4. Thẻ NỘI DUNG CHI TIẾT:
- *    - Đếm ký tự 191/500.
- *    - Khung nhập nhận xét nhiều dòng.
- *    - Banner thưởng: "Viết đánh giá từ 50 ký tự kèm 1 hình ảnh hoặc video để nhận ngay +200 Xu thưởng".
- * 5. Thẻ HÌNH ẢNH & VIDEO THỰC TẾ:
- *    - Đếm 2/5 tệp.
- *    - Thẻ "+ Thêm ảnh", "+ Thêm video", Ảnh 1 (áo đen), Ảnh 2 (chất vải).
- * 6. Thẻ ĐÁNH GIÁ ẨN DANH:
- *    - Icon mắt ẩn, "Tên hiển thị dạng n***a...", Switch bật đỏ.
- * 7. Footer Tiêu chuẩn cộng đồng mua sắm.
- * 8. Sticky Bottom Bar:
- *    - Thưởng: +200 Xu B2C | ✔ Đủ điều kiện nhận xu (xanh lá).
- *    - Nút đỏ "GỬI ĐÁNH GIÁ" với icon máy bay gửi.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WriteProductReviewScreen(
     uiState: B2CUiState,
@@ -118,17 +79,12 @@ fun WriteProductReviewScreen(
     modifier: Modifier = Modifier
 ) {
     var generalRating by remember { mutableIntStateOf(5) }
-    var descriptionRating by remember { mutableIntStateOf(5) }
-    var fabricRating by remember { mutableIntStateOf(5) }
-    var shippingRating by remember { mutableIntStateOf(5) }
 
     var reviewText by remember {
         mutableStateOf(
-            "Chất vải cotton dày dặn, mặc rất thoáng mát và thấm hút mồ hôi tốt. Form áo regular fit chuẩn size L tôn dáng, đường may tỉ mỉ không chỉ thừa. Giao hàng nhanh đóng gói hộp 2 lớp rất chỉn"
+            "Chất vải cotton dày dặn, mặc rất thoáng mát và thấm hút mồ hôi tốt. Form áo regular fit chuẩn size L tôn dáng, đường may tỉ mỉ không chỉ thừa. Giao hàng nhanh đóng gói hộp 2 lớp rất chỉn chu."
         )
     }
-
-    var isAnonymous by remember { mutableStateOf(true) }
 
     // Danh sách ảnh đã đính kèm
     val attachedImages = remember {
@@ -137,13 +93,6 @@ fun WriteProductReviewScreen(
             R.drawable.tshirt_black_streetwear_1793958196938
         )
     }
-
-    val quickChips = listOf(
-        "+ Chất vải dày dặn",
-        "+ Form dáng chuẩn",
-        "+ Giao hàng nhanh",
-        "+ Đóng gói cẩn thận"
-    )
 
     Scaffold(
         modifier = modifier
@@ -160,111 +109,43 @@ fun WriteProductReviewScreen(
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(horizontal = 10.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Quay lại",
-                                tint = TextPrimary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Text(
-                            text = "Product Variant Selection",
-                            fontSize = 17.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Quay lại",
+                            tint = TextPrimary
                         )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { viewModel.showToast("Chia sẻ biểu mẫu đánh giá") }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Share,
-                                contentDescription = "Chia sẻ",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(Color(0xFFBA2211), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Person,
-                                contentDescription = "Tài khoản",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Đánh giá sản phẩm",
+                        fontSize = 17.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
                 }
             }
         },
         bottomBar = {
-            // 8. Sticky Bottom Bar
             Surface(
                 color = SurfaceCard,
                 shadowElevation = 8.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "🪙 Thưởng: ",
-                                fontSize = 13.sp,
-                                color = TextSecondary
-                            )
-                            Text(
-                                text = "+200 Xu B2C",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFBA2211)
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.CheckCircle,
-                                contentDescription = null,
-                                tint = Color(0xFF15803D),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "Đủ điều kiện nhận xu",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF15803D)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     Button(
                         onClick = {
                             viewModel.setInteractiveRating(generalRating)
-                            viewModel.showToast("Cảm ơn bạn đã gửi đánh giá thành công! +200 Xu B2C đã được cộng.")
+                            viewModel.showToast("Cảm ơn bạn đã gửi đánh giá thành công!")
                             onBackClick()
                         },
                         modifier = Modifier
@@ -275,7 +156,7 @@ fun WriteProductReviewScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Filled.Send,
+                                imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = "Gửi",
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
@@ -302,7 +183,7 @@ fun WriteProductReviewScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 2. Thẻ Đơn Hàng Đánh Giá
+            // 1. Thẻ Đơn Hàng Đánh Giá
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -311,54 +192,12 @@ fun WriteProductReviewScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Đánh giá đơn hàng",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .background(Color(0xFFFFF3F0), RoundedCornerShape(4.dp))
-                                        .border(0.6.dp, Color(0xFFFDE8E4), RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "+200 Xu",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFBA2211)
-                                    )
-                                }
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable {
-                                    viewModel.showToast("Quy định tính xu thưởng khi viết đánh giá")
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.HelpOutline,
-                                    contentDescription = null,
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "Hướng dẫn",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Đánh giá đơn hàng",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -439,7 +278,7 @@ fun WriteProductReviewScreen(
                 }
             }
 
-            // 3. Thẻ ĐÁNH GIÁ CHUNG
+            // 2. Thẻ ĐÁNH GIÁ CHUNG
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -521,71 +360,11 @@ fun WriteProductReviewScreen(
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 0.8.dp)
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // 3 Tiêu chí chi tiết
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            CriteriaRatingRow(
-                                title = "Đúng với mô tả",
-                                rating = descriptionRating,
-                                onRatingChange = { descriptionRating = it }
-                            )
-
-                            CriteriaRatingRow(
-                                title = "Chất lượng vải",
-                                rating = fabricRating,
-                                onRatingChange = { fabricRating = it }
-                            )
-
-                            CriteriaRatingRow(
-                                title = "Dịch vụ giao hàng",
-                                rating = shippingRating,
-                                onRatingChange = { shippingRating = it }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Wrap row các Chip gợi ý nhanh
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            quickChips.forEach { chipText ->
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(Color(0xFFF3F4F6))
-                                        .clickable {
-                                            val chipClean = chipText.replace("+ ", "")
-                                            if (!reviewText.contains(chipClean)) {
-                                                reviewText = if (reviewText.isBlank()) chipClean else "$reviewText $chipClean."
-                                            }
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = chipText,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF374151)
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
             }
 
-            // 4. Thẻ NỘI DUNG CHI TIẾT (Nhận xét)
+            // 3. Thẻ NỘI DUNG CHI TIẾT (Nhận xét)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -619,7 +398,7 @@ fun WriteProductReviewScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(110.dp)
+                                .height(120.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFF3F4F6))
                                 .padding(12.dp)
@@ -646,39 +425,11 @@ fun WriteProductReviewScreen(
                                 }
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Banner Thưởng +200 Xu
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFFFF3F0))
-                                .border(0.8.dp, Color(0xFFFDE8E4), RoundedCornerShape(8.dp))
-                                .padding(10.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.CardGiftcard,
-                                    contentDescription = null,
-                                    tint = Color(0xFFBA2211),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Viết đánh giá từ 50 ký tự kèm 1 hình ảnh hoặc video để nhận ngay +200 Xu thưởng.",
-                                    fontSize = 11.5.sp,
-                                    color = Color(0xFFBA2211),
-                                    lineHeight = 16.sp
-                                )
-                            }
-                        }
                     }
                 }
             }
 
-            // 5. Thẻ HÌNH ẢNH & VIDEO THỰC TẾ
+            // 4. Thẻ HÌNH ẢNH THỰC TẾ
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -693,7 +444,7 @@ fun WriteProductReviewScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Hình ảnh & Video thực tế",
+                                text = "Hình ảnh thực tế",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -708,14 +459,14 @@ fun WriteProductReviewScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Hàng các Tile đính kèm media
+                        // Hàng các Tile đính kèm ảnh
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // Tile 1: Thêm ảnh
+                            // Tile: Thêm ảnh
                             Box(
                                 modifier = Modifier
                                     .size(width = 82.dp, height = 82.dp)
@@ -745,40 +496,6 @@ fun WriteProductReviewScreen(
                                         text = "Tối đa 5",
                                         fontSize = 9.5.sp,
                                         color = TextSecondary
-                                    )
-                                }
-                            }
-
-                            // Tile 2: Thêm video
-                            Box(
-                                modifier = Modifier
-                                    .size(width = 82.dp, height = 82.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF3F4F6))
-                                    .clickable {
-                                        viewModel.showToast("Mở camera quay video sản phẩm (+100 Xu)...")
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Videocam,
-                                        contentDescription = null,
-                                        tint = Color(0xFF1D4ED8),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Thêm video",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1D4ED8)
-                                    )
-                                    Text(
-                                        text = "+100 Xu",
-                                        fontSize = 9.5.sp,
-                                        color = Color(0xFF15803D),
-                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -837,133 +554,6 @@ fun WriteProductReviewScreen(
                         }
                     }
                 }
-            }
-
-            // 6. Thẻ ĐÁNH GIÁ ẨN DANH
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE0EDFF)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.VisibilityOff,
-                                    contentDescription = null,
-                                    tint = Color(0xFF1D4ED8),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                Text(
-                                    text = "Đánh giá ẩn danh",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Tên hiển thị dạng n***a để bảo vệ danh tính riêng tư của bạn.",
-                                    fontSize = 11.5.sp,
-                                    color = TextSecondary,
-                                    lineHeight = 16.sp
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Switch(
-                            checked = isAnonymous,
-                            onCheckedChange = { isAnonymous = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFFBA2211)
-                            )
-                        )
-                    }
-                }
-            }
-
-            // 7. Subtext Tiêu chuẩn cộng đồng
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Shield,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "Đánh giá tuân thủ Tiêu chuẩn cộng đồng mua sắm",
-                        fontSize = 11.5.sp,
-                        color = TextSecondary
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CriteriaRatingRow(
-    title: String,
-    rating: Int,
-    onRatingChange: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            fontSize = 13.sp,
-            color = TextPrimary,
-            fontWeight = FontWeight.Medium
-        )
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            for (starIndex in 1..5) {
-                Icon(
-                    imageVector = Icons.Filled.Star,
-                    contentDescription = null,
-                    tint = if (starIndex <= rating) StarRatingGold else Color(0xFFE5E7EB),
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable { onRatingChange(starIndex) }
-                )
             }
         }
     }

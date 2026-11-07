@@ -30,7 +30,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -241,47 +240,6 @@ fun ProductDetailsScreen(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFFD32F2F)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Hàng tag Freeship & Đổi trả
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .background(Color(0xFFE6F7F5), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.FlashOn,
-                                contentDescription = null,
-                                tint = Color(0xFF1E8275),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "Freeship Xtra Toàn Quốc",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E8275)
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .background(Color(0xFFF0F2F5), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = "Đổi trả 60 ngày",
-                                fontSize = 11.sp,
-                                color = Color(0xFF555555)
                             )
                         }
                     }
@@ -709,7 +667,9 @@ fun ProductDetailsScreen(
                         .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.openProductReviewsScreen() },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -742,7 +702,10 @@ fun ProductDetailsScreen(
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = NavySecondary,
-                            modifier = Modifier.clickable { viewModel.openProductReviewsScreen() }
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { viewModel.openProductReviewsScreen() }
+                                .padding(vertical = 4.dp, horizontal = 2.dp)
                         )
                     }
 
@@ -750,7 +713,9 @@ fun ProductDetailsScreen(
 
                     // Thẻ đánh giá mẫu
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.openProductReviewsScreen() },
                         shape = RoundedCornerShape(10.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
                         border = BorderStroke(0.8.dp, BorderDivider)

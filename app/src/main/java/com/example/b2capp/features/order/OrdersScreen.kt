@@ -368,30 +368,11 @@ fun OrdersScreen(
                                     modifier = Modifier
                                         .height(34.dp)
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFF3F4F6))
-                                        .clickable { /* Trả hàng */ }
-                                        .padding(horizontal = 10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "Trả hàng/Hoàn tiền",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF374151)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                Box(
-                                    modifier = Modifier
-                                        .height(34.dp)
-                                        .clip(RoundedCornerShape(6.dp))
                                         .background(Color(0xFFE0EDFF))
                                         .clickable {
-                                            viewModel.selectTab(2) // Chuyển sang Giỏ hàng
+                                            viewModel.openCheckoutScreen()
                                         }
-                                        .padding(horizontal = 12.dp),
+                                        .padding(horizontal = 14.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -402,7 +383,7 @@ fun OrdersScreen(
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
 
                                 Box(
                                     modifier = Modifier
@@ -628,7 +609,7 @@ fun OrdersScreen(
                                         .clip(RoundedCornerShape(6.dp))
                                         .background(Color(0xFFBA2211))
                                         .clickable {
-                                            // Demo thanh toán ngay
+                                            viewModel.openVnpayPayment()
                                         }
                                         .padding(horizontal = 14.dp),
                                     contentAlignment = Alignment.Center
