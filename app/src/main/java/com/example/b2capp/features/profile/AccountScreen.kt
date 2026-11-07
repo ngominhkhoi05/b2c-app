@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
@@ -49,8 +48,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -87,13 +84,12 @@ import com.example.b2capp.core.designsystem.theme.TextSecondary
 
 /**
  * Màn hình Tài Khoản được thiết kế chính xác theo ảnh AccountScreen_89ea980c.png:
- * 1. Top Bar trắng: Tiêu đề "Tài Khoản", chuông thông báo, bánh răng cài đặt, avatar đỏ tròn.
- * 2. Hero Card Navy Blue bo đáy 24.dp: Avatar bo góc kèm nút camera, Nguyễn Văn A + tích xanh,
+ * 1. Hero Card Navy Blue bo đáy 24.dp: Avatar bo góc kèm nút camera, Nguyễn Văn A + tích xanh,
  *    email, huy hiệu Thành viên B2C Buyer, cụm Ví Xu (200 Xu) & Voucher của tôi (5 mã giảm).
- * 3. Card Đơn mua của tôi: Xem lịch sử, 4 trạng thái (Chờ xác nhận, Đang chuẩn bị, Đang giao, Đánh giá) kèm badges.
- * 4. Hai thẻ ngang: Ví B2C Pay (₫1.250.000) & B2C Rewards (1.480 Điểm).
- * 5. Danh sách cài đặt & tiện ích: Địa chỉ, Yêu thích, Tin nhắn với Shop (badge 3), Đổi mật khẩu, Trợ giúp, Ngôn ngữ.
- * 6. Nút ĐĂNG XUẤT nền hồng nhạt, chữ đỏ nổi bật & Thông tin phiên bản ứng dụng.
+ * 2. Card Đơn mua của tôi: Xem lịch sử, 4 trạng thái (Chờ xác nhận, Đang chuẩn bị, Đang giao, Đánh giá) kèm badges.
+ * 3. Hai thẻ ngang: Ví B2C Pay (₫1.250.000) & B2C Rewards (1.480 Điểm).
+ * 4. Danh sách cài đặt & tiện ích: Địa chỉ, Yêu thích, Tin nhắn với Shop (badge 3), Đổi mật khẩu, Trợ giúp, Ngôn ngữ.
+ * 5. Nút ĐĂNG XUẤT nền hồng nhạt, chữ đỏ nổi bật & Thông tin phiên bản ứng dụng.
  */
 @Composable
 fun AccountScreen(
@@ -154,12 +150,6 @@ fun AccountScreen(
             .background(BackgroundApp)
             .testTag("account_screen")
     ) {
-        // 1. Top Bar trắng
-        TopAccountBar(
-            onNotificationsClick = {},
-            onSettingsClick = {}
-        )
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp)
@@ -348,79 +338,6 @@ fun AccountScreen(
 }
 
 /**
- * Top Bar màu trắng với tiêu đề "Tài Khoản" và các icon bên phải
- */
-@Composable
-private fun TopAccountBar(
-    onNotificationsClick: () -> Unit,
-    onSettingsClick: () -> Unit
-) {
-    Surface(
-        color = SurfaceCard,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Tài Khoản",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                IconButton(
-                    onClick = onNotificationsClick,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Notifications,
-                        contentDescription = "Thông báo",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = onSettingsClick,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = "Cài đặt",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                // Avatar tròn đỏ bên góc phải
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(Color(0xFFBA2211), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = "Tài khoản",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
  * Thẻ Profile nền Xanh Navy gradient với các chi tiết cá nhân & Ví Xu
  */
 @Composable
@@ -443,7 +360,7 @@ private fun NavyHeroProfileCard(
                     )
                 )
             )
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 36.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 36.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Hàng nút chuông & cài đặt bên góc phải

@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -38,8 +37,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.RemoveShoppingCart
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -202,8 +201,8 @@ fun CartScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .height(48.dp)
+                    .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -219,7 +218,7 @@ fun CartScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     Text(
                         text = "Shopping Cart",
@@ -237,22 +236,20 @@ fun CartScreen(
                         color = CoralPrimary,
                         modifier = Modifier
                             .clickable { isEditMode = !isEditMode }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color(0xFFBA2211), CircleShape),
-                        contentAlignment = Alignment.Center
+                    IconButton(
+                        onClick = { viewModel.openShopMessages() },
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = "Tài khoản",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Tin nhắn với Shop",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(23.dp)
                         )
                     }
                 }

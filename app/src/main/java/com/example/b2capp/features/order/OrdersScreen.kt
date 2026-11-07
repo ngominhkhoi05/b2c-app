@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -31,11 +30,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingCart
@@ -157,8 +156,8 @@ fun OrdersScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .height(48.dp)
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -174,7 +173,7 @@ fun OrdersScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
 
                         Text(
                             text = "Shopping Cart",
@@ -190,22 +189,20 @@ fun OrdersScreen(
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = CoralPrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                         )
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
 
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(Color(0xFFBA2211), CircleShape),
-                            contentAlignment = Alignment.Center
+                        IconButton(
+                            onClick = { viewModel.openShopMessages() },
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Person,
-                                contentDescription = "Tài khoản",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Outlined.ChatBubbleOutline,
+                                contentDescription = "Tin nhắn với Shop",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(23.dp)
                             )
                         }
                     }
