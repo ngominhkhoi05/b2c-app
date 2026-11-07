@@ -176,35 +176,23 @@ fun OrdersScreen(
                         Spacer(modifier = Modifier.width(4.dp))
 
                         Text(
-                            text = "Shopping Cart",
+                            text = "Đơn hàng của bạn",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Sửa",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CoralPrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                    IconButton(
+                        onClick = { viewModel.openShopMessages() },
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Tin nhắn với Shop",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(23.dp)
                         )
-
-                        Spacer(modifier = Modifier.width(2.dp))
-
-                        IconButton(
-                            onClick = { viewModel.openShopMessages() },
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ChatBubbleOutline,
-                                contentDescription = "Tin nhắn với Shop",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(23.dp)
-                            )
-                        }
                     }
                 }
 

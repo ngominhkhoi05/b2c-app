@@ -221,7 +221,7 @@ fun CartScreen(
                     Spacer(modifier = Modifier.width(4.dp))
 
                     Text(
-                        text = "Shopping Cart",
+                        text = "Giỏ hàng",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
