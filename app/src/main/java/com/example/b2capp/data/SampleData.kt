@@ -15,7 +15,9 @@ object SampleData {
             isFreeShipping = true,
             stock = 50,
             category = "Thời trang",
-            description = "Chất vải cotton cá sấu 4 chiều mềm mịn, co giãn tốt, không xù lông và thấm hút mồ hôi tối ưu. Phù hợp đi làm, đi chơi hay thể thao dạo phố."
+            description = "Chất vải cotton cá sấu 4 chiều mềm mịn, co giãn tốt, không xù lông và thấm hút mồ hôi tối ưu. Phù hợp đi làm, đi chơi hay thể thao dạo phố.",
+            shopName = "Coolmate Official Store",
+            shopLocation = "Hà Nội"
         ),
         ProductItem(
             id = "p2",
@@ -28,7 +30,9 @@ object SampleData {
             isFreeShipping = true,
             stock = 25,
             category = "Giày dép",
-            description = "Thiết kế năng động cá tính, lót êm chân đàn hồi cao, đế đúc chống trượt bám đường cực tốt. Dễ phối trang phục trẻ trung."
+            description = "Thiết kế năng động cá tính, lót êm chân đàn hồi cao, đế đúc chống trượt bám đường cực tốt. Dễ phối trang phục trẻ trung.",
+            shopName = "Biti's Hunter Flagship",
+            shopLocation = "TP. Hồ Chí Minh"
         ),
         ProductItem(
             id = "p3",
@@ -41,7 +45,9 @@ object SampleData {
             isFreeShipping = true,
             stock = 15,
             category = "Điện tử",
-            description = "Công nghệ Bluetooth 5.3 kết nối ổn định, micro lọc âm đàm thoại trong trẻo, thời lượng pin liên tục lên đến 30 tiếng kèm hộp sạc nhanh Type-C."
+            description = "Công nghệ Bluetooth 5.3 kết nối ổn định, micro lọc âm đàm thoại trong trẻo, thời lượng pin liên tục lên đến 30 tiếng kèm hộp sạc nhanh Type-C.",
+            shopName = "Sony Official Store",
+            shopLocation = "Hà Nội"
         ),
         ProductItem(
             id = "p4",
@@ -54,7 +60,9 @@ object SampleData {
             isFreeShipping = true,
             stock = 40,
             category = "Điện tử",
-            description = "Theo dõi sức khỏe toàn diện 24/7, hơn 100 chế độ luyện tập thể thao, nhận thông báo cuộc gọi và tin nhắn tức thì."
+            description = "Theo dõi sức khỏe toàn diện 24/7, hơn 100 chế độ luyện tập thể thao, nhận thông báo cuộc gọi và tin nhắn tức thì.",
+            shopName = "Xiaomi Official Store",
+            shopLocation = "TP. Hồ Chí Minh"
         ),
         ProductItem(
             id = "p5",
@@ -67,7 +75,9 @@ object SampleData {
             isFreeShipping = false,
             stock = 60,
             category = "Phụ kiện",
-            description = "Chất liệu vải Oxford chống thấm trượt nước cao cấp, đệm lưng thoáng khí chống mỏi vai, tích hợp cổng sạc USB tiện dụng."
+            description = "Chất liệu vải Oxford chống thấm trượt nước cao cấp, đệm lưng thoáng khí chống mỏi vai, tích hợp cổng sạc USB tiện dụng.",
+            shopName = "Thời Trang Unisex Studio",
+            shopLocation = "Đà Nẵng"
         ),
         ProductItem(
             id = "p6",
@@ -80,7 +90,9 @@ object SampleData {
             isFreeShipping = true,
             stock = 80,
             category = "Mỹ phẩm",
-            description = "Thành phần lành tính chiết xuất rau má tự nhiên, cấp ẩm tức thì, làm dịu da nhạy cảm và củng cố hàng rào bảo vệ da khỏe mạnh."
+            description = "Thành phần lành tính chiết xuất rau má tự nhiên, cấp ẩm tức thì, làm dịu da nhạy cảm và củng cố hàng rào bảo vệ da khỏe mạnh.",
+            shopName = "Centella Skin Mall",
+            shopLocation = "Hà Nội"
         )
     )
 

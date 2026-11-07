@@ -168,14 +168,13 @@ fun ShopMessagesScreen(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilterPill by remember { mutableStateOf("Tất cả (12)") }
+    var selectedFilterPill by remember { mutableStateOf("Tất cả") }
     var activeChatConversation by remember { mutableStateOf<ShopConversation?>(null) }
 
     val filterPills = listOf(
-        "Tất cả (12)",
-        "Chưa đọc ● (3)",
-        "Official Mall",
-        "Hỗ trợ 24/7"
+        "Tất cả",
+        "Chưa đọc",
+        "Đã đọc"
     )
 
     // Danh sách 6 hội thoại chuẩn theo ảnh
@@ -266,8 +265,8 @@ fun ShopMessagesScreen(
                     conv.lastMessage.contains(searchQuery, ignoreCase = true)
 
             val matchPill = when (selectedFilterPill) {
-                "Chưa đọc ● (3)" -> conv.unreadCount > 0
-                "Official Mall" -> conv.tagText == "Mall"
+                "Chưa đọc" -> conv.unreadCount > 0
+                "Đã đọc" -> conv.unreadCount == 0
                 else -> true
             }
 
@@ -403,43 +402,22 @@ fun ShopMessagesScreen(
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (isSelected) Color(0xFFBA2211) else Color(0xFFF0F2F5))
                                 .clickable { selectedFilterPill = pill }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (pill.contains("●")) {
-                                    Text(
-                                        text = "Chưa đọc ",
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else Color(0xFF4B5563)
-                                    )
+                                Text(
+                                    text = pill,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else Color(0xFF4B5563)
+                                )
+
+                                if (pill == "Chưa đọc" && conversations.any { it.unreadCount > 0 }) {
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     Box(
                                         modifier = Modifier
                                             .size(6.dp)
                                             .background(if (isSelected) Color.White else Color(0xFFBA2211), CircleShape)
-                                    )
-                                    Text(
-                                        text = " (3)",
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else Color(0xFF4B5563)
-                                    )
-                                } else {
-                                    Text(
-                                        text = pill,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else Color(0xFF4B5563)
-                                    )
-                                }
-
-                                if (pill == "Hỗ trợ 24/7") {
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                        tint = if (isSelected) Color.White else Color(0xFF1E8275),
-                                        modifier = Modifier.size(13.dp)
                                     )
                                 }
                             }
@@ -599,27 +577,44 @@ fun ShopMessagesScreen(
                 }
             }
 
-            // 6. Danh sách 6 cuộc trò chuyện dạng Card trắng có Divider mảnh
+            // 6. Danh sách cuộc trò chuyện dạng Card trắng có Divider mảnh
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.8.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        filteredConversations.forEachIndexed { index, conv ->
-                            ShopConversationItemRow(
-                                conversation = conv,
-                                onClick = { viewModel.openShopChat(conv.shopName) }
-                            )
-
-                            if (index < filteredConversations.size - 1) {
-                                HorizontalDivider(
-                                    color = Color(0xFFF3F4F6),
-                                    thickness = 0.8.dp,
-                                    modifier = Modifier.padding(start = 66.dp)
+                if (filteredConversations.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (selectedFilterPill == "Chưa đọc") "Không có tin nhắn chưa đọc"
+                            else if (selectedFilterPill == "Đã đọc") "Không có tin nhắn đã đọc"
+                            else "Không tìm thấy tin nhắn nào",
+                            fontSize = 13.5.sp,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.8.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            filteredConversations.forEachIndexed { index, conv ->
+                                ShopConversationItemRow(
+                                    conversation = conv,
+                                    onClick = { viewModel.openShopChat(conv.shopName) }
                                 )
+
+                                if (index < filteredConversations.size - 1) {
+                                    HorizontalDivider(
+                                        color = Color(0xFFF3F4F6),
+                                        thickness = 0.8.dp,
+                                        modifier = Modifier.padding(start = 66.dp)
+                                    )
+                                }
                             }
                         }
                     }

@@ -1,6 +1,7 @@
 package com.example.b2capp.features.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +20,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -32,21 +36,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.b2capp.core.designsystem.theme.StarRatingGold
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
-import com.example.b2capp.features.home.HomeFlashSaleItem
+import com.example.b2capp.features.home.HomeBestSellerItem
+import java.util.Locale
 
 /**
- * Khối FLASH SALE với đồng hồ đếm ngược và danh sách ngang
+ * Khối SẢN PHẨM BÁN CHẠY với tiêu đề và danh sách ngang các sản phẩm bán chạy
  */
 @Composable
-fun FlashSaleSection(
-    items: List<HomeFlashSaleItem>,
-    onItemClick: (HomeFlashSaleItem) -> Unit,
+fun BestSellingSection(
+    items: List<HomeBestSellerItem>,
+    onItemClick: (HomeBestSellerItem) -> Unit,
     onViewAllClick: () -> Unit
 ) {
     Column(
@@ -54,7 +61,7 @@ fun FlashSaleSection(
             .fillMaxWidth()
             .padding(top = 16.dp, bottom = 4.dp)
     ) {
-        // Hàng tiêu đề Flash Sale
+        // Hàng tiêu đề Sản Phẩm Bán Chạy
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -64,32 +71,25 @@ fun FlashSaleSection(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Outlined.LocalFireDepartment,
+                    imageVector = Icons.Filled.LocalFireDepartment,
                     contentDescription = null,
                     tint = Color(0xFFD32F2F),
                     modifier = Modifier.size(22.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "FLASH SALE",
-                    fontSize = 17.sp,
+                    text = "SẢN PHẨM BÁN CHẠY",
+                    fontSize = 16.5.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFFD32F2F),
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 0.3.sp
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Đồng hồ đếm ngược 02 : 45 : 10
-                TimerBox(value = "02")
-                Text(" : ", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 12.sp)
-                TimerBox(value = "45")
-                Text(" : ", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 12.sp)
-                TimerBox(value = "10")
             }
 
             Text(
                 text = "Xem tất cả >",
                 fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
                 color = TextSecondary,
                 modifier = Modifier.clickable(onClick = onViewAllClick)
             )
@@ -97,14 +97,14 @@ fun FlashSaleSection(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Danh sách thẻ Flash Sale cuộn ngang
+        // Danh sách thẻ Sản phẩm bán chạy cuộn ngang
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(items, key = { it.id }) { item ->
-                FlashSaleCardItem(
+                BestSellerCardItem(
                     item = item,
                     onClick = { onItemClick(item) }
                 )
@@ -113,34 +113,18 @@ fun FlashSaleSection(
     }
 }
 
-@Composable
-fun TimerBox(value: String) {
-    Box(
-        modifier = Modifier
-            .background(Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
-            .padding(horizontal = 5.dp, vertical = 2.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = value,
-            color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
 /**
- * Thẻ sản phẩm Flash Sale
+ * Thẻ sản phẩm bán chạy
+ * Hiển thị đầy đủ: ảnh, tên sản phẩm, giá, số sao, tên shop, nhãn "đang bán chạy"
  */
 @Composable
-fun FlashSaleCardItem(
-    item: HomeFlashSaleItem,
+fun BestSellerCardItem(
+    item: HomeBestSellerItem,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .width(140.dp)
+            .width(160.dp)
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
@@ -148,11 +132,11 @@ fun FlashSaleCardItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Ảnh sản phẩm kèm badge % giảm giá
+            // Ảnh sản phẩm kèm badge giảm giá nếu có
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f)
+                    .height(135.dp)
                     .background(Color(0xFFF7F8FA))
             ) {
                 AsyncImage(
@@ -162,62 +146,165 @@ fun FlashSaleCardItem(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Tag giảm giá góc trên phải
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .background(Color(0xFFD32F2F), RoundedCornerShape(bottomStart = 6.dp))
-                        .padding(horizontal = 5.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "-${item.discountPercent}%",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
+                if (item.discountPercent > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .background(Color(0xFFD32F2F), RoundedCornerShape(bottomStart = 6.dp))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "-${item.discountPercent}%",
+                            color = Color.White,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
             }
 
+            // Phần thông tin sản phẩm
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp)
             ) {
+                // Nhãn "Đang bán chạy"
+                Row(
+                    modifier = Modifier
+                        .background(Color(0xFFFFECE8), RoundedCornerShape(4.dp))
+                        .border(0.6.dp, Color(0xFFD32F2F).copy(alpha = 0.35f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = Color(0xFFD32F2F),
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "Đang bán chạy",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD32F2F)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                // Tên sản phẩm
+                Text(
+                    text = item.name,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                // Tên shop (hàng 1)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Storefront,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = item.shopName,
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // Địa chỉ shop (hàng 2 - xuống hàng)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.LocationOn,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = item.shopLocation,
+                        fontSize = 10.5.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Số sao & Đã bán (căn lề hai đầu: sao bên trái, đã bán sát phải)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = StarRatingGold,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = String.format(Locale.US, "%.1f", item.rating),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+
+                    Text(
+                        text = item.soldCountText,
+                        fontSize = 10.5.sp,
+                        color = TextSecondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                // Giá sản phẩm (chỉ hiển thị 1 giá bán duy nhất)
                 Text(
                     text = item.formattedPrice,
-                    fontSize = 15.sp,
+                    fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFD32F2F)
                 )
-
-                Text(
-                    text = item.formattedOriginalPrice,
-                    fontSize = 11.sp,
-                    color = TextSecondary,
-                    textDecoration = TextDecoration.LineThrough
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Thanh tiến độ bán "ĐÃ BÁN 80%" hoặc "ĐANG BÁN CHẠY"
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(16.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFD32F2F)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = item.progressText,
-                        color = Color.White,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.2.sp
-                    )
-                }
             }
         }
     }
 }
 
+/**
+ * Tương thích ngược với tên gọi cũ FlashSaleSection
+ */
+@Composable
+fun FlashSaleSection(
+    items: List<HomeBestSellerItem>,
+    onItemClick: (HomeBestSellerItem) -> Unit,
+    onViewAllClick: () -> Unit
+) {
+    BestSellingSection(items, onItemClick, onViewAllClick)
+}

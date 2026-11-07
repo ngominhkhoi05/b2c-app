@@ -269,21 +269,6 @@ fun CartScreen(
 
                             Spacer(modifier = Modifier.width(10.dp))
 
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFB82414), RoundedCornerShape(3.dp))
-                                    .padding(horizontal = 5.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "MALL",
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(6.dp))
-
                             Icon(
                                 imageVector = Icons.Filled.Storefront,
                                 contentDescription = null,
@@ -397,21 +382,6 @@ fun CartScreen(
                             )
 
                             Spacer(modifier = Modifier.width(10.dp))
-
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFF28537D), RoundedCornerShape(3.dp))
-                                    .padding(horizontal = 5.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "MALL",
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(6.dp))
 
                             Icon(
                                 imageVector = Icons.Filled.Storefront,

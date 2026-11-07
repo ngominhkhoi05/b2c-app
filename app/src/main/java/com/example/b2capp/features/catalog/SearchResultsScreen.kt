@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.catalog
+package com.example.b2capp.features.catalog
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -656,7 +656,9 @@ fun SearchResultsScreen(
                                     originalPrice = product.originalPrice,
                                     rating = product.rating,
                                     soldCount = 3400,
-                                    isFreeShipping = product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA
+                                    isFreeShipping = product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA,
+                                    shopName = if (product.topBadgeText == "MALL") "Coolmate Official Store" else "Thời Trang Unisex",
+                                    shopLocation = product.location
                                 )
                             }
                             ProductCard(

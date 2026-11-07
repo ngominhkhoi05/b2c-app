@@ -278,7 +278,7 @@ fun WriteProductReviewScreen(
                 }
             }
 
-            // 2. Thẻ ĐÁNH GIÁ CHUNG
+            // 2. Thẻ Đánh giá chất lượng
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -290,16 +290,6 @@ fun WriteProductReviewScreen(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "ĐÁNH GIÁ CHUNG",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextSecondary,
-                            letterSpacing = 0.5.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
                         Text(
                             text = "Chất lượng sản phẩm thế nào?",
                             fontSize = 16.sp,

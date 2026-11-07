@@ -18,7 +18,8 @@ data class ProductItem(
     val stock: Int = 99,
     val category: String = "Thời trang",
     val description: String = "",
-    val shopName: String = "Coolmate Official Store"
+    val shopName: String = "Coolmate Official Store",
+    val shopLocation: String = "Hà Nội"
 ) {
     val formattedPrice: String
         get() {

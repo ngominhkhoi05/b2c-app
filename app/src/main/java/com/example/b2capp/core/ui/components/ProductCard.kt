@@ -22,7 +22,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -279,17 +281,60 @@ fun ProductCard(
                         )
                     }
 
-                    if (locationText != null) {
-                        Text(
-                            text = locationText,
-                            fontSize = 11.sp,
-                            color = TextSecondary
+                    Text(
+                        text = product.formattedSoldCount,
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Tên Shop & Địa chỉ Shop
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Tên shop
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Storefront,
+                            contentDescription = null,
+                            tint = TextSecondary,
+                            modifier = Modifier.size(12.dp)
                         )
-                    } else {
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = product.formattedSoldCount,
-                            fontSize = 11.sp,
-                            color = TextSecondary
+                            text = product.shopName,
+                            fontSize = 10.5.sp,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // Địa chỉ shop
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.LocationOn,
+                            contentDescription = null,
+                            tint = TextSecondary,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = locationText ?: product.shopLocation,
+                            fontSize = 10.5.sp,
+                            color = TextSecondary,
+                            maxLines = 1
                         )
                     }
                 }
