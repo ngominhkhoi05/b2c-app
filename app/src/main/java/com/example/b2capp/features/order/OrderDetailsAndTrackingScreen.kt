@@ -37,13 +37,10 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.ConfirmationNumber
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.Card
@@ -156,59 +153,27 @@ fun OrderDetailsAndTrackingScreen(
                     .fillMaxWidth()
                     .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Quay lại",
-                            tint = TextPrimary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Text(
-                        text = "Shopping Cart",
-                        fontSize = 17.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF111827)
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Quay lại",
+                        tint = TextPrimary
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Sửa",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFB82414),
-                        modifier = Modifier
-                            .clickable { viewModel.showToast("Chế độ chỉnh sửa thông tin đơn hàng") }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                Spacer(modifier = Modifier.width(4.dp))
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFB82414)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Tài khoản",
-                            tint = Color.White,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = "Chi tiết đơn hàng",
+                    fontSize = 17.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF111827)
+                )
             }
         }
 
@@ -786,27 +751,6 @@ fun OrderDetailsAndTrackingScreen(
                         PaymentDetailLine(label = "Tổng tiền hàng", value = "₫398.000")
                         Spacer(modifier = Modifier.height(6.dp))
                         PaymentDetailLine(label = "Phí vận chuyển", value = "₫30.000")
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PaymentDetailLine(
-                            icon = Icons.Default.LocalShipping,
-                            label = "Giảm giá phí vận chuyển",
-                            value = "-₫30.000",
-                            valueColor = Color(0xFF00897B)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PaymentDetailLine(
-                            icon = Icons.Outlined.ConfirmationNumber,
-                            label = "Voucher đơn hàng (GIAM10)",
-                            value = "-₫39.800",
-                            valueColor = Color(0xFF00897B)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PaymentDetailLine(
-                            icon = Icons.Default.Redeem,
-                            label = "Dùng 200 Xu B2C",
-                            value = "-₫200",
-                            valueColor = Color(0xFF00897B)
-                        )
 
                         Spacer(modifier = Modifier.height(12.dp))
                         HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
@@ -833,7 +777,7 @@ fun OrderDetailsAndTrackingScreen(
                             }
 
                             Text(
-                                text = "₫388.200",
+                                text = "₫428.000",
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.Black,
                                 color = CoralPrimary

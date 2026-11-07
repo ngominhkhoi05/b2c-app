@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.product
+package com.example.b2capp.features.product
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -23,10 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.ShoppingBag
-import androidx.compose.material.icons.outlined.Straighten
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,7 +34,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -117,7 +112,6 @@ fun ProductVariantBottomSheet(
     var selectedColor by remember { mutableStateOf(initialColor) }
     var selectedSize by remember { mutableStateOf(initialSize) }
     var quantity by remember { mutableIntStateOf(initialQuantity.coerceAtLeast(1)) }
-    var showSizeGuideDialog by remember { mutableStateOf(false) }
 
     val unitPrice = 199000L
     val originalPrice = 350000L
@@ -427,48 +421,20 @@ fun ProductVariantBottomSheet(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 3. Chọn Kích cỡ (4)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Kích cỡ (4)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = selectedSize,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD32F2F)
-                    )
-                }
-
-                // Link mở Bảng quy đổi kích cỡ
-                Row(
-                    modifier = Modifier
-                        .clickable { showSizeGuideDialog = true }
-                        .padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Straighten,
-                        contentDescription = null,
-                        tint = Color(0xFF1E5B94),
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = "Bảng quy đổi kích cỡ >",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF1E5B94)
-                    )
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Kích cỡ (4)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = selectedSize,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFD32F2F)
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -591,46 +557,9 @@ fun ProductVariantBottomSheet(
             Spacer(modifier = Modifier.height(14.dp))
 
             // 5. Khung cam kết bảo vệ người mua
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFEBF3FA))
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-            ) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(
-                        imageVector = Icons.Filled.Verified,
-                        contentDescription = null,
-                        tint = Color(0xFF1E5B94),
-                        modifier = Modifier
-                            .size(17.dp)
-                            .padding(top = 1.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Column {
-                        Text(
-                            text = "Miễn phí trả hàng trong 15 ngày",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E5B94)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Đảm bảo hàng chính hãng 100% • Đổi size tận nơi",
-                            fontSize = 11.sp,
-                            color = Color(0xFF2D6BA0)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
 
-            // 6. Chân trang Sticky: Tạm tính & Nút XÁC NHẬN
+            // 5. Chân trang Sticky: Tạm tính & Nút XÁC NHẬN
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -665,7 +594,6 @@ fun ProductVariantBottomSheet(
                         .height(48.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFBA2211))
-                        .shadow(elevation = 4.dp, shape = RoundedCornerShape(8.dp))
                         .clickable {
                             onConfirm(selectedColor, selectedSize, quantity, mode)
                         }
@@ -694,104 +622,5 @@ fun ProductVariantBottomSheet(
                 }
             }
         }
-    }
-
-    // Dialog Bảng quy đổi kích cỡ tiện ích
-    if (showSizeGuideDialog) {
-        AlertDialog(
-            onDismissRequest = { showSizeGuideDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.Straighten,
-                        contentDescription = null,
-                        tint = NavySecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Bảng quy đổi kích cỡ",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = NavySecondary
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Gợi ý chọn size áo nam chuẩn dáng người Việt:",
-                        fontSize = 12.5.sp,
-                        color = TextSecondary
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    SizeGuideRow(size = "Size S", weight = "45 - 53 kg", height = "1m55 - 1m65")
-                    SizeGuideRow(size = "Size M", weight = "54 - 62 kg", height = "1m65 - 1m70", isHighlighted = true)
-                    SizeGuideRow(size = "Size L", weight = "63 - 70 kg", height = "1m70 - 1m75")
-                    SizeGuideRow(size = "Size XL", weight = "71 - 80 kg", height = "1m75 - 1m82")
-                    SizeGuideRow(size = "Size 2XL", weight = "81 - 90 kg", height = "1m78 - 1m88")
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "• Hỗ trợ đổi size miễn phí tận nhà trong vòng 15 ngày.",
-                        fontSize = 11.sp,
-                        color = Color(0xFF26AA99)
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showSizeGuideDialog = false }) {
-                    Text("Đã hiểu", color = CoralPrimary, fontWeight = FontWeight.Bold)
-                }
-            },
-            containerColor = SurfaceCard,
-            shape = RoundedCornerShape(12.dp)
-        )
-    }
-}
-
-@Composable
-private fun SizeGuideRow(
-    size: String,
-    weight: String,
-    height: String,
-    isHighlighted: Boolean = false
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (isHighlighted) Color(0xFFFFF1EE) else Color(0xFFF9FAFB))
-            .border(
-                width = 0.8.dp,
-                color = if (isHighlighted) Color(0xFFEE4D2D) else Color(0xFFE5E7EB),
-                shape = RoundedCornerShape(6.dp)
-            )
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = size,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isHighlighted) Color(0xFFD32F2F) else TextPrimary,
-            modifier = Modifier.width(60.dp)
-        )
-        Text(
-            text = weight,
-            fontSize = 12.sp,
-            color = TextPrimary
-        )
-        Text(
-            text = height,
-            fontSize = 12.sp,
-            color = TextSecondary
-        )
     }
 }

@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.product
+package com.example.b2capp.features.product
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -28,22 +28,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.ShoppingCart
-import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -119,7 +114,6 @@ fun ProductDetailsScreen(
     var selectedColor by remember { mutableStateOf("Đen Huyền Bí") }
     var selectedSize by remember { mutableStateOf("M") }
     var isFavorite by remember { mutableStateOf(true) }
-    var isBookmarked by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var showVariantSheet by remember { mutableStateOf(false) }
     var variantSheetMode by remember { mutableStateOf(VariantSheetMode.ADD_TO_CART) }
@@ -164,42 +158,18 @@ fun ProductDetailsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Góc trái: Nút Back + Tag MALL CHÍNH HÃNG
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            TranslucentIconButton(
-                                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Quay lại",
-                                onClick = onBackClick
-                            )
+                        // Góc trái: Nút Back
+                        TranslucentIconButton(
+                            icon = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Quay lại",
+                            onClick = onBackClick
+                        )
 
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFB82414), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = "MALL CHÍNH HÃNG",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-                        }
-
-                        // Góc phải: Nút Share, Nút Tim, Nút Giỏ hàng
+                        // Góc phải: Nút Tim, Nút Túi xách mở Wishlist
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            TranslucentIconButton(
-                                icon = Icons.Outlined.Share,
-                                contentDescription = "Chia sẻ",
-                                onClick = {}
-                            )
-
                             TranslucentIconButton(
                                 icon = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                                 contentDescription = "Yêu thích",
@@ -207,33 +177,12 @@ fun ProductDetailsScreen(
                                 onClick = { isFavorite = !isFavorite }
                             )
 
-                            // Nút giỏ hàng có badge đỏ số 3
-                            Box(contentAlignment = Alignment.TopEnd) {
-                                TranslucentIconButton(
-                                    icon = Icons.Outlined.ShoppingBag,
-                                    contentDescription = "Giỏ hàng",
-                                    onClick = onNavigateToCart
-                                )
-
-                                if (uiState.totalCartCount > 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .offset(x = 4.dp, y = (-4).dp)
-                                            .size(17.dp)
-                                            .background(Color(0xFFD32F2F), CircleShape)
-                                            .border(1.dp, Color.White, CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = if (uiState.totalCartCount > 99) "99+" else uiState.totalCartCount.toString(),
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            lineHeight = 10.sp
-                                        )
-                                    }
-                                }
-                            }
+                            // Nút túi xách mở trang sản phẩm yêu thích (Wishlist)
+                            TranslucentIconButton(
+                                icon = Icons.Outlined.ShoppingBag,
+                                contentDescription = "Sản phẩm yêu thích",
+                                onClick = { viewModel.openWishlist() }
+                            )
                         }
                     }
 
@@ -407,16 +356,6 @@ fun ProductDetailsScreen(
                                 color = TextSecondary
                             )
                         }
-
-                        // Bookmark lưu
-                        Icon(
-                            imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = "Lưu sản phẩm",
-                            tint = if (isBookmarked) CoralPrimary else TextSecondary,
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clickable { isBookmarked = !isBookmarked }
-                        )
                     }
                 }
             }
@@ -592,11 +531,11 @@ fun ProductDetailsScreen(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         // Logo Coolmate + Tên Shop + Trạng thái hoạt động
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.Top) {
                             Box(
                                 modifier = Modifier
                                     .size(46.dp)
@@ -638,7 +577,7 @@ fun ProductDetailsScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(3.dp))
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
@@ -656,58 +595,30 @@ fun ProductDetailsScreen(
                             }
                         }
 
-                        // 2 Nút Chat & Xem Shop
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .height(32.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .border(1.dp, Color(0xFFD32F2F), RoundedCornerShape(6.dp))
-                                    .clickable { viewModel.openShopChat(product.shopName, product) }
-                                    .padding(horizontal = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.ChatBubbleOutline,
-                                        contentDescription = null,
-                                        tint = Color(0xFFD32F2F),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Chat",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFD32F2F)
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .height(32.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .border(1.dp, NavySecondary, RoundedCornerShape(6.dp))
-                                    .clickable { /* Xem Shop */ }
-                                    .padding(horizontal = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Storefront,
-                                        contentDescription = null,
-                                        tint = NavySecondary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Xem Shop",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = NavySecondary
-                                    )
-                                }
+                        // Nút Chat (đứng cùng hàng với tên shop, bám sát lên trên)
+                        Box(
+                            modifier = Modifier
+                                .height(28.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFFD32F2F), RoundedCornerShape(6.dp))
+                                .clickable { viewModel.openShopChat(product.shopName, product) }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD32F2F),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Chat",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFD32F2F)
+                                )
                             }
                         }
                     }
@@ -741,33 +652,7 @@ fun ProductDetailsScreen(
                 HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
             }
 
-            // 6. Chi tiết sản phẩm (Thông số kỹ thuật)
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                ) {
-                    Text(
-                        text = "Chi tiết sản phẩm",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    SpecRow(label = "Chất liệu", value = "100% Cotton Compact 4 chiều mềm mịn")
-                    SpecRow(label = "Xuất xứ", value = "Việt Nam (Tự hào sản xuất)")
-                    SpecRow(label = "Kiểu dáng", value = "Regular Fit chuẩn dáng nam giới")
-                    SpecRow(label = "Họa tiết", value = "Trơn Basic tối giản thanh lịch")
-                    SpecRow(label = "Gửi hàng từ", value = "Kho Quận Thanh Xuân, Hà Nội")
-                }
-
-                HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
-            }
-
-            // 7. Mô tả sản phẩm
+            // 6. Mô tả sản phẩm
             item {
                 Column(
                     modifier = Modifier
@@ -954,27 +839,10 @@ fun ProductDetailsScreen(
                         }
                     }
                 }
-
-                HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
-            }
-
-            // 9. Cam kết an tâm mua sắm (100% Chính Hãng, Giao Nhanh 2h, Đổi Trả 60 Ngày)
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AssuranceItem(text = "100% Chính Hãng")
-                    AssuranceItem(text = "Giao Nhanh 2h")
-                    AssuranceItem(text = "Đổi Trả 60 Ngày")
-                }
             }
         }
 
-        // 10. Sticky Bottom Action Bar (Chat, Giỏ hàng, Thêm vào giỏ, Mua ngay)
+        // 8. Sticky Bottom Action Bar (Chat, Giỏ hàng, Thêm vào giỏ, Mua ngay)
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1012,7 +880,7 @@ fun ProductDetailsScreen(
                     )
                 }
 
-                // Nút Giỏ hàng
+                // Nút Giỏ hàng (không hiển thị số lượng)
                 Column(
                     modifier = Modifier
                         .width(52.dp)
@@ -1020,30 +888,12 @@ fun ProductDetailsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Box(contentAlignment = Alignment.TopEnd) {
-                        Icon(
-                            imageVector = Icons.Outlined.ShoppingCart,
-                            contentDescription = "Giỏ hàng",
-                            tint = TextSecondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        if (uiState.totalCartCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .offset(x = 6.dp, y = (-4).dp)
-                                    .size(15.dp)
-                                    .background(Color(0xFFD32F2F), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (uiState.totalCartCount > 99) "99+" else uiState.totalCartCount.toString(),
-                                    color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Outlined.ShoppingCart,
+                        contentDescription = "Giỏ hàng",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
                     Text(
                         text = "Giỏ hàng",
                         fontSize = 10.sp,

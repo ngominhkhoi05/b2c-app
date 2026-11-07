@@ -126,45 +126,6 @@ fun B2CMainApp(
         return
     }
 
-    // Khi người dùng bấm vào 1 sản phẩm -> Mở toàn màn hình Chi tiết sản phẩm
-    if (uiState.detailedProductScreen != null) {
-        BackHandler {
-            viewModel.closeProductDetailsScreen()
-        }
-        ProductDetailsScreen(
-            product = uiState.detailedProductScreen!!,
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeProductDetailsScreen() },
-            onNavigateToCart = {
-                viewModel.closeProductDetailsScreen()
-                viewModel.selectTab(2)
-            }
-        )
-        return
-    }
-
-    // Khi người dùng tìm kiếm từ khóa -> Mở màn hình Kết quả tìm kiếm
-    if (uiState.searchResultQuery != null) {
-        BackHandler {
-            viewModel.closeSearchResults()
-        }
-        SearchResultsScreen(
-            query = uiState.searchResultQuery!!,
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeSearchResults() },
-            onNavigateToCart = {
-                viewModel.closeSearchResults()
-                viewModel.selectTab(2)
-            },
-            onProductClick = { product ->
-                viewModel.openProductDetailsScreen(product)
-            }
-        )
-        return
-    }
-
     // Khi người dùng mở cuộc trò chuyện trực tiếp với Shop (ShopChatScreen)
     if (uiState.activeShopChat != null) {
         BackHandler {
@@ -188,6 +149,37 @@ fun B2CMainApp(
             uiState = uiState,
             viewModel = viewModel,
             onBackClick = { viewModel.closeShopMessages() }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Danh Sách Yêu Thích (WishlistScreen)
+    if (uiState.showWishlistScreen) {
+        BackHandler {
+            viewModel.closeWishlist()
+        }
+        WishlistScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeWishlist() }
+        )
+        return
+    }
+
+    // Khi người dùng bấm vào 1 sản phẩm -> Mở toàn màn hình Chi tiết sản phẩm
+    if (uiState.detailedProductScreen != null) {
+        BackHandler {
+            viewModel.closeProductDetailsScreen()
+        }
+        ProductDetailsScreen(
+            product = uiState.detailedProductScreen!!,
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeProductDetailsScreen() },
+            onNavigateToCart = {
+                viewModel.closeProductDetailsScreen()
+                viewModel.selectTab(2)
+            }
         )
         return
     }
@@ -281,19 +273,6 @@ fun B2CMainApp(
             uiState = uiState,
             viewModel = viewModel,
             onBackClick = { viewModel.closeAddressBook() }
-        )
-        return
-    }
-
-    // Khi người dùng mở màn hình Danh Sách Yêu Thích (WishlistScreen)
-    if (uiState.showWishlistScreen) {
-        BackHandler {
-            viewModel.closeWishlist()
-        }
-        WishlistScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeWishlist() }
         )
         return
     }
