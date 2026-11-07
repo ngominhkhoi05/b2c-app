@@ -503,23 +503,17 @@ fun HomeScreen(
                                     price = product.price,
                                     rating = product.rating,
                                     soldCount = 1800,
-                                    isFreeShipping = product.badgeType == HomeBadgeType.FREESHIP_XTRA,
+                                    isFreeShipping = false,
                                     description = product.description,
                                     shopName = product.shopName,
                                     shopLocation = product.shopLocation
                                 )
-                            }
-                            val (bColor, bText) = when (product.badgeType) {
-                                HomeBadgeType.FREESHIP_XTRA -> Pair(FreeShippingAccent, "Freeship Xtra")
-                                HomeBadgeType.YEU_THICH -> Pair(CoralPrimary, "Yêu thích")
                             }
                             ProductCard(
                                 product = productItem,
                                 onClick = {
                                     viewModel.openProductDetailsScreen(productItem)
                                 },
-                                badgeText = bText,
-                                badgeColor = bColor,
                                 modifier = Modifier.weight(1f)
                             )
                         }

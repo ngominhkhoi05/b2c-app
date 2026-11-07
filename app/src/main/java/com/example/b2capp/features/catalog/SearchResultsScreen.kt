@@ -183,9 +183,9 @@ fun SearchResultsScreen(
                 rating = 4.8f,
                 reviewCountText = "8.9k",
                 location = "Hà Nội",
-                topBadgeText = "Yêu thích+",
-                topBadgeBg = Color(0xFF28537D),
-                featureBadgeText = "Freeship Xtra",
+                topBadgeText = "",
+                topBadgeBg = Color.Transparent,
+                featureBadgeText = "",
                 featureBadgeType = SearchBadgeType.FREESHIP_XTRA
             ),
             SearchProductResultItem(
@@ -228,8 +228,8 @@ fun SearchResultsScreen(
                 rating = 4.7f,
                 reviewCountText = "620",
                 location = "TP. HCM",
-                topBadgeText = "Yêu thích",
-                topBadgeBg = Color(0xFF28537D),
+                topBadgeText = "",
+                topBadgeBg = Color.Transparent,
                 featureBadgeText = "Hàng mới",
                 featureBadgeType = SearchBadgeType.HANG_MOI
             ),

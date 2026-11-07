@@ -132,7 +132,7 @@ fun WishlistScreen(
                 price = 450000L,
                 originalPrice = 690000L,
                 discountPercent = "-35%",
-                badgeText = "Freeship Xtra",
+                badgeText = null,
                 rating = 4.9f,
                 soldCount = "2.1k",
                 imageRes = R.drawable.product_white_tshirt_1793955938236
@@ -155,7 +155,7 @@ fun WishlistScreen(
                 price = 590000L,
                 originalPrice = 890000L,
                 discountPercent = "Flash Sale",
-                badgeText = "Freeship Xtra",
+                badgeText = null,
                 rating = 5.0f,
                 soldCount = "3.4k",
                 imageRes = R.drawable.anker_gan_charger_1793957714558

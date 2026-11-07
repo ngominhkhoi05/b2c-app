@@ -149,8 +149,12 @@ fun ProductCard(
                     )
                 }
 
-                // Huy hiệu góc trên trái: Badge tuỳ biến hoặc Freeship / Yêu thích / Mall
-                if (badgeText != null) {
+                // Huy hiệu góc trên trái: Loại bỏ hoàn toàn nhãn "Freeship Xtra" và nhãn "Yêu thích"
+                val shouldShowBadge = badgeText != null &&
+                        !badgeText.equals("Freeship Xtra", ignoreCase = true) &&
+                        !badgeText.startsWith("Yêu thích", ignoreCase = true)
+
+                if (shouldShowBadge && badgeText != null) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopStart)
@@ -167,12 +171,6 @@ fun ProductCard(
                             color = Color.White
                         )
                     }
-                } else if (product.isFreeShipping) {
-                    FreeShippingBadge(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(6.dp)
-                    )
                 }
 
                 // Góc trên phải: Nút Wishlist HOẶC Tag giảm giá

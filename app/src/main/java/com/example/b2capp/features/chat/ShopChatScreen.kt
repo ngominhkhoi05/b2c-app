@@ -439,12 +439,6 @@ fun ShopChatScreen(
                 // Cột thông tin sản phẩm
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "FREESHIP XTRA",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF00897B)
-                    )
-                    Text(
                         text = "Áo Thun Cott...",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,

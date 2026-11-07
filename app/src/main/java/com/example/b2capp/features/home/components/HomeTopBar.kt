@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Icon
@@ -43,7 +42,7 @@ import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
 
 /**
- * Top Bar màu trắng với ô tìm kiếm bo tròn nhẹ và icon Camera, Chat, Giỏ hàng
+ * Top Bar màu trắng với ô tìm kiếm bo tròn nhẹ và icon Tìm kiếm, Chat, Giỏ hàng
  */
 @Composable
 fun HomeTopBar(
@@ -70,20 +69,9 @@ fun HomeTopBar(
                     .weight(1f)
                     .height(40.dp)
                     .background(color = Color(0xFFF0F2F5), shape = RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp),
+                    .padding(start = 12.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Tìm kiếm",
-                    tint = TextSecondary,
-                    modifier = Modifier
-                        .size(19.dp)
-                        .clickable { onSearchSubmit(searchQuery) }
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
                 Box(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.CenterStart
@@ -117,14 +105,16 @@ fun HomeTopBar(
                     )
                 }
 
-                // Icon máy ảnh chụp tìm kiếm
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // Icon tìm kiếm bên phải (nhấn để tìm kiếm)
                 Icon(
-                    imageVector = Icons.Outlined.PhotoCamera,
-                    contentDescription = "Tìm kiếm ảnh",
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = "Tìm kiếm",
                     tint = TextSecondary,
                     modifier = Modifier
                         .size(20.dp)
-                        .clickable { /* Mở camera */ }
+                        .clickable { onSearchSubmit(searchQuery) }
                 )
             }
 

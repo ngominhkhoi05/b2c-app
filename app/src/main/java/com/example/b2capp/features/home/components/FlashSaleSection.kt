@@ -132,7 +132,7 @@ fun BestSellerCardItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Ảnh sản phẩm kèm badge giảm giá nếu có
+            // Ảnh sản phẩm
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -145,22 +145,6 @@ fun BestSellerCardItem(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-
-                if (item.discountPercent > 0) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .background(Color(0xFFD32F2F), RoundedCornerShape(bottomStart = 6.dp))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "-${item.discountPercent}%",
-                            color = Color.White,
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
-                }
             }
 
             // Phần thông tin sản phẩm
@@ -169,42 +153,19 @@ fun BestSellerCardItem(
                     .fillMaxWidth()
                     .padding(8.dp)
             ) {
-                // Nhãn "Đang bán chạy"
-                Row(
-                    modifier = Modifier
-                        .background(Color(0xFFFFECE8), RoundedCornerShape(4.dp))
-                        .border(0.6.dp, Color(0xFFD32F2F).copy(alpha = 0.35f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 5.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.LocalFireDepartment,
-                        contentDescription = null,
-                        tint = Color(0xFFD32F2F),
-                        modifier = Modifier.size(11.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = "Đang bán chạy",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD32F2F)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(5.dp))
-
-                // Tên sản phẩm
+                // Tên sản phẩm hiển thị chuẩn 2 hàng, nếu quá dài thì có dấu "..." ở cuối
                 Text(
                     text = item.name,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 17.sp
                 )
 
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // Tên shop (hàng 1)
                 Row(

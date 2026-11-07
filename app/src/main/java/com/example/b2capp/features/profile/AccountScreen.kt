@@ -25,12 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Inventory2
@@ -41,7 +38,6 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.RateReview
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Storefront
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -81,13 +77,12 @@ import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
 
 /**
- * Màn hình Tài Khoản được thiết kế chính xác theo ảnh AccountScreen_89ea980c.png:
- * 1. Hero Card Navy Blue bo đáy 24.dp: Avatar bo góc kèm nút camera, Nguyễn Văn A + tích xanh,
- *    email, huy hiệu Thành viên B2C Buyer, cụm Ví Xu (200 Xu) & Voucher của tôi (5 mã giảm).
+ * Màn hình Tài Khoản:
+ * 1. Hero Card Navy Blue bo đáy 24.dp: Avatar bo góc, Nguyễn Văn A + tích xanh,
+ *    email, huy hiệu Thành viên B2C Buyer, cụm Ví Xu & Voucher của tôi.
  * 2. Card Đơn mua của tôi: Xem lịch sử, 4 trạng thái (Chờ xác nhận, Đang chuẩn bị, Đang giao, Đánh giá) kèm badges.
- * 3. Hai thẻ ngang: Ví B2C Pay (₫1.250.000) & B2C Rewards (1.480 Điểm).
- * 4. Danh sách cài đặt & tiện ích: Địa chỉ, Yêu thích, Tin nhắn với Shop (badge 3), Đổi mật khẩu, Trợ giúp, Ngôn ngữ.
- * 5. Nút ĐĂNG XUẤT nền hồng nhạt, chữ đỏ nổi bật & Thông tin phiên bản ứng dụng.
+ * 3. Danh sách cài đặt & tiện ích: Địa chỉ, Yêu thích, Tin nhắn với Shop, Đổi mật khẩu, Trợ giúp.
+ * 4. Nút ĐĂNG XUẤT nền hồng nhạt, chữ đỏ nổi bật.
  */
 @Composable
 fun AccountScreen(
@@ -155,7 +150,7 @@ fun AccountScreen(
             // 2. Hero Profile Card màu Xanh Navy bo góc đáy 24.dp
             item {
                 NavyHeroProfileCard(
-                    onCameraClick = { viewModel.openEditProfile() },
+                    onAvatarClick = { viewModel.openEditProfile() },
                     onMembershipClick = { showUiKitDialog = true }
                 )
             }
@@ -175,28 +170,7 @@ fun AccountScreen(
                 }
             }
 
-            // 4. Hàng 2 Card: Ví B2C Pay & B2C Rewards
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .offset(y = (-6).dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    B2CPayCard(
-                        balance = "₫1.250.000",
-                        modifier = Modifier.weight(1f)
-                    )
-                    B2CRewardsCard(
-                        points = "1.480",
-                        rank = "Hạng Bạch Kim",
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // 5. Card Danh sách Menu cài đặt & Tiện ích
+            // 4. Card Danh sách Menu cài đặt & Tiện ích
             item {
                 Card(
                     modifier = Modifier
@@ -272,22 +246,11 @@ fun AccountScreen(
                             subtitle = "Câu hỏi thường gặp & Điều khoản",
                             onClick = {}
                         )
-
-                        HorizontalDivider(color = BorderDivider.copy(alpha = 0.5f), thickness = 0.8.dp)
-
-                        MenuListItem(
-                            icon = Icons.Outlined.Tune,
-                            iconTint = Color(0xFF555555),
-                            iconBg = Color(0xFFF0F1F3),
-                            title = "Cài đặt thông báo & Ngôn ngữ",
-                            subtitle = "Tiếng Việt (Mặc định)",
-                            onClick = { showUiKitDialog = true }
-                        )
                     }
                 }
             }
 
-            // 6. Nút ĐĂNG XUẤT và Phiên bản ứng dụng
+            // 5. Nút ĐĂNG XUẤT
             item {
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -327,18 +290,6 @@ fun AccountScreen(
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = "Phiên bản ứng dụng 2.4.0 (Build 202611)",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                )
             }
         }
     }
@@ -349,7 +300,7 @@ fun AccountScreen(
  */
 @Composable
 private fun NavyHeroProfileCard(
-    onCameraClick: () -> Unit,
+    onAvatarClick: () -> Unit = {},
     onMembershipClick: () -> Unit
 ) {
     Box(
@@ -373,42 +324,21 @@ private fun NavyHeroProfileCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Khung Avatar bo góc kèm nút camera
+                // Khung Avatar bo góc
                 Box(
-                    modifier = Modifier.size(76.dp)
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(2.dp, Color.White, RoundedCornerShape(14.dp))
+                        .background(Color(0xFF2C4A6F))
+                        .clickable(onClick = onAvatarClick)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .border(2.dp, Color.White, RoundedCornerShape(14.dp))
-                            .background(Color(0xFF2C4A6F))
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
-                            contentDescription = "Ảnh đại diện",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-
-                    // Nút chụp ảnh Camera đỏ ở góc dưới phải
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(24.dp)
-                            .background(CoralPrimary, CircleShape)
-                            .border(1.5.dp, Color.White, CircleShape)
-                            .clickable(onClick = onCameraClick),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.CameraAlt,
-                            contentDescription = "Đổi ảnh",
-                            tint = Color.White,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
+                        contentDescription = "Ảnh đại diện",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(14.dp))
@@ -647,140 +577,6 @@ private fun OrderStatusButton(
             textAlign = TextAlign.Center,
             lineHeight = 14.sp
         )
-    }
-}
-
-/**
- * Thẻ Ví B2C Pay
- */
-@Composable
-private fun B2CPayCard(
-    balance: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp)),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-        border = androidx.compose.foundation.BorderStroke(0.8.dp, BorderDivider.copy(alpha = 0.7f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .background(Color(0xFFE8EEF5), RoundedCornerShape(6.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AccountBalanceWallet,
-                        contentDescription = null,
-                        tint = NavySecondary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Ví B2C Pay",
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "Số dư khả dụng",
-                fontSize = 11.sp,
-                color = TextSecondary
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = balance,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFD32F2F)
-            )
-        }
-    }
-}
-
-/**
- * Thẻ B2C Rewards
- */
-@Composable
-private fun B2CRewardsCard(
-    points: String,
-    rank: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp)),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-        border = androidx.compose.foundation.BorderStroke(0.8.dp, BorderDivider.copy(alpha = 0.7f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .background(Color(0xFFFFF7DF), RoundedCornerShape(6.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Stars,
-                        contentDescription = null,
-                        tint = StarRatingGold,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "B2C Rewards",
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = rank,
-                fontSize = 11.sp,
-                color = TextSecondary
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = points,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Điểm",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(bottom = 1.dp)
-                )
-            }
-        }
     }
 }
 
