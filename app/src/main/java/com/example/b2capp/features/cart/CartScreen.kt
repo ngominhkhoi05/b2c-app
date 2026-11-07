@@ -30,18 +30,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ConfirmationNumber
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.RemoveShoppingCart
-import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,8 +43,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,7 +60,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,7 +72,6 @@ import com.example.b2capp.core.designsystem.theme.BackgroundApp
 import com.example.b2capp.core.designsystem.theme.BorderDivider
 import com.example.b2capp.core.designsystem.theme.CoralPrimary
 import com.example.b2capp.core.designsystem.theme.NavySecondary
-import com.example.b2capp.core.designsystem.theme.StarRatingGold
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
@@ -113,25 +103,19 @@ data class ShopGroup(
 
 /**
  * Màn hình Giỏ hàng (Shopping Cart Screen)
- * Thiết kế chính xác 100% theo ShoppingCartScreen_040b475d.png:
- * 1. Top Bar: Nút Back, "Shopping Cart", nút đỏ "Sửa", avatar tròn đỏ.
- * 2. Info Banner: "Hệ thống hỗ trợ tạo đơn hàng cho 1 Shop trong mỗi lần thanh toán để đảm bảo giao hàng nhanh nhất."
- * 3. Thẻ Shop 1 (Coolmate Official - Đang chọn):
+ * Thiết kế chính xác theo ShoppingCartScreen_040b475d.png:
+ * 1. Top Bar: Nút Back, "Giỏ hàng", nút đỏ "Sửa / Xong", icon chat shop.
+ * 2. Thẻ Shop 1 (Coolmate Official - Đang chọn):
  *    - Checkbox đỏ tick trắng, tag MALL đỏ, icon Shop + Coolmate Offici >, tag "Giảm 15k >".
  *    - Item 1: Áo Thun Nam Cotton Compact Siêu Thoáng Khí Cao Cấp, Phân loại: Đen, L, ₫199.000, Tạm tính: ₫398.000, [-] 2 [+].
  *    - Item 2: Áo Thun Regular Fit Basic Thoáng Khí Hàng Ngày, Phân loại: Trắng, XL, ₫219.000, [-] 1 [+].
- *    - Dải xanh ngọc: "Đã đạt Freeship ₫25.000 từ Coolmate Official".
- * 4. Thẻ Shop 2 (Anker Audio Flagship - Chưa chọn):
+ * 3. Thẻ Shop 2 (Anker Audio Flagship - Chưa chọn):
  *    - Checkbox xám tròn, tag MALL xanh navy, "Voucher Shop >".
  *    - Item: Tai Nghe Chống Ồn Anker Space One Không Dây Hi–Res, Màu: Đen Titan, ₫890.000, [-] 1 [+].
- *    - Chuyển shop: "Chỉ thanh toán 1 shop mỗi lần. Chuyển sang mua Shop này".
- * 5. Thẻ Shop 3 (Uniqlo Vietnam - Chưa chọn):
+ * 4. Thẻ Shop 3 (Uniqlo Vietnam - Chưa chọn):
  *    - Checkbox xám tròn, Uniqlo Vietnam >, "2 sản phẩm".
  *    - Item: Áo Polo Dry Pique Ngắn Tay Kháng Khuẩn, Xanh Navy, M, tag "Chỉ còn 2", ₫399.000, [-] 1 [+].
- * 6. Khung Voucher & Shopee Xu:
- *    - "Voucher giảm giá & Freeship" | "Chọn hoặc nhập mã >".
- *    - "Shopee Xu (Dùng 200 Xu để giảm ₫200)" kèm Switch bật/tắt màu đỏ cam.
- * 7. Sticky Bottom Checkout Bar:
+ * 5. Sticky Bottom Checkout Bar:
  *    - Checkbox đỏ "Tất cả", "Coolmate (2)".
  *    - "Tổng: ₫617.000", "Tiết kiệm ₫145.000".
  *    - Nút lớn "MUA HÀNG (3)".
@@ -147,7 +131,6 @@ fun CartScreen(
     // Trạng thái shop đang được chọn để thanh toán (mặc định là shop 1: Coolmate)
     var selectedShopId by remember { mutableStateOf("shop_coolmate") }
     var isEditMode by remember { mutableStateOf(false) }
-    var isCoinApplied by remember { mutableStateOf(true) }
 
     // Số lượng của từng sản phẩm trong các shop
     var qtyCoolmate1 by remember { mutableIntStateOf(2) }
@@ -163,24 +146,19 @@ fun CartScreen(
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
 
     // Tính toán tổng tiền theo shop đang chọn
-    val coinDiscount = if (isCoinApplied) 200L else 0L
-
     val (currentTotalPrice, totalItemsCount, savingsAmount, currentShopLabel) = when (selectedShopId) {
         "shop_coolmate" -> {
             val subtotal = (199000L * qtyCoolmate1) + (219000L * qtyCoolmate2)
-            val finalTotal = (subtotal - coinDiscount).coerceAtLeast(0L)
             val count = qtyCoolmate1 + qtyCoolmate2
-            Quadruple(finalTotal, count, 145000L, "Coolmate (2)")
+            Quadruple(subtotal, count, 145000L, "Coolmate (2)")
         }
         "shop_anker" -> {
             val subtotal = 890000L * qtyAnker
-            val finalTotal = (subtotal - coinDiscount).coerceAtLeast(0L)
-            Quadruple(finalTotal, qtyAnker, 50000L, "Anker Audio (1)")
+            Quadruple(subtotal, qtyAnker, 50000L, "Anker Audio (1)")
         }
         else -> {
             val subtotal = 399000L * qtyUniqlo
-            val finalTotal = (subtotal - coinDiscount).coerceAtLeast(0L)
-            Quadruple(finalTotal, qtyUniqlo, 30000L, "Uniqlo (1)")
+            Quadruple(subtotal, qtyUniqlo, 30000L, "Uniqlo (1)")
         }
     }
 
@@ -264,34 +242,7 @@ fun CartScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 2. Banner thông báo hỗ trợ 1 Shop
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFDCEAFE))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Info,
-                            contentDescription = null,
-                            tint = Color(0xFF1E5B94),
-                            modifier = Modifier.size(19.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Hệ thống hỗ trợ tạo đơn hàng cho 1 Shop trong mỗi lần thanh toán để đảm bảo giao hàng nhanh nhất.",
-                            fontSize = 12.5.sp,
-                            color = Color(0xFF1E3A8A),
-                            lineHeight = 17.sp
-                        )
-                    }
-                }
-            }
-
-            // 3. THẺ SHOP 1: Coolmate Official (Đang chọn)
+            // 2. THẺ SHOP 1: Coolmate Official (Đang chọn)
             item {
                 val isCoolmateSelected = selectedShopId == "shop_coolmate"
                 Card(
@@ -416,35 +367,11 @@ fun CartScreen(
                                 variantSheetSize = "XL"
                             }
                         )
-
-                        // Dải Freeship xanh ngọc
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFFE6F7F5))
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.LocalShipping,
-                                    contentDescription = null,
-                                    tint = Color(0xFF1E8275),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Đã đạt Freeship ₫25.000 từ Coolmate Official",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1E8275)
-                                )
-                            }
-                        }
                     }
                 }
             }
 
-            // 4. THẺ SHOP 2: Anker Audio Flagship
+            // 3. THẺ SHOP 2: Anker Audio Flagship
             item {
                 val isAnkerSelected = selectedShopId == "shop_anker"
                 Card(
@@ -526,48 +453,11 @@ fun CartScreen(
                             isPriceActive = isAnkerSelected,
                             onQuantityChange = { qtyAnker = it }
                         )
-
-                        // Khung Chuyển sang mua Shop này
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFF8F9FA))
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.SwapHoriz,
-                                    contentDescription = null,
-                                    tint = Color(0xFF1E5B94),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "Chỉ thanh toán 1 shop mỗi lần.",
-                                        fontSize = 11.sp,
-                                        color = TextSecondary
-                                    )
-                                    Text(
-                                        text = "Chuyển sang mua Shop này",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFD32F2F),
-                                        textDecoration = TextDecoration.Underline,
-                                        modifier = Modifier.clickable {
-                                            selectedShopId = "shop_anker"
-                                        }
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
             }
 
-            // 5. THẺ SHOP 3: Uniqlo Vietnam
+            // 4. THẺ SHOP 3: Uniqlo Vietnam
             item {
                 val isUniqloSelected = selectedShopId == "shop_uniqlo"
                 Card(
@@ -638,108 +528,12 @@ fun CartScreen(
                 }
             }
 
-            // 6. THẺ VOUCHER & SHOPEE XU
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Hàng Voucher
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { /* Mở danh sách voucher */ }
-                                .padding(horizontal = 14.dp, vertical = 13.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.ConfirmationNumber,
-                                contentDescription = null,
-                                tint = Color(0xFFD32F2F),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Voucher giảm giá & Freeship",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = "Chọn hoặc nhập mã",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFD32F2F)
-                            )
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = Color(0xFFD32F2F),
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-
-                        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 0.8.dp)
-
-                        // Hàng Shopee Xu
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.MonetizationOn,
-                                contentDescription = null,
-                                tint = StarRatingGold,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Shopee Xu",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "(Dùng 200 Xu để giảm ₫200)",
-                                        fontSize = 11.5.sp,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-
-                            Switch(
-                                checked = isCoinApplied,
-                                onCheckedChange = { isCoinApplied = it },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = Color(0xFFBA2211),
-                                    uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = Color(0xFFD1D5DB)
-                                ),
-                                modifier = Modifier.size(width = 44.dp, height = 24.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
             item {
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
-        // 7. STICKY BOTTOM CHECKOUT BAR
+        // 5. STICKY BOTTOM CHECKOUT BAR
         CartBottomSummaryBar(
             currentShopLabel = currentShopLabel,
             formattedTotalPrice = formattedTotalPrice,

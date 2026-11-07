@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.profile
+package com.example.b2capp.features.profile
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -756,9 +756,10 @@ fun RecommendedWishlistCard(
                     text = name,
                     fontSize = 11.5.sp,
                     color = TextPrimary,
+                    minLines = 2,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    lineHeight = 15.sp
+                    lineHeight = 16.sp
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))

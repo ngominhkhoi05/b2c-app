@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -62,7 +63,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -280,6 +285,7 @@ fun OrdersScreen(
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Box(
                                         modifier = Modifier
+                                            .offset(y = (-2).dp)
                                             .size(16.dp)
                                             .background(Color(0xFFBA2211), CircleShape),
                                         contentAlignment = Alignment.Center
@@ -288,7 +294,16 @@ fun OrdersScreen(
                                             text = "1",
                                             color = Color.White,
                                             fontSize = 9.5.sp,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 9.5.sp,
+                                            style = TextStyle(
+                                                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                                lineHeightStyle = LineHeightStyle(
+                                                    alignment = LineHeightStyle.Alignment.Center,
+                                                    trim = LineHeightStyle.Trim.Both
+                                                )
+                                            )
                                         )
                                     }
                                 }

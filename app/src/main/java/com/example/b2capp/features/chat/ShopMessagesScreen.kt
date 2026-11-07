@@ -44,11 +44,8 @@ import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Card
@@ -141,7 +138,7 @@ data class ChatMessage(
 /**
  * Màn hình Tin Nhắn Với Shop (Shop Messages Screen)
  * Thiết kế chính xác 100% theo ShopMessagesScreen_cafb5486.png:
- * 1. Top Bar: Nút Back, "Tin Nhắn Với Shop", nút tìm kiếm, nút lọc 3 gạch, avatar tròn đỏ.
+ * 1. Top Bar: Nút Back, "Tin Nhắn Với Shop", nút tìm kiếm.
  * 2. Ô tìm kiếm: "Tìm kiếm tin nhắn, tên Shop..."
  * 3. Hàng Filter pills:
  *    - "Tất cả (12)" (nền đỏ cam đậm, chữ trắng)
@@ -160,8 +157,7 @@ data class ChatMessage(
  *    - Nội Thất Minimalist Living (15 Th10, voucher 20k, tích đơn xám)
  *    - Gia Dụng Thông Minh Lock&Lock (Mall, 12 Th10, tích đôi xanh)
  *    - Thời Trang Unisex Studio (05 Th10, restock đủ màu, tích đơn xám)
- * 7. Footer: Ổ khóa bảo mật & "Tin nhắn được mã hóa bảo mật đầu cuối theo chính sách giao dịch an toàn B2C."
- * 8. Khung chat chi tiết tương tác khi chạm vào bất kỳ cuộc trò chuyện nào.
+ * 7. Khung chat chi tiết tương tác khi chạm vào bất kỳ cuộc trò chuyện nào.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -321,47 +317,16 @@ fun ShopMessagesScreen(
                         )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = { /* Tìm kiếm */ },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Search,
-                                contentDescription = "Tìm kiếm",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { /* Bộ lọc */ },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.FilterList,
-                                contentDescription = "Bộ lọc",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        // Avatar tròn đỏ có icon user
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(Color(0xFFBA2211), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Person,
-                                contentDescription = "Tài khoản",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                    IconButton(
+                        onClick = { /* Tìm kiếm */ },
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = "Tìm kiếm",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
                 }
 
@@ -659,42 +624,6 @@ fun ShopMessagesScreen(
                         }
                     }
                 }
-            }
-
-            // 7. Footer Bảo mật mã hóa đầu cuối
-            item {
-                Spacer(modifier = Modifier.height(14.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color(0xFFF3F4F6), RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Lock,
-                            contentDescription = null,
-                            tint = Color(0xFF6B7280),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Tin nhắn được mã hóa bảo mật đầu cuối theo chính sách giao dịch an toàn B2C.",
-                        fontSize = 11.5.sp,
-                        color = Color(0xFF6B7280),
-                        textAlign = TextAlign.Center,
-                        lineHeight = 16.sp
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }

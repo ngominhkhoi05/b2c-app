@@ -216,16 +216,16 @@ fun ProductCard(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                // Tên sản phẩm tối đa 2 dòng
+                // Tên sản phẩm hiển thị chuẩn 2 hàng, tự động xuống dòng và có dấu chấm lửng ở cuối nếu vượt quá 2 hàng
                 Text(
                     text = product.name,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = TextPrimary,
+                    minLines = 2,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.height(34.dp)
+                    lineHeight = 18.sp
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))

@@ -54,18 +54,10 @@ fun PaymentBreakdownSection(
     shippingFeeFormatted: String,
     shippingDiscountFormatted: String,
     voucherDiscountFormatted: String?,
-    coinsDiscountFormatted: String,
+    coinsDiscountFormatted: String? = null,
     finalTotalFormatted: String
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Chi tiết thanh toán",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF111827)
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-
         PaymentBreakdownRow(
             label = "Tổng tiền hàng",
             value = itemsSubtotalFormatted
@@ -89,12 +81,14 @@ fun PaymentBreakdownSection(
                 valueColor = Color(0xFF00897B)
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        PaymentBreakdownRow(
-            label = "Dùng Xu B2C",
-            value = coinsDiscountFormatted,
-            valueColor = Color(0xFF00897B)
-        )
+        if (coinsDiscountFormatted != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            PaymentBreakdownRow(
+                label = "Dùng Xu B2C",
+                value = coinsDiscountFormatted,
+                valueColor = Color(0xFF00897B)
+            )
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
         HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)

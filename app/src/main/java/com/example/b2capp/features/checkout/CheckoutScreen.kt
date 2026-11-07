@@ -2,9 +2,7 @@ package com.example.b2capp.features.checkout
 
 import com.example.b2capp.features.cart.SelectedVoucherState
 import com.example.b2capp.features.cart.VoucherSelectionBottomSheet
-import com.example.b2capp.features.checkout.components.PaymentBreakdownRow
 import com.example.b2capp.features.checkout.components.PaymentBreakdownSection
-import com.example.b2capp.features.checkout.components.PostalEnvelopeStrip
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -40,23 +38,17 @@ import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -132,7 +124,6 @@ fun CheckoutScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var useCoins by remember { mutableStateOf(true) }
     var selectedPaymentMethod by remember { mutableStateOf("COD") }
     var sellerNote by remember { mutableStateOf("") }
     var showVoucherSelectionSheet by remember { mutableStateOf(false) }
@@ -145,9 +136,8 @@ fun CheckoutScreen(
     val shippingFee = 30000L
     val voucherDiscount = if (voucherState.hasOrderVoucher) voucherState.orderVoucherDiscount else 0L
     val freeshipDiscount = if (voucherState.hasFreeshipVoucher) voucherState.freeshipDiscount else 0L
-    val coinDiscount = if (useCoins) 200L else 0L
-    val finalTotal = itemsSubtotal + (shippingFee - freeshipDiscount) - voucherDiscount - coinDiscount
-    val totalSavings = voucherDiscount + freeshipDiscount + coinDiscount
+    val finalTotal = itemsSubtotal + (shippingFee - freeshipDiscount) - voucherDiscount
+    val totalSavings = voucherDiscount + freeshipDiscount
 
     Column(
         modifier = modifier
@@ -166,60 +156,27 @@ fun CheckoutScreen(
                     .fillMaxWidth()
                     .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Quay lại",
-                            tint = TextPrimary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Text(
-                        text = "Shopping Cart",
-                        fontSize = 17.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF111827)
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Quay lại",
+                        tint = TextPrimary
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Sửa",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFB82414),
-                        modifier = Modifier
-                            .clickable { viewModel.showToast("Chế độ chỉnh sửa đơn hàng") }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                Spacer(modifier = Modifier.width(4.dp))
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    // Avatar tròn đỏ đậm
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFB82414)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Tài khoản",
-                            tint = Color.White,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = "Thanh toán",
+                    fontSize = 17.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF111827)
+                )
             }
         }
 
@@ -241,16 +198,12 @@ fun CheckoutScreen(
                     colors = CardDefaults.cardColors(containerColor = SurfaceCard),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Dải viền phong bì bưu điện ziczac đỏ & xanh navy
-                        PostalEnvelopeStrip()
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                             // Icon Pin vị trí
                             Box(
                                 modifier = Modifier
@@ -319,7 +272,6 @@ fun CheckoutScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
-                    }
                 }
             }
 
@@ -673,76 +625,7 @@ fun CheckoutScreen(
                 }
             }
 
-            // 5. Thẻ Dùng Xu B2C
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFEF3C7)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color(0xFFD97706)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Dùng 200 Xu B2C ",
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1F2937)
-                                    )
-                                    Text(
-                                        text = "[₫200]",
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF6B7280)
-                                    )
-                                }
-                                Text(
-                                    text = "Khả dụng: 1.450 Xu",
-                                    fontSize = 11.5.sp,
-                                    color = Color(0xFF9CA3AF)
-                                )
-                            }
-                        }
-
-                        Switch(
-                            checked = useCoins,
-                            onCheckedChange = { useCoins = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFFB82414),
-                                uncheckedThumbColor = Color.White,
-                                uncheckedTrackColor = Color(0xFFD1D5DB)
-                            )
-                        )
-                    }
-                }
-            }
-
-            // 6. Thẻ Phương thức thanh toán
+            // 5. Thẻ Phương thức thanh toán
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -907,34 +790,12 @@ fun CheckoutScreen(
                             .fillMaxWidth()
                             .padding(14.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Chi tiết thanh toán",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1F2937)
-                            )
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00897B),
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "Bảo mật SSL 256–bit",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF00897B)
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Chi tiết thanh toán",
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2937)
+                        )
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -943,7 +804,6 @@ fun CheckoutScreen(
                             shippingFeeFormatted = "₫${currencyFormatter.format(shippingFee)}",
                             shippingDiscountFormatted = "-₫${currencyFormatter.format(freeshipDiscount)}",
                             voucherDiscountFormatted = if (voucherDiscount > 0) "-₫${currencyFormatter.format(voucherDiscount)}" else null,
-                            coinsDiscountFormatted = if (useCoins) "-₫200" else "₫0",
                             finalTotalFormatted = "₫${currencyFormatter.format(finalTotal)}"
                         )
                     }
@@ -956,7 +816,7 @@ fun CheckoutScreen(
             }
         }
 
-        // 8. Lưu ý điều khoản & Thanh đặt hàng cố định đáy (Sticky Bottom Bar)
+        // 7. Thanh đặt hàng cố định đáy (Sticky Bottom Bar)
         Surface(
             color = SurfaceCard,
             shadowElevation = 8.dp,
@@ -967,31 +827,6 @@ fun CheckoutScreen(
                     .fillMaxWidth()
                     .navigationBarsPadding()
             ) {
-                // Lưu ý cam kết điều khoản dịch vụ
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFAFAFA))
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Security,
-                        contentDescription = null,
-                        tint = Color(0xFFB82414),
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "Nhấn \"Đặt hàng\" đồng nghĩa với việc bạn đồng ý với Điều khoản Dịch vụ",
-                        fontSize = 11.sp,
-                        color = Color(0xFF4B5563)
-                    )
-                }
-
-                HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 0.8.dp)
-
                 // Hàng tổng tiền & Nút ĐẶT HÀNG
                 Row(
                     modifier = Modifier
