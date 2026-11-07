@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.catalog
+package com.example.b2capp.features.catalog
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -38,8 +38,6 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material.icons.outlined.Weekend
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -360,31 +358,10 @@ private fun CategoryTopBar(
             Spacer(modifier = Modifier.width(4.dp))
 
             // Giỏ hàng bên phải kèm Badge đỏ "3"
-            IconButton(
-                onClick = onCartClick,
-                modifier = Modifier.size(40.dp)
-            ) {
-                BadgedBox(
-                    badge = {
-                        if (cartBadgeCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .offset(x = 6.dp, y = (-4).dp)
-                                    .size(17.dp)
-                                    .background(Color(0xFFD32F2F), CircleShape)
-                                    .border(1.dp, Color.White, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (cartBadgeCount > 99) "99+" else cartBadgeCount.toString(),
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    lineHeight = 10.sp
-                                )
-                            }
-                        }
-                    }
+            Box(contentAlignment = Alignment.TopEnd) {
+                IconButton(
+                    onClick = onCartClick,
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.ShoppingCart,
@@ -392,6 +369,25 @@ private fun CategoryTopBar(
                         tint = TextPrimary,
                         modifier = Modifier.size(24.dp)
                     )
+                }
+
+                if (cartBadgeCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = 2.dp, y = (-2).dp)
+                            .size(17.dp)
+                            .background(Color(0xFFD32F2F), CircleShape)
+                            .border(1.dp, Color.White, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (cartBadgeCount > 99) "99+" else cartBadgeCount.toString(),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 10.sp
+                        )
+                    }
                 }
             }
         }

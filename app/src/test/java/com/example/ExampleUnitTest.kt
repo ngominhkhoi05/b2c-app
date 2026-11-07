@@ -1,9 +1,9 @@
 package com.example
 
-import com.example.b2capp.model.CartItem
-import com.example.b2capp.model.ProductItem
+import com.example.b2capp.core.model.CartItem
+import com.example.b2capp.core.model.PageState
+import com.example.b2capp.core.model.ProductItem
 import com.example.b2capp.viewmodel.B2CViewModel
-import com.example.b2capp.viewmodel.PageState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue

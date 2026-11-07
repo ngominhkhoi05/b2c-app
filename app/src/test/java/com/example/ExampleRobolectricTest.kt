@@ -1,6 +1,6 @@
 package com.example
 
-import com.example.b2capp.model.ProductItem
+import com.example.b2capp.core.model.ProductItem
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

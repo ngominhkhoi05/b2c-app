@@ -22,7 +22,6 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingCart
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -145,31 +144,10 @@ fun HomeTopBar(
             }
 
             // Icon Giỏ hàng kèm Badge đỏ
-            IconButton(
-                onClick = onCartClick,
-                modifier = Modifier.size(38.dp)
-            ) {
-                BadgedBox(
-                    badge = {
-                        if (cartBadgeCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .offset(x = 6.dp, y = (-4).dp)
-                                    .size(17.dp)
-                                    .background(Color(0xFFD32F2F), CircleShape)
-                                    .border(1.dp, Color.White, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (cartBadgeCount > 99) "99+" else cartBadgeCount.toString(),
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    lineHeight = 10.sp
-                                )
-                            }
-                        }
-                    }
+            Box(contentAlignment = Alignment.TopEnd) {
+                IconButton(
+                    onClick = onCartClick,
+                    modifier = Modifier.size(38.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.ShoppingCart,
@@ -177,6 +155,25 @@ fun HomeTopBar(
                         tint = TextPrimary,
                         modifier = Modifier.size(24.dp)
                     )
+                }
+
+                if (cartBadgeCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = 2.dp, y = (-2).dp)
+                            .size(17.dp)
+                            .background(Color(0xFFD32F2F), CircleShape)
+                            .border(1.dp, Color.White, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (cartBadgeCount > 99) "99+" else cartBadgeCount.toString(),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 10.sp
+                        )
+                    }
                 }
             }
         }
