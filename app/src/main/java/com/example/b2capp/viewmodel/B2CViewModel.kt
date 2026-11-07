@@ -1,59 +1,20 @@
 package com.example.b2capp.viewmodel
 
 import androidx.lifecycle.ViewModel
+import com.example.b2capp.core.model.CartItem
+import com.example.b2capp.core.model.OrderSuccessInfo
+import com.example.b2capp.core.model.PageState
+import com.example.b2capp.core.model.ProductItem
+import com.example.b2capp.core.model.ShopChatInfo
+import com.example.b2capp.core.model.UserAddress
+import com.example.b2capp.core.model.UserProfile
 import com.example.b2capp.data.SampleData
-import com.example.b2capp.model.CartItem
-import com.example.b2capp.model.ProductItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.text.NumberFormat
 import java.util.Locale
-
-enum class PageState {
-    SUCCESS,
-    LOADING,
-    EMPTY,
-    ERROR
-}
-
-data class ShopChatInfo(
-    val shopName: String = "Coolmate Official Store",
-    val isMall: Boolean = true,
-    val isOnline: Boolean = true,
-    val product: ProductItem? = null
-)
-
-data class OrderSuccessInfo(
-    val orderId: String = "ORD-20261105-0088",
-    val paymentMethodName: String = "Cổng VNPAY",
-    val isOnlinePaid: Boolean = true,
-    val orderTime: String = "05/11/2026 14:20",
-    val expectedDelivery: String = "14 Th04 – 16 Th04",
-    val totalAmount: Long = 388200L,
-    val recipientName: String = "Nguyễn Văn A",
-    val recipientPhoneMasked: String = "090****123",
-    val deliveryAddress: String = "Số 45 Lê Duẩn, Phường Bến Nghé, Q.1, TP. HCM"
-)
-
-data class UserAddress(
-    val id: String,
-    val recipientName: String,
-    val phoneNumber: String,
-    val addressType: String, // "Nhà riêng" hoặc "Văn phòng"
-    val fullAddress: String,
-    val isDefault: Boolean = false,
-    val deliveryNote: String? = null
-)
-
-data class UserProfile(
-    val fullName: String = "Nguyễn Văn A",
-    val phoneNumber: String = "0987 654 321",
-    val email: String = "nguyenvana@gmail.com",
-    val gender: String = "Nam",
-    val birthDate: String = "15/08/1995"
-)
 
 data class B2CUiState(
     val currentTab: Int = 0, // 0: Home, 1: Cart, 2: Design System Showcase

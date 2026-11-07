@@ -33,12 +33,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.B2CAppTheme
-import com.example.ui.theme.BorderDivider
-import com.example.ui.theme.CoralPrimary
-import com.example.ui.theme.SurfaceCard
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.b2capp.core.designsystem.theme.B2CAppTheme
+import com.example.b2capp.core.designsystem.theme.BorderDivider
+import com.example.b2capp.core.designsystem.theme.CoralPrimary
+import com.example.b2capp.core.designsystem.theme.SurfaceCard
+import com.example.b2capp.core.designsystem.theme.TextPrimary
+import com.example.b2capp.core.designsystem.theme.TextSecondary
 
 /**
  * Bộ chọn số lượng (QuantityPicker) cho Buyer App:

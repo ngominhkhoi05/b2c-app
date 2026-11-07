@@ -98,3 +98,6 @@ $RECYCLE.BIN/
 # Linux
 *~
 .directory
+
+# Documentation & Tasks
+docs/

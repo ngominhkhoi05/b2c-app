@@ -25,11 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.B2CAppTheme
-import com.example.ui.theme.BorderDivider
-import com.example.ui.theme.CoralPrimary
-import com.example.ui.theme.CoralPrimaryPressed
-import com.example.ui.theme.NavySecondary
+import com.example.b2capp.core.designsystem.theme.B2CAppTheme
+import com.example.b2capp.core.designsystem.theme.BorderDivider
+import com.example.b2capp.core.designsystem.theme.CoralPrimary
+import com.example.b2capp.core.designsystem.theme.CoralPrimaryPressed
+import com.example.b2capp.core.designsystem.theme.NavySecondary
 
 /**
  * Biến thể của AppButton theo thiết kế B2C:

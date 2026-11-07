@@ -1,6 +1,6 @@
 package com.example.b2capp.data
 
-import com.example.b2capp.model.ProductItem
+import com.example.b2capp.core.model.ProductItem
 
 object SampleData {
     val products = listOf(

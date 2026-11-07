@@ -1,5 +1,6 @@
 package com.example.b2capp.core.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,13 +10,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.Card
@@ -29,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,157 +42,195 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
-import com.example.b2capp.model.ProductItem
-import com.example.ui.theme.B2CAppTheme
-import com.example.ui.theme.BackgroundApp
-import com.example.ui.theme.BorderDivider
-import com.example.ui.theme.CoralPrimary
-import com.example.ui.theme.CoralPrimaryContainer
-import com.example.ui.theme.FreeShippingAccent
-import com.example.ui.theme.StarRatingGold
-import com.example.ui.theme.SurfaceCard
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.b2capp.core.designsystem.theme.B2CAppTheme
+import com.example.b2capp.core.designsystem.theme.BackgroundApp
+import com.example.b2capp.core.designsystem.theme.BorderDivider
+import com.example.b2capp.core.designsystem.theme.CoralPrimary
+import com.example.b2capp.core.designsystem.theme.CoralPrimaryContainer
+import com.example.b2capp.core.designsystem.theme.ErrorRed
+import com.example.b2capp.core.designsystem.theme.FreeShippingAccent
+import com.example.b2capp.core.designsystem.theme.StarRatingGold
+import com.example.b2capp.core.designsystem.theme.SurfaceCard
+import com.example.b2capp.core.designsystem.theme.TextPrimary
+import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.core.model.ProductItem
 
 /**
- * Thẻ sản phẩm chuẩn B2C Buyer App:
- * - Kích thước lưới chuẩn (~170.dp hoặc fillMaxWidth trong Adaptive Grid)
- * - Ảnh 1:1 bo góc trên 12.dp (Coil SubcomposeAsyncImage)
- * - Tên sản phẩm tối đa 2 dòng (14sp)
- * - Hàng giá: Giá hiện tại nổi bật (#EE4D2D, 16sp Bold), Giá gốc gạch ngang mờ
- * - Hàng phụ: Điểm sao (#FFB800) kèm số lượng "Đã bán X"
- * - Nền #FFFFFF, bo góc 12.dp, viền 1.dp #E5E7EB hoặc shadow nhẹ
+ * Thẻ sản phẩm dùng chung chuẩn B2C Buyer App:
+ * - Tái sử dụng xuyên suốt toàn app: Home, Catalog/Search, Orders, Wishlist.
+ * - Ảnh 1:1 linh hoạt (URL qua Coil hoặc Image Resource).
+ * - Hỗ trợ các loại Badge: Freeship Xtra, Yêu thích, Mall, Giảm giá %.
+ * - Hỗ trợ nút hành động Yêu thích (Wishlist heart) hoặc Bottom Action tuỳ biến.
  */
 @Composable
 fun ProductCard(
     product: ProductItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    badgeText: String? = null,
+    badgeColor: Color? = null,
+    imageRes: Int? = null,
+    showWishlistAction: Boolean = false,
+    isWishlisted: Boolean = false,
+    onWishlistClick: (() -> Unit)? = null,
+    locationText: String? = null,
+    customDiscountTag: String? = null,
+    bottomAction: (@Composable () -> Unit)? = null,
     testTag: String = "product_card_${product.id}"
 ) {
     Card(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .border(
-                width = 1.dp,
-                color = BorderDivider,
-                shape = RoundedCornerShape(12.dp)
+                width = 0.8.dp,
+                color = BorderDivider.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(10.dp)
             )
             .testTag(testTag),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 1. Ảnh tỷ lệ 1:1, bo góc trên 12.dp kèm Tag Giảm giá & Freeship
+            // 1. Ảnh tỷ lệ 1:1 kèm các Badge
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
                     .background(BackgroundApp)
             ) {
-                SubcomposeAsyncImage(
-                    model = product.imageUrl,
-                    contentDescription = product.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                    loading = {
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .background(BackgroundApp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ShoppingBag,
-                                contentDescription = null,
-                                tint = BorderDivider,
-                                modifier = Modifier.size(36.dp)
-                            )
+                if (imageRes != null) {
+                    Image(
+                        painter = painterResource(id = imageRes),
+                        contentDescription = product.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    SubcomposeAsyncImage(
+                        model = product.imageUrl,
+                        contentDescription = product.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        loading = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(BackgroundApp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ShoppingBag,
+                                    contentDescription = null,
+                                    tint = BorderDivider,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        },
+                        error = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFFF1F3F5)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ShoppingBag,
+                                    contentDescription = null,
+                                    tint = BorderDivider,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
                         }
-                    },
-                    error = {
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .background(Color(0xFFF1F3F5)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ShoppingBag,
-                                contentDescription = null,
-                                tint = BorderDivider,
-                                modifier = Modifier.size(40.dp)
-                            )
-                        }
-                    }
-                )
+                    )
+                }
 
-                // Tag Freeship góc trái dưới của ảnh
-                if (product.isFreeShipping) {
+                // Huy hiệu góc trên trái: Badge tuỳ biến hoặc Freeship / Yêu thích / Mall
+                if (badgeText != null) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(6.dp)
+                            .align(Alignment.TopStart)
                             .background(
-                                color = FreeShippingAccent,
-                                shape = RoundedCornerShape(4.dp)
+                                color = badgeColor ?: FreeShippingAccent,
+                                shape = RoundedCornerShape(bottomEnd = 6.dp, topStart = 10.dp)
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "Freeship Xtra",
+                            text = badgeText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     }
+                } else if (product.isFreeShipping) {
+                    FreeShippingBadge(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(6.dp)
+                    )
                 }
 
-                // Tag Giảm Giá % ở góc phải trên
-                product.discountPercent?.let { discount ->
+                // Góc trên phải: Nút Wishlist HOẶC Tag giảm giá
+                if (showWishlistAction) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .background(
-                                color = CoralPrimaryContainer,
-                                shape = RoundedCornerShape(bottomStart = 8.dp)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                            .padding(6.dp)
+                            .size(28.dp)
+                            .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                            .clickable { onWishlistClick?.invoke() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "-$discount%",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = CoralPrimary
+                        Icon(
+                            imageVector = if (isWishlisted) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = "Yêu thích",
+                            tint = if (isWishlisted) ErrorRed else TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else if (customDiscountTag != null) {
+                    DiscountTextBadge(
+                        discountText = customDiscountTag,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                    )
+                } else {
+                    product.discountPercent?.let { discount ->
+                        DiscountBadge(
+                            percent = discount,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp)
                         )
                     }
                 }
             }
 
-            // 2. Nội dung chi tiết thẻ: Tên, Giá, Đánh giá & Đã bán
+            // 2. Nội dung thông tin sản phẩm
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                // Tên sản phẩm tối đa 2 dòng (14sp)
+                // Tên sản phẩm tối đa 2 dòng
                 Text(
                     text = product.name,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = TextPrimary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    lineHeight = 18.sp,
-                    modifier = Modifier.height(36.dp)
+                    lineHeight = 17.sp,
+                    modifier = Modifier.height(34.dp)
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Hàng giá: Giá hiện tại (#EE4D2D, 16sp Bold) & Giá gạch ngang nếu có sale
+                // Giá bán nổi bật & giá gốc
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -194,7 +238,7 @@ fun ProductCard(
                 ) {
                     Text(
                         text = product.formattedPrice,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = CoralPrimary
                     )
@@ -211,7 +255,7 @@ fun ProductCard(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Hàng phụ: Điểm sao (#FFB800) kèm số lượng "Đã bán X"
+                // Đánh giá sao & Đã bán / Địa điểm
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -235,11 +279,24 @@ fun ProductCard(
                         )
                     }
 
-                    Text(
-                        text = product.formattedSoldCount,
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
+                    if (locationText != null) {
+                        Text(
+                            text = locationText,
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    } else {
+                        Text(
+                            text = product.formattedSoldCount,
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                bottomAction?.let { action ->
+                    Spacer(modifier = Modifier.height(6.dp))
+                    action()
                 }
             }
         }

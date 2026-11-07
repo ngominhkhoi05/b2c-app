@@ -14,14 +14,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.BorderDivider
-import com.example.ui.theme.CoralPrimary
-import com.example.ui.theme.CoralPrimaryContainer
-import com.example.ui.theme.FreeShippingAccent
-import com.example.ui.theme.NavySecondary
-import com.example.ui.theme.SurfaceCard
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import com.example.b2capp.core.designsystem.theme.BorderDivider
+import com.example.b2capp.core.designsystem.theme.CoralPrimary
+import com.example.b2capp.core.designsystem.theme.CoralPrimaryContainer
+import com.example.b2capp.core.designsystem.theme.ErrorRed
+import com.example.b2capp.core.designsystem.theme.FreeShippingAccent
+import com.example.b2capp.core.designsystem.theme.NavySecondary
+import com.example.b2capp.core.designsystem.theme.SurfaceCard
+import com.example.b2capp.core.designsystem.theme.TextPrimary
+import com.example.b2capp.core.designsystem.theme.TextSecondary
 
 /**
  * Tag Freeship Xtra chuẩn màu #26AA99, bo 4.dp
@@ -61,9 +62,75 @@ fun DiscountBadge(
     ) {
         Text(
             text = "-$percent%",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.ExtraBold,
             color = CoralPrimary
+        )
+    }
+}
+
+/**
+ * Tag Giảm giá dạng text tuỳ biến (ví dụ "-35%")
+ */
+@Composable
+fun DiscountTextBadge(
+    discountText: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(color = CoralPrimary, shape = RoundedCornerShape(4.dp))
+            .padding(horizontal = 5.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = discountText,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+/**
+ * Huy hiệu gian hàng chính hãng MALL (Nền đỏ #D32F2F, chữ trắng, bo 4.dp)
+ */
+@Composable
+fun OfficialMallBadge(
+    modifier: Modifier = Modifier,
+    text: String = "MALL"
+) {
+    Box(
+        modifier = modifier
+            .background(color = ErrorRed, shape = RoundedCornerShape(bottomEnd = 4.dp, topStart = 4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+/**
+ * Huy hiệu Shop Yêu Thích (Nền Cam #EE4D2D hoặc Đỏ #D32F2F)
+ */
+@Composable
+fun FavoriteBadge(
+    modifier: Modifier = Modifier,
+    text: String = "Yêu thích"
+) {
+    Box(
+        modifier = modifier
+            .background(color = CoralPrimary, shape = RoundedCornerShape(bottomEnd = 6.dp, topStart = 4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
     }
 }
