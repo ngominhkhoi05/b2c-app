@@ -1,6 +1,7 @@
 package com.example.b2capp.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.b2capp.core.model.CartItem
 import com.example.b2capp.core.model.OrderSuccessInfo
 import com.example.b2capp.core.model.PageState
@@ -12,10 +13,13 @@ import com.example.b2capp.core.ui.components.ToastData
 import com.example.b2capp.core.ui.components.ToastType
 import com.example.b2capp.core.ui.components.createToastData
 import com.example.b2capp.data.SampleData
+import com.example.b2capp.data.local.TokenManager
+import com.example.b2capp.data.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -39,6 +43,8 @@ data class B2CUiState(
     val completedOrderSuccess: OrderSuccessInfo? = null,
     val detailedOrderTrackingScreen: String? = null,
     val isLoggedIn: Boolean = false,
+    val isAuthLoading: Boolean = false,
+    val authErrorMessage: String? = null,
     val showSignInScreen: Boolean = true,
     val showSignUpScreen: Boolean = false,
     val showForgotPasswordScreen: Boolean = false,
@@ -104,8 +110,46 @@ data class B2CUiState(
 }
 
 class B2CViewModel : ViewModel() {
+    private val authRepository: AuthRepository by lazy { AuthRepository() }
     private val _uiState = MutableStateFlow(B2CUiState())
     val uiState: StateFlow<B2CUiState> = _uiState.asStateFlow()
+
+    init {
+        // Kiểm tra xem đã có phiên đăng nhập đã lưu trong TokenManager chưa
+        try {
+            if (TokenManager.getInstance().isLoggedIn()) {
+                val savedProfile = TokenManager.getInstance().getUserProfile()
+                _uiState.update {
+                    it.copy(
+                        isLoggedIn = true,
+                        showSignInScreen = false,
+                        userProfile = savedProfile
+                    )
+                }
+            }
+
+            // Lắng nghe sự kiện đăng xuất khi Refresh Token hết hạn từ TokenAuthenticator
+            viewModelScope.launch {
+                TokenManager.getInstance().isLoggedInState.collect { loggedIn ->
+                    if (!loggedIn && _uiState.value.isLoggedIn) {
+                        _uiState.update {
+                            it.copy(
+                                isLoggedIn = false,
+                                showSignInScreen = true,
+                                toastMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+                                currentToast = createToastData(
+                                    "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+                                    ToastType.WARNING
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Trường hợp chạy trong Preview hoặc Unit Test chưa khởi tạo context
+        }
+    }
 
     fun selectTab(tabIndex: Int) {
         _uiState.update { it.copy(currentTab = tabIndex) }
@@ -239,6 +283,162 @@ class B2CViewModel : ViewModel() {
         _uiState.update { it.copy(detailedOrderTrackingScreen = null) }
     }
 
+    /**
+     * Đăng nhập qua API Backend với cơ chế Access/Refresh Token
+     */
+    fun loginWithApi(
+        email: String,
+        password: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val trimmedEmail = email.trim()
+        val trimmedPassword = password.trim()
+
+        if (trimmedEmail.isBlank()) {
+            showErrorToast("Vui lòng nhập email hoặc số điện thoại")
+            return
+        }
+        if (trimmedPassword.isBlank()) {
+            showErrorToast("Vui lòng nhập mật khẩu")
+            return
+        }
+
+        _uiState.update { it.copy(isAuthLoading = true, authErrorMessage = null) }
+
+        viewModelScope.launch {
+            val result = authRepository.login(trimmedEmail, trimmedPassword)
+            result.fold(
+                onSuccess = { auth ->
+                    val displayName = auth.fullName?.ifBlank { null } ?: trimmedEmail
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = true,
+                            isAuthLoading = false,
+                            authErrorMessage = null,
+                            showSignInScreen = false,
+                            showSignUpScreen = false,
+                            showForgotPasswordScreen = false,
+                            userProfile = state.userProfile.copy(
+                                fullName = auth.fullName ?: state.userProfile.fullName,
+                                email = auth.email ?: trimmedEmail
+                            ),
+                            toastMessage = "Đăng nhập thành công! Chào mừng $displayName.",
+                            currentToast = createToastData(
+                                "Đăng nhập thành công! Chào mừng $displayName.",
+                                ToastType.SUCCESS
+                            )
+                        )
+                    }
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    val errorMsg = error.message ?: "Đăng nhập thất bại"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAuthLoading = false,
+                            authErrorMessage = errorMsg,
+                            toastMessage = errorMsg,
+                            currentToast = createToastData(errorMsg, ToastType.ERROR)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Đăng ký tài khoản người mua mới qua API Backend
+     */
+    fun registerWithApi(
+        fullName: String,
+        email: String,
+        password: String,
+        phone: String? = null,
+        onSuccess: () -> Unit = {}
+    ) {
+        val trimmedName = fullName.trim()
+        val trimmedEmail = email.trim()
+
+        if (trimmedName.isBlank()) {
+            showErrorToast("Vui lòng nhập họ và tên")
+            return
+        }
+        if (trimmedEmail.isBlank()) {
+            showErrorToast("Vui lòng nhập email")
+            return
+        }
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+            showErrorToast("Định dạng email không hợp lệ")
+            return
+        }
+        if (password.length < 8) {
+            showErrorToast("Mật khẩu phải có tối thiểu 8 ký tự")
+            return
+        }
+
+        _uiState.update { it.copy(isAuthLoading = true, authErrorMessage = null) }
+
+        viewModelScope.launch {
+            val result = authRepository.register(
+                email = trimmedEmail,
+                password = password,
+                fullName = trimmedName,
+                phone = phone
+            )
+            result.fold(
+                onSuccess = { auth ->
+                    val displayName = auth.fullName ?: trimmedName
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = true,
+                            isAuthLoading = false,
+                            authErrorMessage = null,
+                            showSignInScreen = false,
+                            showSignUpScreen = false,
+                            showForgotPasswordScreen = false,
+                            userProfile = state.userProfile.copy(
+                                fullName = displayName,
+                                email = auth.email ?: trimmedEmail
+                            ),
+                            toastMessage = "Đăng ký tài khoản thành công! Chào mừng $displayName.",
+                            currentToast = createToastData(
+                                "Đăng ký tài khoản thành công! Chào mừng $displayName.",
+                                ToastType.SUCCESS
+                            )
+                        )
+                    }
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    val errorMsg = error.message ?: "Đăng ký thất bại"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAuthLoading = false,
+                            authErrorMessage = errorMsg,
+                            toastMessage = errorMsg,
+                            currentToast = createToastData(errorMsg, ToastType.ERROR)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Cập nhật Base URL của API Backend tại runtime
+     */
+    fun setApiBaseUrl(newUrl: String) {
+        try {
+            TokenManager.getInstance().saveCustomBaseUrl(newUrl)
+            showSuccessToast("Đã chuyển API Base URL: $newUrl")
+        } catch (_: Exception) {
+            com.example.b2capp.core.network.NetworkConfig.setBaseUrl(newUrl)
+        }
+    }
+
+    /**
+     * Giữ lại hàm login mock cũ cho backward-compatibility
+     */
     fun login(email: String = "nguyenvana@gmail.com") {
         _uiState.update { state ->
             state.copy(
@@ -255,6 +455,11 @@ class B2CViewModel : ViewModel() {
     }
 
     fun logout() {
+        viewModelScope.launch {
+            try {
+                authRepository.logout()
+            } catch (_: Exception) {}
+        }
         _uiState.update { state ->
             state.copy(
                 isLoggedIn = false,

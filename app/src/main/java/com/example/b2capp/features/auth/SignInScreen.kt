@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.auth
+package com.example.b2capp.features.auth
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -35,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -343,39 +344,67 @@ fun SignInScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        // Hiển thị thông báo lỗi nếu có
+                        if (!uiState.authErrorMessage.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = uiState.authErrorMessage,
+                                color = Color(0xFFBA2211),
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // Nút ĐĂNG NHẬP →
                         Button(
                             onClick = {
-                                viewModel.login(emailOrPhone.ifBlank { "nguyenvana@gmail.com" })
-                                onSignInSuccess()
+                                viewModel.loginWithApi(
+                                    email = emailOrPhone,
+                                    password = password,
+                                    onSuccess = onSignInSuccess
+                                )
                             },
+                            enabled = !uiState.isAuthLoading,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp)
                                 .testTag("submit_login_button"),
                             shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA2211))
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFBA2211),
+                                disabledContainerColor = Color(0xFFBA2211).copy(alpha = 0.6f)
+                            )
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    text = "ĐĂNG NHẬP",
-                                    fontSize = 14.5.sp,
-                                    fontWeight = FontWeight.Bold,
+                            if (uiState.isAuthLoading) {
+                                CircularProgressIndicator(
                                     color = Color.White,
-                                    letterSpacing = 0.5.sp
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(22.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = "ĐĂNG NHẬP",
+                                        fontSize = 14.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
 
