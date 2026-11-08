@@ -114,7 +114,14 @@ object ApiClient {
         get() = getAuthenticatedRetrofit().create(AuthApiService::class.java)
 
     /**
-     * Tạo Service cho bất kỳ endpoint nào cần xác thực (Cart, Order, User, Product...)
+     * Tạo Service công khai không yêu cầu token trước (Categories, Products, Promotions...)
+     */
+    fun <T> createService(serviceClass: Class<T>): T {
+        return getUnauthenticatedRetrofit().create(serviceClass)
+    }
+
+    /**
+     * Tạo Service cho bất kỳ endpoint nào cần xác thực (Cart, Order, User...)
      */
     fun <T> createAuthenticatedService(serviceClass: Class<T>): T {
         return getAuthenticatedRetrofit().create(serviceClass)

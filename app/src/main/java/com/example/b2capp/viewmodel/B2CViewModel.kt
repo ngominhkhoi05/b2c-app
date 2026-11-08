@@ -15,6 +15,12 @@ import com.example.b2capp.core.ui.components.createToastData
 import com.example.b2capp.data.SampleData
 import com.example.b2capp.data.local.TokenManager
 import com.example.b2capp.data.repository.AuthRepository
+import com.example.b2capp.data.repository.HomeBannerItem
+import com.example.b2capp.data.repository.HomeRepository
+import com.example.b2capp.features.home.HomeBadgeType
+import com.example.b2capp.features.home.HomeBestSellerItem
+import com.example.b2capp.features.home.HomeSuggestedProduct
+import com.example.b2capp.features.home.QuickCategoryItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -87,7 +93,17 @@ data class B2CUiState(
     val detailSelectedQuantity: Int = 1,
     val interactiveRatingDemo: Float = 4.0f,
     val toastMessage: String? = null,
-    val currentToast: ToastData? = null
+    val currentToast: ToastData? = null,
+    val homeCategories: List<QuickCategoryItem> = HomeRepository.getDefaultCategories(),
+    val homeBestSellers: List<HomeBestSellerItem> = HomeRepository.getDefaultBestSellers(),
+    val homeSuggestedProducts: List<HomeSuggestedProduct> = emptyList(),
+    val homeBanners: List<HomeBannerItem> = HomeRepository.getDefaultBanners(),
+    val isHomeLoading: Boolean = false,
+    val isHomeRefreshing: Boolean = false,
+    val isLoadingMoreSuggested: Boolean = false,
+    val isLastSuggestedPage: Boolean = false,
+    val homeSuggestedPage: Int = 0,
+    val serverCartCount: Int? = null
 ) {
     val totalCartPrice: Long
         get() = cartItems.sumOf { it.totalPrice }
@@ -99,7 +115,7 @@ data class B2CUiState(
         }
 
     val totalCartCount: Int
-        get() = cartItems.sumOf { it.quantity }
+        get() = serverCartCount ?: cartItems.sumOf { it.quantity }
 
     val filteredProducts: List<ProductItem>
         get() = products.filter { product ->
@@ -111,10 +127,14 @@ data class B2CUiState(
 
 class B2CViewModel : ViewModel() {
     private val authRepository: AuthRepository by lazy { AuthRepository() }
+    private val homeRepository: HomeRepository by lazy { HomeRepository() }
     private val _uiState = MutableStateFlow(B2CUiState())
     val uiState: StateFlow<B2CUiState> = _uiState.asStateFlow()
 
     init {
+        // Tự động tải dữ liệu Trang chủ từ API Backend (có fallback dữ liệu mẫu)
+        loadHomeData()
+
         // Kiểm tra xem đã có phiên đăng nhập đã lưu trong TokenManager chưa
         try {
             if (TokenManager.getInstance().isLoggedIn()) {
@@ -126,6 +146,7 @@ class B2CViewModel : ViewModel() {
                         userProfile = savedProfile
                     )
                 }
+                refreshCartBadgeCount()
             }
 
             // Lắng nghe sự kiện đăng xuất khi Refresh Token hết hạn từ TokenAuthenticator
@@ -136,6 +157,7 @@ class B2CViewModel : ViewModel() {
                             it.copy(
                                 isLoggedIn = false,
                                 showSignInScreen = true,
+                                serverCartCount = null,
                                 toastMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
                                 currentToast = createToastData(
                                     "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
@@ -148,6 +170,91 @@ class B2CViewModel : ViewModel() {
             }
         } catch (_: Exception) {
             // Trường hợp chạy trong Preview hoặc Unit Test chưa khởi tạo context
+        }
+    }
+
+    /**
+     * Nạp dữ liệu Trang chủ (Danh mục, Sản phẩm bán chạy, Gợi ý hôm nay, Banners, Giỏ hàng)
+     */
+    fun loadHomeData(isRefresh: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isHomeRefreshing = isRefresh,
+                    isHomeLoading = !isRefresh && it.homeSuggestedProducts.isEmpty()
+                )
+            }
+
+            val result = homeRepository.loadInitialHomeData()
+            result.onSuccess { data ->
+                _uiState.update { state ->
+                    state.copy(
+                        homeCategories = if (data.categories.isNotEmpty()) data.categories else state.homeCategories,
+                        homeBestSellers = if (data.bestSellerProducts.isNotEmpty()) data.bestSellerProducts else state.homeBestSellers,
+                        homeSuggestedProducts = if (data.suggestedProducts.isNotEmpty()) data.suggestedProducts else state.homeSuggestedProducts,
+                        homeBanners = if (data.banners.isNotEmpty()) data.banners else state.homeBanners,
+                        serverCartCount = if (state.isLoggedIn) data.cartCount else null,
+                        isLastSuggestedPage = data.isLastSuggestedPage,
+                        homeSuggestedPage = 1,
+                        isHomeLoading = false,
+                        isHomeRefreshing = false
+                    )
+                }
+            }.onFailure {
+                _uiState.update { state ->
+                    state.copy(
+                        isHomeLoading = false,
+                        isHomeRefreshing = false
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Nạp thêm sản phẩm gợi ý khi người dùng cuộn xuống dưới cùng (Infinite Scroll)
+     */
+    fun loadMoreSuggestedProducts() {
+        val state = _uiState.value
+        if (state.isLoadingMoreSuggested || state.isLastSuggestedPage) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingMoreSuggested = true) }
+
+            val currentPage = _uiState.value.homeSuggestedPage
+            val (newItems, isLast) = homeRepository.loadMoreSuggested(page = currentPage, size = 10)
+
+            _uiState.update { current ->
+                val combined = if (newItems.isNotEmpty()) {
+                    current.homeSuggestedProducts + newItems
+                } else {
+                    current.homeSuggestedProducts
+                }
+                current.copy(
+                    homeSuggestedProducts = combined,
+                    homeSuggestedPage = currentPage + 1,
+                    isLastSuggestedPage = isLast,
+                    isLoadingMoreSuggested = false
+                )
+            }
+        }
+    }
+
+    /**
+     * Cập nhật badge giỏ hàng từ API Backend
+     */
+    fun refreshCartBadgeCount() {
+        viewModelScope.launch {
+            try {
+                if (_uiState.value.isLoggedIn) {
+                    val count = homeRepository.getCartItemCount()
+                    _uiState.update { it.copy(serverCartCount = count) }
+                } else {
+                    _uiState.update { it.copy(serverCartCount = null) }
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -329,6 +436,7 @@ class B2CViewModel : ViewModel() {
                             )
                         )
                     }
+                    refreshCartBadgeCount()
                     onSuccess()
                 },
                 onFailure = { error ->
@@ -407,6 +515,7 @@ class B2CViewModel : ViewModel() {
                             )
                         )
                     }
+                    refreshCartBadgeCount()
                     onSuccess()
                 },
                 onFailure = { error ->
@@ -463,6 +572,7 @@ class B2CViewModel : ViewModel() {
         _uiState.update { state ->
             state.copy(
                 isLoggedIn = false,
+                serverCartCount = null,
                 showSignInScreen = true,
                 showSignUpScreen = false,
                 showForgotPasswordScreen = false,

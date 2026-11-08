@@ -222,88 +222,24 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     var searchInput by remember { mutableStateOf("") }
 
-    // 8 Danh mục nhanh
-    val quickCategories = listOf(
-        QuickCategoryItem("qc_fashion", "Thời trang", Icons.Outlined.Checkroom, Color(0xFFFEECE8), Color(0xFFEE4D2D)),
-        QuickCategoryItem("qc_tech", "Điện tử", Icons.Outlined.Devices, Color(0xFFEDF4FB), Color(0xFF1E75C4)),
-        QuickCategoryItem("qc_home", "Gia dụng", Icons.Outlined.Weekend, Color(0xFFF3EFF8), Color(0xFF555555)),
-        QuickCategoryItem("qc_beauty", "Làm đẹp", Icons.Outlined.Spa, Color(0xFFFDECEE), Color(0xFFD32F2F)),
-        QuickCategoryItem("qc_shoes", "Giày dép", Icons.Outlined.DirectionsRun, Color(0xFFEDF2FC), Color(0xFF3B82F6)),
-        QuickCategoryItem("qc_watches", "Đồng hồ", Icons.Outlined.Watch, Color(0xFFE0F7F3), Color(0xFF14B8A6)),
-        QuickCategoryItem("qc_baby", "Mẹ & Bé", Icons.Outlined.ChildCare, Color(0xFFFEEFE8), Color(0xFFF97316)),
-        QuickCategoryItem("qc_all", "Xem tất cả", Icons.Outlined.Apps, Color(0xFFF0F1F3), Color(0xFF666666))
-    )
+    // Nạp dữ liệu Trang chủ từ API khi màn hình xuất hiện
+    LaunchedEffect(Unit) {
+        if (uiState.homeSuggestedProducts.isEmpty()) {
+            viewModel.loadHomeData()
+        }
+        viewModel.refreshCartBadgeCount()
+    }
 
-    // Dữ liệu Sản phẩm bán chạy (Best Seller)
-    val bestSellerProducts = listOf(
-        HomeBestSellerItem(
-            id = "bs_1",
-            name = "Tai nghe Bluetooth chống ồn Sony",
-            imageUrl = "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&auto=format&fit=crop&q=75",
-            price = 299000L,
-            originalPrice = 460000L,
-            discountPercent = 35,
-            rating = 4.9f,
-            soldCount = 2400,
-            shopName = "Sony Official Store",
-            shopLocation = "TP. Hồ Chí Minh",
-            description = "Tai nghe không dây Bluetooth tích hợp chống ồn chủ động, âm bass sống động, thời lượng pin lên đến 30 giờ."
-        ),
-        HomeBestSellerItem(
-            id = "bs_2",
-            name = "Áo Thun Nam Cotton Compact Siêu Thoáng",
-            imageUrl = "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=400&auto=format&fit=crop&q=75",
-            price = 199000L,
-            originalPrice = 299000L,
-            discountPercent = 33,
-            rating = 5.0f,
-            soldCount = 5800,
-            shopName = "Coolmate Official Store",
-            shopLocation = "Hà Nội",
-            description = "Áo thun nam chất liệu 100% cotton compact mềm mịn, co giãn 4 chiều, chống nhăn xù tối ưu."
-        ),
-        HomeBestSellerItem(
-            id = "bs_3",
-            name = "Bình giữ nhiệt Lock&Lock nhiệt độ thông minh",
-            imageUrl = "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400&auto=format&fit=crop&q=75",
-            price = 149000L,
-            originalPrice = 298000L,
-            discountPercent = 50,
-            rating = 4.8f,
-            soldCount = 1850,
-            shopName = "Lock&Lock Official",
-            shopLocation = "Hà Nội",
-            description = "Bình giữ nhiệt chất liệu inox 316 cao cấp kèm màn hình cảm ứng hiển thị nhiệt độ chính xác."
-        ),
-        HomeBestSellerItem(
-            id = "bs_4",
-            name = "Bàn phím cơ Bluetooth kèm kê tay gỗ",
-            imageUrl = "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400&auto=format&fit=crop&q=75",
-            price = 590000L,
-            originalPrice = 739000L,
-            discountPercent = 20,
-            rating = 4.9f,
-            soldCount = 920,
-            shopName = "Logitech Flagship",
-            shopLocation = "TP. Hồ Chí Minh",
-            description = "Bàn phím cơ Bluetooth hỗ trợ kết nối đa thiết bị, phím gõ êm, đèn LED nền RGB."
-        ),
-        HomeBestSellerItem(
-            id = "bs_5",
-            name = "Củ sạc nhanh Anker GaN 65W 3 cổng",
-            imageUrl = "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=400&auto=format&fit=crop&q=75",
-            price = 399000L,
-            originalPrice = 550000L,
-            discountPercent = 27,
-            rating = 4.9f,
-            soldCount = 3100,
-            shopName = "Anker Audio Flagship",
-            shopLocation = "Hà Nội",
-            description = "Củ sạc nhanh công nghệ GaN siêu nhỏ gọn 65W sạc được laptop, điện thoại cùng lúc."
-        )
-    )
+    // Danh mục nhanh từ ViewModel/API (có fallback mặc định)
+    val quickCategories = uiState.homeCategories
 
-    // Dữ liệu Gợi ý hôm nay ban đầu
+    // Dữ liệu Sản phẩm bán chạy từ ViewModel/API (có fallback mặc định)
+    val bestSellerProducts = uiState.homeBestSellers
+
+    // Danh sách Banners khuyến mãi từ ViewModel/API
+    val banners = uiState.homeBanners
+
+    // Dữ liệu Gợi ý hôm nay ban đầu dự phòng
     val initialSuggestedProducts = remember {
         listOf(
             HomeSuggestedProduct(
@@ -381,15 +317,12 @@ fun HomeScreen(
         )
     }
 
-    // Danh sách sản phẩm cuộn vô hạn (Infinite Scrolling)
-    val suggestedProductsList = remember {
-        mutableStateListOf<HomeSuggestedProduct>().apply {
-            addAll(initialSuggestedProducts)
-        }
+    // Danh sách Gợi ý hôm nay: ưu tiên từ ViewModel/API; nếu chưa tải thì fallback danh sách ban đầu
+    val suggestedProductsList = if (uiState.homeSuggestedProducts.isNotEmpty()) {
+        uiState.homeSuggestedProducts
+    } else {
+        initialSuggestedProducts
     }
-
-    var pageIndex by remember { mutableIntStateOf(1) }
-    var isLoadingMore by remember { mutableStateOf(false) }
 
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -400,13 +333,8 @@ fun HomeScreen(
     }
 
     LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore && !isLoadingMore) {
-            isLoadingMore = true
-            delay(500L) // Độ trễ tải mượt mà
-            val newBatch = generateMoreSuggestedProducts(pageIndex)
-            suggestedProductsList.addAll(newBatch)
-            pageIndex++
-            isLoadingMore = false
+        if (shouldLoadMore && !uiState.isLoadingMoreSuggested && !uiState.isLastSuggestedPage) {
+            viewModel.loadMoreSuggestedProducts()
         }
     }
 
@@ -439,7 +367,14 @@ fun HomeScreen(
             ) {
                 // 2. Carousel Hero Banner (Mid-Year Mega Sale)
                 item {
-                    MidYearMegaSaleBanner()
+                    MidYearMegaSaleBanner(
+                        banners = banners,
+                        onBannerClick = { banner ->
+                            banner.code?.let { code ->
+                                viewModel.showSuccessToast("Mã voucher: $code đã sẵn sàng áp dụng khi thanh toán!")
+                            }
+                        }
+                    )
                 }
 
                 // 3. Lưới 8 Danh mục nhanh
@@ -447,7 +382,11 @@ fun HomeScreen(
                     QuickCategoriesGrid(
                         categories = quickCategories,
                         onCategoryClick = { cat ->
-                            viewModel.selectCategory(cat.title)
+                            if (cat.id == "qc_all") {
+                                viewModel.selectCategory("Tất cả")
+                            } else {
+                                viewModel.selectCategory(cat.title)
+                            }
                             viewModel.selectTab(1) // Chuyển sang tab Danh mục
                         }
                     )
@@ -525,29 +464,31 @@ fun HomeScreen(
                 }
 
                 // 7. Loader chỉ thị cuộn vô hạn
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 18.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
+                if (!uiState.isLastSuggestedPage) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 18.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = CoralPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Đang tải thêm sản phẩm...",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextSecondary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = CoralPrimary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (uiState.isLoadingMoreSuggested) "Đang tải thêm sản phẩm..." else "Cuộn xuống để xem thêm",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextSecondary
+                                )
+                            }
                         }
                     }
                 }
