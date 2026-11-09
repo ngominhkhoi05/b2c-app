@@ -99,7 +99,7 @@ import com.example.b2capp.core.designsystem.theme.TextSecondary
  * 2. Cụm Giá tiền: ₫199.000 – ₫249.000, giá gốc ₫350.000, tag -29%, Freeship Xtra Toàn Quốc, Đổi trả 60 ngày.
  * 3. Tên sản phẩm, Đánh giá 4.9 sao (342 Đánh giá | 1.5k Đã bán), nút bookmark.
  * 4. Dải ƯU ĐÃI: Giảm ₫15k, Giảm 10%, Freeship 200k.
- * 5. Chọn phân loại màu sắc (Trắng Tinh Khôi, Đen Huyền Bí, Xanh Navy) & kích cỡ (M, L, XL, 2XL).
+ * 5. Chọn phân loại màu sắc & kích cỡ (nếu có tùy chọn phân loại từ API).
  * 6. Thông tin Shop Coolmate Official (Mall, Chat, Xem Shop, Chỉ số 4.9/5.0, 99%, 185).
  * 7. Chi tiết sản phẩm (Chất liệu, Xuất xứ, Kiểu dáng, Họa tiết, Gửi hàng từ).
  * 8. Mô tả sản phẩm với nút Xem thêm chi tiết.
@@ -137,16 +137,11 @@ fun ProductDetailsScreen(
         }
     }
 
-    var selectedColor by remember { mutableStateOf("Đen Huyền Bí") }
-    var selectedSize by remember { mutableStateOf("M") }
     val numericProductId = product.id.toLongOrNull()
     val isWishlisted = numericProductId != null && uiState.wishlistProductIds.contains(numericProductId)
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var showVariantSheet by remember { mutableStateOf(false) }
     var variantSheetMode by remember { mutableStateOf(VariantSheetMode.ADD_TO_CART) }
-
-    val colorsList = listOf("Trắng Tinh Khôi", "Đen Huyền Bí", "Xanh Navy")
-    val sizesList = listOf("M", "L", "XL", "2XL")
 
     val displayImages = remember(product.id, product.images) {
         if (product.images.isNotEmpty()) product.images else listOfNotNull(product.imageUrl.ifBlank { null })
@@ -426,49 +421,45 @@ fun ProductDetailsScreen(
                 HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
             }
 
-            // 4. Chọn phân loại (Động từ API hoặc Fallback mẫu)
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    val currentSummary = if (hasDynamicOptions) {
-                        currentVariant?.variantName ?: product.options.mapNotNull { opt ->
+            // 4. Chọn phân loại (Chỉ hiển thị khi sản phẩm có tùy chọn phân loại thực tế từ API)
+            if (hasDynamicOptions) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        val currentSummary = currentVariant?.variantName ?: product.options.mapNotNull { opt ->
                             val valId = selectedOptionValues[opt.id]
                             opt.values.find { it.id == valId }?.value
                         }.joinToString(", ")
-                    } else {
-                        "$selectedColor, Size $selectedSize"
-                    }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                variantSheetMode = VariantSheetMode.SELECT_ONLY
-                                showVariantSheet = true
-                            },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Chọn phân loại",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    variantSheetMode = VariantSheetMode.SELECT_ONLY
+                                    showVariantSheet = true
+                                },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Chọn phân loại",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
 
-                        Text(
-                            text = "$currentSummary >",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    }
+                            Text(
+                                text = if (currentSummary.isNotBlank()) "$currentSummary >" else ">",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    if (hasDynamicOptions) {
                         product.options.forEach { option ->
                             val selectedValId = selectedOptionValues[option.id]
                             val selectedValue = option.values.find { it.id == selectedValId }
@@ -540,93 +531,10 @@ fun ProductDetailsScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
                         }
-                    } else {
-                        // Lựa chọn màu sắc
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            colorsList.forEach { colorName ->
-                                val isColorSelected = colorName == selectedColor
-                                val dotColor = when (colorName) {
-                                    "Trắng Tinh Khôi" -> Color.White
-                                    "Đen Huyền Bí" -> Color(0xFF1E1E1E)
-                                    else -> Color(0xFF1C3A5A)
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isColorSelected) Color(0xFFFFF3F0) else Color(0xFFF0F2F5))
-                                        .border(
-                                            width = if (isColorSelected) 1.dp else 0.dp,
-                                            color = if (isColorSelected) Color(0xFFD32F2F) else Color.Transparent,
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
-                                        .clickable { selectedColor = colorName }
-                                        .padding(horizontal = 10.dp, vertical = 7.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(12.dp)
-                                                .background(dotColor, CircleShape)
-                                                .border(1.dp, if (colorName == "Trắng Tinh Khôi") Color(0xFFCCCCCC) else Color.Transparent, CircleShape)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = colorName,
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isColorSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isColorSelected) Color(0xFFD32F2F) else TextPrimary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Lựa chọn kích cỡ
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text(
-                                text = "Kích cỡ:",
-                                fontSize = 12.sp,
-                                color = TextSecondary
-                            )
-
-                            sizesList.forEach { sizeName ->
-                                val isSizeSelected = sizeName == selectedSize
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(width = 38.dp, height = 28.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSizeSelected) Color(0xFFFFF3F0) else Color(0xFFF0F2F5))
-                                        .border(
-                                            width = if (isSizeSelected) 1.dp else 0.dp,
-                                            color = if (isSizeSelected) Color(0xFFD32F2F) else Color.Transparent,
-                                            shape = RoundedCornerShape(4.dp)
-                                        )
-                                        .clickable { selectedSize = sizeName },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = sizeName,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSizeSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSizeSelected) Color(0xFFD32F2F) else TextPrimary
-                                    )
-                                }
-                            }
-                        }
                     }
-                }
 
-                HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
+                    HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
+                }
             }
 
             // 5. Thông tin Shop Coolmate Official
@@ -711,7 +619,7 @@ fun ProductDetailsScreen(
                                 .height(28.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .border(1.dp, Color(0xFFD32F2F), RoundedCornerShape(6.dp))
-                                .clickable { viewModel.openShopChat(product.shopName, product) }
+                                .clickable { viewModel.openShopChat(shopName = product.shopName, product = product, sellerId = product.sellerId) }
                                 .padding(horizontal = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -985,7 +893,7 @@ fun ProductDetailsScreen(
                 Column(
                     modifier = Modifier
                         .width(48.dp)
-                        .clickable { viewModel.openShopChat(product.shopName, product) },
+                        .clickable { viewModel.openShopChat(shopName = product.shopName, product = product, sellerId = product.sellerId) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -1090,14 +998,10 @@ fun ProductDetailsScreen(
             ProductVariantBottomSheet(
                 product = product,
                 initialSelectedOptionValues = selectedOptionValues.toMap(),
-                initialColor = if (selectedColor.contains("Trắng")) "Trắng" else "Đen",
-                initialSize = selectedSize,
                 initialQuantity = 1,
                 mode = variantSheetMode,
                 onDismissRequest = { showVariantSheet = false },
-                onConfirm = { chosenColor, chosenSize, chosenQuantity, mode ->
-                    selectedColor = if (chosenColor == "Trắng") "Trắng Tinh Khôi" else "Đen Huyền Bí"
-                    selectedSize = chosenSize
+                onConfirm = { _, _, _, mode ->
                     showVariantSheet = false
                     if (mode == VariantSheetMode.BUY_NOW) {
                         viewModel.openCheckoutScreen()

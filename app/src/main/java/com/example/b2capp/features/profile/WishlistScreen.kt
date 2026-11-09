@@ -32,14 +32,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.CheckCircleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.RemoveRedEye
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -315,31 +312,6 @@ fun WishlistScreen(
                                 )
                             }
                         }
-
-                        IconButton(onClick = { viewModel.showToast("Chia sẻ danh sách yêu thích!") }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Share,
-                                contentDescription = "Chia sẻ",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(Color(0xFFBA2211), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Person,
-                                contentDescription = "Tài khoản",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
                     }
                 }
             }
@@ -440,69 +412,6 @@ fun WishlistScreen(
                                 Text(text = "Đăng nhập", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-                    }
-                }
-            }
-
-            // 2. Thẻ Cập Nhật Giá Mới (Price Drop Notification Banner)
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 4.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFFFF3F0))
-                        .border(0.8.dp, Color(0xFFFDE8E4), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(Color(0xFFBA2211), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.FlashOn,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "CẬP NHẬT GIÁ MỚI",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFBA2211)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = if (discountCount > 0)
-                                    "$discountCount sản phẩm của bạn vừa giảm giá sâu hôm nay!"
-                                else
-                                    "Theo dõi biến động giá sản phẩm yêu thích liên tục mỗi ngày!",
-                                fontSize = 12.sp,
-                                color = Color(0xFF374151),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Text(
-                            text = "Xem ngay",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFBA2211),
-                            modifier = Modifier.clickable {
-                                selectedFilter = "Đang giảm giá"
-                            }
-                        )
                     }
                 }
             }

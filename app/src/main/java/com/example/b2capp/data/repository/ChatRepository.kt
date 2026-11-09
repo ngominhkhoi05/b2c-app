@@ -2,6 +2,7 @@ package com.example.b2capp.data.repository
 
 import androidx.compose.ui.graphics.Color
 import com.example.R
+import com.example.b2capp.data.SampleData
 import com.example.b2capp.data.remote.ApiClient
 import com.example.b2capp.data.remote.api.ChatApiService
 import com.example.b2capp.data.remote.dto.ChatMessageDto
@@ -78,16 +79,27 @@ class ChatRepository(
     suspend fun sendMessage(
         conversationId: Long? = null,
         sellerId: Long? = null,
-        content: String
+        content: String,
+        messageType: String = "TEXT",
+        attachmentUrl: String? = null,
+        refProductId: Long? = null,
+        refOrderId: Long? = null
     ): Result<ChatMessageDto> = withContext(Dispatchers.IO) {
         try {
-            val targetId = conversationId ?: 0L
             val request = SendMessageRequestDto(
                 conversationId = conversationId,
                 sellerId = sellerId,
-                content = content
+                content = content,
+                messageType = messageType,
+                attachmentUrl = attachmentUrl,
+                refProductId = refProductId,
+                refOrderId = refOrderId
             )
-            val response = apiServiceHolder().sendMessage(targetId, request)
+            val response = if (conversationId != null && conversationId > 0) {
+                apiServiceHolder().sendMessage(conversationId, request)
+            } else {
+                apiServiceHolder().sendMessageDirect(request)
+            }
             if (response.isSuccessful && response.body()?.data != null) {
                 Result.success(response.body()!!.data!!)
             } else {
@@ -126,9 +138,14 @@ class ChatRepository(
         avatarLetter: String? = null,
         avatarBg: Color? = null
     ): DetailedChatMessage {
-        val isFromUser = dto.senderType == "BUYER" || (currentUserId != null && dto.senderId == currentUserId)
+        val isFromUser = dto.senderType == "BUYER" || (currentUserId != null && dto.senderId == currentUserId && dto.senderType != "SELLER")
         val formattedTime = formatTime(dto.createdAt)
         val isCoolmate = shopName.contains("Coolmate", ignoreCase = true)
+        val isVoucher = dto.content.contains("voucher", ignoreCase = true) || dto.content.contains("giảm giá", ignoreCase = true)
+
+        val attachedProduct = dto.refProductId?.let { pId ->
+            SampleData.products.find { it.id == pId.toString() }
+        }
 
         return DetailedChatMessage(
             id = "msg_${dto.id}",
@@ -137,7 +154,11 @@ class ChatRepository(
             isFromUser = isFromUser,
             senderAvatarRes = if (!isFromUser && isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null,
             avatarLetter = if (!isFromUser) avatarLetter else null,
-            avatarBg = if (!isFromUser) avatarBg else null
+            avatarBg = if (!isFromUser) avatarBg else null,
+            attachedProduct = attachedProduct,
+            attachmentUrl = dto.attachmentUrl,
+            isVoucher = !isFromUser && isVoucher,
+            voucherValue = if (isVoucher) "20.000₫" else null
         )
     }
 
@@ -182,7 +203,7 @@ class ChatRepository(
     /**
      * Trích xuất chữ cái đại diện ngắn gọn cho avatar Shop
      */
-    private fun extractInitials(shopName: String): String {
+    fun extractInitials(shopName: String): String {
         val clean = shopName.replace("Official", "", ignoreCase = true)
             .replace("Store", "", ignoreCase = true)
             .replace("Flagship", "", ignoreCase = true)
@@ -198,7 +219,7 @@ class ChatRepository(
     /**
      * Sinh màu nền avatar hài hòa từ tên shop
      */
-    private fun generateAvatarColor(shopName: String): Color {
+    fun generateAvatarColor(shopName: String): Color {
         val colors = listOf(
             Color(0xFFF0FDF4), // Xanh nhạt
             Color(0xFFEFF6FF), // Xanh dương phấn
@@ -214,7 +235,7 @@ class ChatRepository(
     /**
      * Định dạng thời gian thân thiện (Vừa xong, 10:30, Hôm qua, 15 Th10...)
      */
-    private fun formatTime(isoString: String?): String {
+    fun formatTime(isoString: String?): String {
         if (isoString.isNullOrBlank()) return "Vừa xong"
         return try {
             val parsed = LocalDateTime.parse(isoString)

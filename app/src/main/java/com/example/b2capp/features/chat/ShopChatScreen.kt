@@ -80,6 +80,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.b2capp.core.model.ProductItem
 import com.example.b2capp.viewmodel.B2CUiState
@@ -206,8 +207,14 @@ fun ShopChatScreen(
         viewModel.sendChatMessage(
             conversationId = activeConversationId,
             sellerId = chatInfo.sellerId,
-            content = content
-        )
+            content = content,
+            messageType = if (productAttachment != null) "PRODUCT" else "TEXT",
+            refProductId = productAttachment?.id?.toLongOrNull()
+        ) { sentDto ->
+            if (activeConversationId == null && sentDto.conversationId != null) {
+                activeConversationId = sentDto.conversationId
+            }
+        }
 
         // Phản hồi tự động thông minh từ Shop sau 1.2s
         coroutineScope.launch {
@@ -237,6 +244,52 @@ fun ShopChatScreen(
                 DetailedChatMessage(
                     id = "shop_${System.currentTimeMillis()}",
                     text = replyText,
+                    time = "Vừa xong",
+                    isFromUser = false,
+                    avatarLetter = chatInfo.avatarLetter,
+                    avatarBg = chatInfo.avatarBg,
+                    senderAvatarRes = if (isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null
+                )
+            )
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    // Hàm gửi hình ảnh đính kèm
+    fun sendImageMessage(imageUrl: String) {
+        val userMsg = DetailedChatMessage(
+            id = "user_${System.currentTimeMillis()}",
+            text = "[Hình ảnh]",
+            time = "Vừa xong",
+            isFromUser = true,
+            attachmentUrl = imageUrl
+        )
+        messages.add(userMsg)
+
+        viewModel.sendChatMessage(
+            conversationId = activeConversationId,
+            sellerId = chatInfo.sellerId,
+            content = "[Hình ảnh]",
+            messageType = "IMAGE",
+            attachmentUrl = imageUrl
+        ) { sentDto ->
+            if (activeConversationId == null && sentDto.conversationId != null) {
+                activeConversationId = sentDto.conversationId
+            }
+        }
+
+        coroutineScope.launch {
+            delay(100)
+            if (messages.isNotEmpty()) {
+                listState.animateScrollToItem(messages.size - 1)
+            }
+            delay(1200)
+
+            val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
+            messages.add(
+                DetailedChatMessage(
+                    id = "shop_${System.currentTimeMillis()}",
+                    text = "Dạ hình ảnh rất rõ nét ạ, shop đã tiếp nhận yêu cầu của bạn và đang kiểm tra ngay nhé!",
                     time = "Vừa xong",
                     isFromUser = false,
                     avatarLetter = chatInfo.avatarLetter,
@@ -427,63 +480,79 @@ fun ShopChatScreen(
                         .padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFFF3F4F6))
-                            .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
+                            .weight(1f)
+                            .clickable { viewModel.openProductDetailsScreen(currentProduct) },
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.folded_black_tshirt_1793956682242),
-                            contentDescription = currentProduct.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .clip(RoundedCornerShape(bottomEnd = 4.dp, topStart = 6.dp))
-                                .background(Color(0xFF00897B))
-                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFF3F4F6))
+                                .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
                         ) {
-                            Text(
-                                text = "Xtra",
-                                fontSize = 7.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = currentProduct.name,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1F2937),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = currentProduct.formattedPrice,
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = CoralPrimary
-                            )
-                            val origPrice = currentProduct.formattedOriginalPrice
-                            if (!origPrice.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = origPrice,
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF9CA3AF),
-                                    textDecoration = TextDecoration.LineThrough
+                            if (currentProduct.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = currentProduct.imageUrl,
+                                    contentDescription = currentProduct.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
                                 )
+                            } else {
+                                Image(
+                                    painter = painterResource(id = R.drawable.folded_black_tshirt_1793956682242),
+                                    contentDescription = currentProduct.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .clip(RoundedCornerShape(bottomEnd = 4.dp, topStart = 6.dp))
+                                    .background(Color(0xFF00897B))
+                                    .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                            ) {
+                                Text(
+                                    text = "Xtra",
+                                    fontSize = 7.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = currentProduct.name,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1F2937),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = currentProduct.formattedPrice,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CoralPrimary
+                                )
+                                val origPrice = currentProduct.formattedOriginalPrice
+                                if (!origPrice.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = origPrice,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF9CA3AF),
+                                        textDecoration = TextDecoration.LineThrough
+                                    )
+                                }
                             }
                         }
                     }
@@ -666,7 +735,10 @@ fun ShopChatScreen(
             items(messages, key = { it.id }) { msg ->
                 if (msg.isFromUser) {
                     // Tin nhắn từ phía Người mua (Màu cam đỏ bên phải)
-                    UserChatBubble(message = msg)
+                    UserChatBubble(
+                        message = msg,
+                        onProductClick = { p -> viewModel.openProductDetailsScreen(p) }
+                    )
                 } else {
                     // Tin nhắn từ phía Shop (Bong bóng trắng bên trái kèm Avatar)
                     ShopChatBubble(
@@ -721,7 +793,7 @@ fun ShopChatScreen(
                             title = "Ảnh chụp",
                             onClick = {
                                 showAttachmentSheet = false
-                                viewModel.showToast("Đã chọn ảnh mẫu từ thư viện")
+                                sendImageMessage("https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80")
                             }
                         )
                     }
@@ -749,7 +821,7 @@ fun ShopChatScreen(
                     // Nút Camera chụp ảnh
                     IconButton(
                         onClick = {
-                            viewModel.showToast("Mở camera chụp ảnh thực tế")
+                            sendImageMessage("https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500&auto=format&fit=crop&q=80")
                         },
                         modifier = Modifier.size(36.dp)
                     ) {

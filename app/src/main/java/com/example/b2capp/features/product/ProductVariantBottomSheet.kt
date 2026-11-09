@@ -81,8 +81,8 @@ enum class VariantSheetMode {
 fun ProductVariantBottomSheet(
     product: ProductItem,
     initialSelectedOptionValues: Map<Long, Long> = emptyMap(),
-    initialColor: String = "Đen",
-    initialSize: String = "M",
+    initialColor: String = "",
+    initialSize: String = "",
     initialQuantity: Int = 1,
     mode: VariantSheetMode = VariantSheetMode.ADD_TO_CART,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -121,10 +121,6 @@ fun ProductVariantBottomSheet(
         }
     }
 
-    // Dành cho fallback sản phẩm mock khi không có options từ API
-    var fallbackColor by remember { mutableStateOf(initialColor) }
-    var fallbackSize by remember { mutableStateOf(initialSize) }
-
     var quantity by remember { mutableIntStateOf(initialQuantity.coerceAtLeast(1)) }
 
     // Tính toán giá và kho
@@ -143,15 +139,13 @@ fun ProductVariantBottomSheet(
     val formattedOriginalPrice = originalPrice?.let { "₫${currencyFormatter.format(it)}" }
 
     // Chuỗi mô tả phân loại đã chọn
-    val selectedSummaryText = when {
-        hasDynamicOptions -> {
-            currentVariant?.variantName ?: product.options.mapNotNull { opt ->
-                val valId = selectedOptionValues[opt.id]
-                opt.values.find { it.id == valId }?.value
-            }.joinToString(", ")
-        }
-        isRealBackendProduct -> "Tiêu chuẩn"
-        else -> "$fallbackColor, Size $fallbackSize"
+    val selectedSummaryText = if (hasDynamicOptions) {
+        currentVariant?.variantName ?: product.options.mapNotNull { opt ->
+            val valId = selectedOptionValues[opt.id]
+            opt.values.find { it.id == valId }?.value
+        }.joinToString(", ")
+    } else {
+        "Tiêu chuẩn"
     }
 
     val displayThumbnail = currentVariant?.imageUrl?.ifBlank { null } ?: product.imageUrl
@@ -200,14 +194,8 @@ fun ProductVariantBottomSheet(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        val imageRes = if (fallbackColor == "Trắng") {
-                            R.drawable.product_white_tshirt_1793955938236
-                        } else {
-                            R.drawable.folded_black_tshirt_1793956682242
-                        }
-
                         Image(
-                            painter = painterResource(id = imageRes),
+                            painter = painterResource(id = R.drawable.product_white_tshirt_1793955938236),
                             contentDescription = "Ảnh phân loại",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -410,170 +398,6 @@ fun ProductVariantBottomSheet(
 
                     Spacer(modifier = Modifier.height(14.dp))
                 }
-            } else if (!isRealBackendProduct) {
-                // Fallback hiển thị màu sắc và kích cỡ cho dữ liệu mẫu áo thun
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Màu sắc (3)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Text(
-                        text = fallbackColor,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFD32F2F)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val isBlackSelected = fallbackColor == "Đen"
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isBlackSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
-                            .border(
-                                width = 1.dp,
-                                color = if (isBlackSelected) Color(0xFFEE4D2D) else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable { fallbackColor = "Đen" }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
-                            .testTag("variant_color_black")
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .background(Color(0xFF1E1E1E), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isBlackSelected) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Đen",
-                                fontSize = 13.sp,
-                                fontWeight = if (isBlackSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isBlackSelected) Color(0xFFD32F2F) else TextPrimary
-                            )
-                        }
-                    }
-
-                    val isWhiteSelected = fallbackColor == "Trắng"
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isWhiteSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
-                            .border(
-                                width = 1.dp,
-                                color = if (isWhiteSelected) Color(0xFFEE4D2D) else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable { fallbackColor = "Trắng" }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
-                            .testTag("variant_color_white")
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .background(Color.White, CircleShape)
-                                    .border(1.dp, Color(0xFFD1D5DB), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isWhiteSelected) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                        tint = Color(0xFFEE4D2D),
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Trắng",
-                                fontSize = 13.sp,
-                                fontWeight = if (isWhiteSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isWhiteSelected) Color(0xFFD32F2F) else TextPrimary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Kích cỡ (4)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = fallbackSize,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD32F2F)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                val sizeOptions = listOf("S", "M", "L", "XL")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    sizeOptions.forEach { sizeLabel ->
-                        val isSizeSelected = sizeLabel == fallbackSize
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSizeSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
-                                .border(
-                                    width = 1.dp,
-                                    color = if (isSizeSelected) Color(0xFFEE4D2D) else Color.Transparent,
-                                    shape = RoundedCornerShape(6.dp)
-                                )
-                                .clickable { fallbackSize = sizeLabel }
-                                .testTag("variant_size_$sizeLabel"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = sizeLabel,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSizeSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSizeSelected) Color(0xFFD32F2F) else TextPrimary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
             } else {
                 Text(
                     text = "Phân loại: Tiêu chuẩn",
@@ -714,8 +538,9 @@ fun ProductVariantBottomSheet(
                         .clickable {
                             if (onConfirmVariant != null) {
                                 onConfirmVariant(currentVariant, selectedSummaryText, quantity, mode)
+                            } else {
+                                onConfirm("Tiêu chuẩn", "", quantity, mode)
                             }
-                            onConfirm(fallbackColor, fallbackSize, quantity, mode)
                         }
                         .testTag("btn_confirm_variant_selection"),
                     contentAlignment = Alignment.Center

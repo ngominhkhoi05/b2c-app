@@ -154,30 +154,12 @@ fun AddressBookScreen(
                         )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { viewModel.loadAddresses(isRefresh = true) }) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Làm mới",
-                                tint = TextPrimary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(Color(0xFFBA2211), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Person,
-                                contentDescription = "Tài khoản",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                    IconButton(onClick = { viewModel.loadAddresses(isRefresh = true) }) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Làm mới",
+                            tint = TextPrimary
+                        )
                     }
                 }
             }

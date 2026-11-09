@@ -993,15 +993,18 @@ class B2CViewModel : ViewModel() {
         avatarUrl: String? = null,
         isMall: Boolean = true
     ) {
+        val letter = avatarLetter ?: chatRepository.extractInitials(shopName)
+        val bg = avatarBg ?: chatRepository.generateAvatarColor(shopName)
         _uiState.update { state ->
             val p = product ?: state.detailedProductScreen ?: SampleData.products[0]
+            val resolvedSellerId = sellerId ?: p.sellerId
             state.copy(
                 activeShopChat = ShopChatInfo(
                     conversationId = conversationId,
-                    sellerId = sellerId,
+                    sellerId = resolvedSellerId,
                     shopName = shopName,
-                    avatarLetter = avatarLetter,
-                    avatarBg = avatarBg,
+                    avatarLetter = letter,
+                    avatarBg = bg,
                     avatarUrl = avatarUrl,
                     isMall = isMall,
                     isOnline = true,
@@ -1039,16 +1042,37 @@ class B2CViewModel : ViewModel() {
         )
     }
 
-    fun sendChatMessage(conversationId: Long?, sellerId: Long?, content: String) {
-        if (content.isBlank()) return
+    fun sendChatMessage(
+        conversationId: Long?,
+        sellerId: Long?,
+        content: String,
+        messageType: String = "TEXT",
+        attachmentUrl: String? = null,
+        refProductId: Long? = null,
+        refOrderId: Long? = null,
+        onMessageSent: ((com.example.b2capp.data.remote.dto.ChatMessageDto) -> Unit)? = null
+    ) {
+        if (content.isBlank() && attachmentUrl.isNullOrBlank()) return
         viewModelScope.launch {
-            chatRepository.sendMessage(conversationId, sellerId, content)
+            val result = chatRepository.sendMessage(
+                conversationId = conversationId,
+                sellerId = sellerId,
+                content = content,
+                messageType = messageType,
+                attachmentUrl = attachmentUrl,
+                refProductId = refProductId,
+                refOrderId = refOrderId
+            )
+            result.onSuccess { msgDto ->
+                onMessageSent?.invoke(msgDto)
+            }
             _uiState.update { state ->
+                val displayMsg = content.ifBlank { if (messageType == "IMAGE") "[Hình ảnh]" else "Đã gửi tệp đính kèm" }
                 val updatedConversations = state.shopConversations.map { conv ->
                     if ((conversationId != null && conv.numericId == conversationId) ||
                         (sellerId != null && conv.sellerId == sellerId)) {
                         conv.copy(
-                            lastMessage = content,
+                            lastMessage = displayMsg,
                             time = "Vừa xong",
                             isTimeRed = false,
                             isLastMessageBold = false
@@ -1064,6 +1088,7 @@ class B2CViewModel : ViewModel() {
 
     fun closeShopChat() {
         _uiState.update { it.copy(activeShopChat = null) }
+        loadShopConversations(forceRefresh = true)
     }
 
     fun openProductDetailsScreen(product: ProductItem) {
@@ -1145,7 +1170,8 @@ class B2CViewModel : ViewModel() {
                                     stock = totalStock,
                                     images = parsedImages,
                                     options = parsedOptions,
-                                    variants = parsedVariants
+                                    variants = parsedVariants,
+                                    sellerId = detail.sellerId ?: product.sellerId
                                 )
                                 state.copy(detailedProductScreen = enriched, isProductDetailLoading = false)
                             } else {
