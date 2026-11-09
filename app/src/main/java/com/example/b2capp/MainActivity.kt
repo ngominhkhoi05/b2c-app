@@ -5,12 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.b2capp.core.designsystem.theme.CoralPrimary
 import com.example.b2capp.core.ui.components.B2CToastHost
 import com.example.b2capp.viewmodel.B2CUiState
 import androidx.compose.material3.Scaffold
@@ -87,6 +91,19 @@ private fun B2CMainScreens(
     viewModel: B2CViewModel
 ) {
 
+    // Khi đang kiểm tra trạng thái xác thực và token lúc khởi động app
+    if (uiState.isCheckingAuth) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = CoralPrimary)
+        }
+        return
+    }
+
     // Khi người dùng mở màn hình Tạo Tài Khoản Mới (SignUpScreen)
     if (uiState.showSignUpScreen) {
         BackHandler {
@@ -123,8 +140,9 @@ private fun B2CMainScreens(
     }
 
     // Khi vừa mở app hoặc khi hiển thị màn hình Đăng Nhập (SignInScreen)
+    // Nếu chưa đăng nhập hoặc token hết hạn: chặn quay lại để không cho người dùng chưa xác thực vào app
     if (uiState.showSignInScreen) {
-        BackHandler {
+        BackHandler(enabled = uiState.isLoggedIn) {
             viewModel.closeSignIn()
         }
         SignInScreen(
@@ -135,8 +153,10 @@ private fun B2CMainScreens(
                 viewModel.selectTab(0)
             },
             onSkipClick = {
-                viewModel.closeSignIn()
-                viewModel.selectTab(0)
+                if (uiState.isLoggedIn) {
+                    viewModel.closeSignIn()
+                    viewModel.selectTab(0)
+                }
             }
         )
         return
@@ -165,6 +185,27 @@ private fun B2CMainScreens(
             uiState = uiState,
             viewModel = viewModel,
             onBackClick = { viewModel.closeShopMessages() }
+        )
+        return
+    }
+
+    // Khi người dùng tìm kiếm sản phẩm -> Hiển thị Màn hình Kết quả tìm kiếm (SearchResultsScreen)
+    if (uiState.searchResultQuery != null) {
+        BackHandler {
+            viewModel.closeSearchResults()
+        }
+        SearchResultsScreen(
+            query = uiState.searchResultQuery!!,
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeSearchResults() },
+            onNavigateToCart = {
+                viewModel.closeSearchResults()
+                viewModel.selectTab(2)
+            },
+            onProductClick = { product ->
+                viewModel.openProductDetailsScreen(product)
+            }
         )
         return
     }

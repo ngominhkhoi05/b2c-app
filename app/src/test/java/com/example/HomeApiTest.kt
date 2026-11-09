@@ -157,5 +157,34 @@ class HomeApiTest {
         assertTrue(banners.isNotEmpty())
         assertEquals("MEGASALE50", banners.first().code)
     }
+
+    @Test
+    fun testProductDetailDtoSerialization() {
+        val json = """
+            {
+                "id": 99,
+                "slug": "tai-nghe-sony-wh1000xm5",
+                "name": "Tai nghe chống ồn Sony WH-1000XM5",
+                "description": "Tai nghe chống ồn đỉnh cao, thời lượng pin 30h.",
+                "brand": "Sony",
+                "sellerId": 2,
+                "shopName": "Sony Official Store",
+                "minPrice": 6990000.0,
+                "maxPrice": 8490000.0,
+                "thumbnailUrl": "https://example.com/sony.jpg",
+                "ratingAvg": 4.95,
+                "soldCount": 450
+            }
+        """.trimIndent()
+
+        val adapter = ApiClient.moshi.adapter(com.example.b2capp.data.remote.dto.ProductDetailDto::class.java)
+        val detail = adapter.fromJson(json)
+
+        assertNotNull(detail)
+        assertEquals(99L, detail?.id)
+        assertEquals("Tai nghe chống ồn Sony WH-1000XM5", detail?.name)
+        assertEquals(6990000.0, detail?.minPrice)
+        assertEquals("Sony Official Store", detail?.shopName)
+    }
 }
 

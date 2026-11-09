@@ -42,5 +42,15 @@ interface HomeApiService {
 
     @GET("api/v1/promotions")
     suspend fun getPublicPromotions(): Response<ApiResponse<List<PromotionDto>>>
+
+    @GET("api/v1/products/id/{id}")
+    suspend fun getProductDetailById(
+        @retrofit2.http.Path("id") id: Long
+    ): Response<ApiResponse<com.example.b2capp.data.remote.dto.ProductDetailDto>>
+
+    @GET("api/v1/products/{slug}")
+    suspend fun getProductDetailBySlug(
+        @retrofit2.http.Path("slug") slug: String
+    ): Response<ApiResponse<com.example.b2capp.data.remote.dto.ProductDetailDto>>
 }
 

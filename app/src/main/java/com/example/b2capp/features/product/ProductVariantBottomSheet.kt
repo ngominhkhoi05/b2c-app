@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,27 +20,27 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.ShoppingCart
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,18 +52,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
-import com.example.b2capp.core.model.ProductItem
-import com.example.b2capp.core.designsystem.theme.BorderDivider
-import com.example.b2capp.core.designsystem.theme.CoralPrimary
-import com.example.b2capp.core.designsystem.theme.NavySecondary
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.core.model.ProductItem
+import com.example.b2capp.core.model.ProductVariantItem
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -73,57 +73,87 @@ enum class VariantSheetMode {
 
 /**
  * Popup Chọn phân loại sản phẩm (Product Variant Selection Screen / Bottom Sheet)
- * Thiết kế chính xác 100% theo ProductVariantSelectionScreen_8aceb11e.png:
- * 1. Thanh kéo drag handle trên đỉnh sheet.
- * 2. Header:
- *    - Thumbnail ảnh sản phẩm áo đen gấp gọn R.drawable.folded_black_tshirt_1793956682242 (hoặc áo trắng khi chọn màu Trắng).
- *    - Giá: ₫199.000, giá gốc ₫350.000 gạch ngang, tag -43%.
- *    - Chấm xanh "Kho: Còn 15 sản phẩm".
- *    - "Đã chọn: Đen, Size M" (cập nhật theo lựa chọn).
- *    - Nút đóng [X] tròn màu xám ở góc trên phải.
- * 3. Hàng chọn Màu sắc (3):
- *    - Đen (đang chọn với icon tick đen và viền đỏ cam).
- *    - Trắng (chấm trắng viền nhẹ).
- *    - Xanh Navy (chấm xanh navy, disabled mờ, có tag "Hết hàng").
- * 4. Hàng chọn Kích cỡ (4):
- *    - Nút "Bảng quy đổi kích cỡ >" kèm icon thước đo.
- *    - 4 kích cỡ: S, M (đang chọn), L, XL.
- * 5. Bộ chọn Số lượng:
- *    - Nhãn "Số lượng", "Tối đa 15 sản phẩm".
- *    - Cụm nút [-] 2 [+].
- * 6. Khung cam kết bảo vệ:
- *    - Nền xanh phấn nhạt, icon huy hiệu tích xanh.
- *    - "Miễn phí trả hàng trong 15 ngày", "Đảm bảo hàng chính hãng 100% • Đổi size tận nơi".
- * 7. Sticky Footer:
- *    - "Tạm tính:" kèm số tiền tự động tính: ₫199.000 * 2 = ₫398.000.
- *    - Nút lớn "XÁC NHẬN" (kèm icon túi xách shopping bag).
+ * Hỗ trợ linh hoạt:
+ * - Dữ liệu động theo API Backend (options, values, variants, stock, price, images)
+ * - Tự động cập nhật hình ảnh, giá bán, tồn kho khi chuyển đổi các phân loại
+ * - Fallback tương thích ngược hoàn toàn cho các sản phẩm mẫu tĩnh
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ProductVariantBottomSheet(
     product: ProductItem,
+    initialSelectedOptionValues: Map<Long, Long> = emptyMap(),
     initialColor: String = "Đen",
     initialSize: String = "M",
-    initialQuantity: Int = 2,
+    initialQuantity: Int = 1,
     mode: VariantSheetMode = VariantSheetMode.ADD_TO_CART,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     onDismissRequest: () -> Unit,
-    onConfirm: (color: String, size: String, quantity: Int, mode: VariantSheetMode) -> Unit
+    onConfirm: (color: String, size: String, quantity: Int, mode: VariantSheetMode) -> Unit = { _, _, _, _ -> },
+    onConfirmVariant: ((variant: ProductVariantItem?, selectedSummary: String, quantity: Int, mode: VariantSheetMode) -> Unit)? = null
 ) {
-    var selectedColor by remember { mutableStateOf(initialColor) }
-    var selectedSize by remember { mutableStateOf(initialSize) }
+    val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
+
+    val hasDynamicOptions = product.options.isNotEmpty()
+
+    // Map lưu lựa chọn optionId -> optionValueId
+    val selectedOptionValues = remember(product.id, product.options) {
+        val map = mutableStateMapOf<Long, Long>()
+        if (hasDynamicOptions) {
+            product.options.forEach { opt ->
+                val preselected = initialSelectedOptionValues[opt.id]
+                val fallback = opt.values.firstOrNull()?.id
+                if (preselected != null && opt.values.any { it.id == preselected }) {
+                    map[opt.id] = preselected
+                } else if (fallback != null) {
+                    map[opt.id] = fallback
+                }
+            }
+        }
+        map
+    }
+
+    // Biến thể khớp với lựa chọn hiện tại
+    val currentVariant = remember(product.variants, selectedOptionValues.toMap()) {
+        if (hasDynamicOptions) {
+            product.findVariantByOptionValues(selectedOptionValues.values)
+        } else {
+            product.variants.firstOrNull()
+        }
+    }
+
+    // Dành cho fallback sản phẩm mock khi không có options từ API
+    var fallbackColor by remember { mutableStateOf(initialColor) }
+    var fallbackSize by remember { mutableStateOf(initialSize) }
+
     var quantity by remember { mutableIntStateOf(initialQuantity.coerceAtLeast(1)) }
 
-    val unitPrice = 199000L
-    val originalPrice = 350000L
-    val discountPercent = 43
-    val maxStock = 15
+    // Tính toán giá và kho
+    val unitPrice: Long = currentVariant?.salePrice ?: product.price
+    val originalPrice: Long? = currentVariant?.price?.let { if (it > unitPrice) it else null } ?: product.originalPrice
+    val discountPercent: Int = currentVariant?.discountPercent ?: product.discountPercent ?: 0
+    val maxStock: Int = (currentVariant?.stockQuantity ?: product.stock).coerceAtLeast(1)
+
+    if (quantity > maxStock && maxStock > 0) {
+        quantity = maxStock
+    }
 
     val totalPrice = unitPrice * quantity
-    val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
     val formattedTotalPrice = "₫${currencyFormatter.format(totalPrice)}"
     val formattedUnitPrice = "₫${currencyFormatter.format(unitPrice)}"
-    val formattedOriginalPrice = "₫${currencyFormatter.format(originalPrice)}"
+    val formattedOriginalPrice = originalPrice?.let { "₫${currencyFormatter.format(it)}" }
+
+    // Chuỗi mô tả phân loại đã chọn
+    val selectedSummaryText = if (hasDynamicOptions) {
+        currentVariant?.variantName ?: product.options.mapNotNull { opt ->
+            val valId = selectedOptionValues[opt.id]
+            opt.values.find { it.id == valId }?.value
+        }.joinToString(", ")
+    } else {
+        "$fallbackColor, Size $fallbackSize"
+    }
+
+    val displayThumbnail = currentVariant?.imageUrl?.ifBlank { null } ?: product.imageUrl
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -144,6 +174,7 @@ fun ProductVariantBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             // 1. Header: Thumbnail, Giá, Kho, Đã chọn, Nút đóng [X]
             Row(
@@ -155,23 +186,32 @@ fun ProductVariantBottomSheet(
                 // Ảnh thumbnail phân loại
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(76.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFF3F4F6))
                         .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(8.dp))
                 ) {
-                    val imageRes = if (selectedColor == "Trắng") {
-                        R.drawable.product_white_tshirt_1793955938236
+                    if (displayThumbnail.isNotBlank()) {
+                        AsyncImage(
+                            model = displayThumbnail,
+                            contentDescription = "Ảnh ${product.name}",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     } else {
-                        R.drawable.folded_black_tshirt_1793956682242
-                    }
+                        val imageRes = if (fallbackColor == "Trắng") {
+                            R.drawable.product_white_tshirt_1793955938236
+                        } else {
+                            R.drawable.folded_black_tshirt_1793956682242
+                        }
 
-                    Image(
-                        painter = painterResource(id = imageRes),
-                        contentDescription = "Ảnh phân loại $selectedColor",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                        Image(
+                            painter = painterResource(id = imageRes),
+                            contentDescription = "Ảnh phân loại",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -215,24 +255,28 @@ fun ProductVariantBottomSheet(
                             color = Color(0xFFD32F2F)
                         )
 
-                        Text(
-                            text = formattedOriginalPrice,
-                            fontSize = 13.sp,
-                            color = TextSecondary,
-                            textDecoration = TextDecoration.LineThrough
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .background(Color(0xFFFFEBE7), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
+                        if (formattedOriginalPrice != null) {
                             Text(
-                                text = "-$discountPercent%",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFFD32F2F)
+                                text = formattedOriginalPrice,
+                                fontSize = 13.sp,
+                                color = TextSecondary,
+                                textDecoration = TextDecoration.LineThrough
                             )
+                        }
+
+                        if (discountPercent > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFFFEBE7), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "-$discountPercent%",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFD32F2F)
+                                )
+                            }
                         }
                     }
 
@@ -245,11 +289,11 @@ fun ProductVariantBottomSheet(
                         Box(
                             modifier = Modifier
                                 .size(7.dp)
-                                .background(Color(0xFF10B981), CircleShape)
+                                .background(if (maxStock > 0) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = "Kho: Còn $maxStock sản phẩm",
+                            text = if (maxStock > 0) "Kho: Còn $maxStock sản phẩm" else "Hết hàng",
                             fontSize = 12.5.sp,
                             color = Color(0xFF555555)
                         )
@@ -265,10 +309,11 @@ fun ProductVariantBottomSheet(
                             color = TextSecondary
                         )
                         Text(
-                            text = "$selectedColor, Size $selectedSize",
+                            text = selectedSummaryText.ifBlank { "Mặc định" },
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
+                            color = TextPrimary,
+                            maxLines = 1
                         )
                     }
                 }
@@ -294,211 +339,259 @@ fun ProductVariantBottomSheet(
             HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 2. Chọn Màu sắc (3)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Màu sắc (3)",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
+            // 2. Nhóm phân loại: Động từ API hoặc Fallback
+            if (hasDynamicOptions) {
+                product.options.forEach { option ->
+                    val selectedValId = selectedOptionValues[option.id]
+                    val selectedValue = option.values.find { it.id == selectedValId }
 
-                Text(
-                    text = selectedColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFD32F2F)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Tùy chọn 1: Đen (Đang chọn)
-                val isBlackSelected = selectedColor == "Đen"
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isBlackSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
-                        .border(
-                            width = 1.dp,
-                            color = if (isBlackSelected) Color(0xFFEE4D2D) else Color.Transparent,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .clickable { selectedColor = "Đen" }
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
-                        .testTag("variant_color_black")
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(16.dp)
-                                .background(Color(0xFF1E1E1E), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isBlackSelected) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Đen",
-                            fontSize = 13.sp,
-                            fontWeight = if (isBlackSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isBlackSelected) Color(0xFFD32F2F) else TextPrimary
-                        )
-                    }
-                }
-
-                // Tùy chọn 2: Trắng
-                val isWhiteSelected = selectedColor == "Trắng"
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isWhiteSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
-                        .border(
-                            width = 1.dp,
-                            color = if (isWhiteSelected) Color(0xFFEE4D2D) else Color.Transparent,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .clickable { selectedColor = "Trắng" }
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
-                        .testTag("variant_color_white")
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(16.dp)
-                                .background(Color.White, CircleShape)
-                                .border(1.dp, Color(0xFFD1D5DB), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isWhiteSelected) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    tint = Color(0xFFEE4D2D),
-                                    modifier = Modifier.size(11.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Trắng",
-                            fontSize = 13.sp,
-                            fontWeight = if (isWhiteSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isWhiteSelected) Color(0xFFD32F2F) else TextPrimary
-                        )
-                    }
-                }
-
-                // Tùy chọn 3: Xanh Navy (Hết hàng - Disabled)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFF9FAFB))
-                        .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 7.dp)
-                        .testTag("variant_color_navy_disabled")
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(14.dp)
-                                .background(Color(0xFF93A7BA), CircleShape)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Xanh Navy",
-                            fontSize = 12.5.sp,
-                            color = Color(0xFF9CA3AF)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Box(
-                            modifier = Modifier
-                                .background(Color(0xFFE5E7EB), RoundedCornerShape(3.dp))
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = "Hết hàng",
-                                fontSize = 9.5.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 3. Chọn Kích cỡ (4)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Kích cỡ (4)",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = selectedSize,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFD32F2F)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 4 Nút kích cỡ: S, M, L, XL
-            val sizeOptions = listOf("S", "M", "L", "XL")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                sizeOptions.forEach { sizeLabel ->
-                    val isSizeSelected = sizeLabel == selectedSize
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isSizeSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
-                            .border(
-                                width = 1.dp,
-                                color = if (isSizeSelected) Color(0xFFEE4D2D) else Color.Transparent,
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                            .clickable { selectedSize = sizeLabel }
-                            .testTag("variant_size_$sizeLabel"),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = sizeLabel,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSizeSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSizeSelected) Color(0xFFD32F2F) else TextPrimary
+                            text = "${option.name} (${option.values.size})",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
                         )
+
+                        if (selectedValue != null) {
+                            Text(
+                                text = selectedValue.value,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFD32F2F)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        option.values.forEach { optionValue ->
+                            val isSelected = optionValue.id == selectedValId
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isSelected) Color(0xFFEE4D2D) else Color.Transparent,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        selectedOptionValues[option.id] = optionValue.id
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                                    .testTag("variant_option_${option.id}_${optionValue.id}")
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (optionValue.imageUrl != null) {
+                                        AsyncImage(
+                                            model = optionValue.imageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clip(CircleShape)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    } else if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEE4D2D),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+
+                                    Text(
+                                        text = optionValue.value,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color(0xFFD32F2F) else TextPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+            } else {
+                // Fallback hiển thị màu sắc và kích cỡ cho dữ liệu mẫu áo thun
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Màu sắc (3)",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+
+                    Text(
+                        text = fallbackColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFD32F2F)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val isBlackSelected = fallbackColor == "Đen"
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isBlackSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
+                            .border(
+                                width = 1.dp,
+                                color = if (isBlackSelected) Color(0xFFEE4D2D) else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { fallbackColor = "Đen" }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .testTag("variant_color_black")
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .background(Color(0xFF1E1E1E), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isBlackSelected) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Đen",
+                                fontSize = 13.sp,
+                                fontWeight = if (isBlackSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isBlackSelected) Color(0xFFD32F2F) else TextPrimary
+                            )
+                        }
+                    }
+
+                    val isWhiteSelected = fallbackColor == "Trắng"
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isWhiteSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
+                            .border(
+                                width = 1.dp,
+                                color = if (isWhiteSelected) Color(0xFFEE4D2D) else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { fallbackColor = "Trắng" }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .testTag("variant_color_white")
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .background(Color.White, CircleShape)
+                                    .border(1.dp, Color(0xFFD1D5DB), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isWhiteSelected) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = Color(0xFFEE4D2D),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Trắng",
+                                fontSize = 13.sp,
+                                fontWeight = if (isWhiteSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isWhiteSelected) Color(0xFFD32F2F) else TextPrimary
+                            )
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Kích cỡ (4)",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = fallbackSize,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD32F2F)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                val sizeOptions = listOf("S", "M", "L", "XL")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    sizeOptions.forEach { sizeLabel ->
+                        val isSizeSelected = sizeLabel == fallbackSize
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSizeSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSizeSelected) Color(0xFFEE4D2D) else Color.Transparent,
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                                .clickable { fallbackSize = sizeLabel }
+                                .testTag("variant_size_$sizeLabel"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = sizeLabel,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSizeSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSizeSelected) Color(0xFFD32F2F) else TextPrimary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 4. Chọn Số lượng
+            // 3. Chọn Số lượng
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -519,7 +612,7 @@ fun ProductVariantBottomSheet(
                     )
                 }
 
-                // Bộ chọn số lượng [-] [2] [+]
+                // Bộ chọn số lượng [-] [qty] [+]
                 Row(
                     modifier = Modifier
                         .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
@@ -579,11 +672,9 @@ fun ProductVariantBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(14.dp))
-
-            // 5. Khung cam kết bảo vệ người mua
             HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
 
-            // 5. Chân trang Sticky: Tạm tính & Nút XÁC NHẬN
+            // 4. Chân trang Sticky: Tạm tính & Nút XÁC NHẬN
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -622,7 +713,6 @@ fun ProductVariantBottomSheet(
                     else -> Icons.Outlined.ShoppingBag
                 }
 
-                // Nút hành động chính theo chế độ popup (Thêm vào giỏ hàng / Mua ngay / Xác nhận)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -630,7 +720,10 @@ fun ProductVariantBottomSheet(
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFBA2211))
                         .clickable {
-                            onConfirm(selectedColor, selectedSize, quantity, mode)
+                            if (onConfirmVariant != null) {
+                                onConfirmVariant(currentVariant, selectedSummaryText, quantity, mode)
+                            }
+                            onConfirm(fallbackColor, fallbackSize, quantity, mode)
                         }
                         .testTag("btn_confirm_variant_selection"),
                     contentAlignment = Alignment.Center

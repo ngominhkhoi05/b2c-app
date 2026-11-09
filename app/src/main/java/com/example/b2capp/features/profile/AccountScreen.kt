@@ -44,6 +44,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,7 +63,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
+import com.example.b2capp.core.model.UserProfile
 import com.example.b2capp.viewmodel.B2CUiState
 import com.example.b2capp.viewmodel.B2CViewModel
 import com.example.b2capp.core.designsystem.theme.BackgroundApp
@@ -92,6 +95,12 @@ fun AccountScreen(
     modifier: Modifier = Modifier
 ) {
     var showUiKitDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.isLoggedIn) {
+        if (uiState.isLoggedIn) {
+            viewModel.loadUserProfile()
+        }
+    }
 
     // Dialog mở bộ UI Kit Showcase từ mục Tiện ích
     if (showUiKitDialog) {
@@ -150,6 +159,7 @@ fun AccountScreen(
             // 2. Hero Profile Card màu Xanh Navy bo góc đáy 24.dp
             item {
                 NavyHeroProfileCard(
+                    profile = uiState.userProfile,
                     onAvatarClick = { viewModel.openEditProfile() },
                     onMembershipClick = { showUiKitDialog = true }
                 )
@@ -164,8 +174,19 @@ fun AccountScreen(
                         .offset(y = (-14).dp)
                 ) {
                     MyOrdersCard(
+                        pendingCount = uiState.pendingOrdersCount,
                         onViewHistoryClick = onNavigateToOrders,
-                        onOrderStatusClick = { onNavigateToOrders() }
+                        onOrderStatusClick = { statusName ->
+                            val mappedTab = when (statusName) {
+                                "Chờ xác nhận" -> "Chờ thanh toán"
+                                "Đang chuẩn bị" -> "Đang chuẩn bị"
+                                "Đang giao" -> "Đang giao"
+                                "Đánh giá" -> "Đánh giá"
+                                else -> "Tất cả"
+                            }
+                            viewModel.selectOrdersTab(mappedTab)
+                            onNavigateToOrders()
+                        }
                     )
                 }
             }
@@ -300,6 +321,7 @@ fun AccountScreen(
  */
 @Composable
 private fun NavyHeroProfileCard(
+    profile: UserProfile,
     onAvatarClick: () -> Unit = {},
     onMembershipClick: () -> Unit
 ) {
@@ -333,12 +355,23 @@ private fun NavyHeroProfileCard(
                         .background(Color(0xFF2C4A6F))
                         .clickable(onClick = onAvatarClick)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
-                        contentDescription = "Ảnh đại diện",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (!profile.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = profile.avatarUrl,
+                            contentDescription = "Ảnh đại diện",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            placeholder = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
+                            error = painterResource(id = R.drawable.user_profile_avatar_1793954281058)
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
+                            contentDescription = "Ảnh đại diện",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(14.dp))
@@ -347,7 +380,7 @@ private fun NavyHeroProfileCard(
                     // Tên + Tích xanh verified
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Nguyễn Văn A",
+                            text = profile.fullName.ifBlank { "Người dùng" },
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -364,14 +397,20 @@ private fun NavyHeroProfileCard(
                     Spacer(modifier = Modifier.height(3.dp))
 
                     Text(
-                        text = "nguyenvana@gmail.com",
+                        text = profile.email.ifBlank { "Chưa cập nhật email" },
                         fontSize = 12.5.sp,
                         color = Color.White.copy(alpha = 0.75f)
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Tag "Thành viên B2C Buyer"
+                    val roleTitle = when (profile.role.uppercase()) {
+                        "ADMIN" -> "Quản trị viên B2C"
+                        "SELLER" -> "Chủ shop B2C"
+                        else -> "Thành viên B2C Buyer"
+                    }
+
+                    // Tag Vai trò
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
@@ -389,7 +428,7 @@ private fun NavyHeroProfileCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Thành viên B2C Buyer",
+                            text = roleTitle,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFFFB800)
@@ -406,6 +445,7 @@ private fun NavyHeroProfileCard(
  */
 @Composable
 private fun MyOrdersCard(
+    pendingCount: Int = 0,
     onViewHistoryClick: () -> Unit,
     onOrderStatusClick: (String) -> Unit
 ) {
@@ -475,7 +515,7 @@ private fun MyOrdersCard(
                     iconTint = Color(0xFFD32F2F),
                     boxBg = Color(0xFFFEECE8),
                     label = "Chờ xác nhận",
-                    badgeCount = 1,
+                    badgeCount = pendingCount,
                     badgeColor = Color(0xFFD32F2F),
                     onClick = { onOrderStatusClick("Chờ xác nhận") }
                 )

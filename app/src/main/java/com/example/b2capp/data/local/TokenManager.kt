@@ -115,15 +115,59 @@ class TokenManager private constructor(context: Context?) {
     fun isLoggedIn(): Boolean = !getAccessToken().isNullOrBlank()
 
     /**
+     * Kiểm tra xem Token (mặc định là Access Token) có bị hết hạn theo claim "exp" trong JWT payload không
+     */
+    fun isTokenExpired(token: String? = getAccessToken()): Boolean {
+        if (token.isNullOrBlank()) return true
+        val parts = token.split(".")
+        if (parts.size < 2) return true
+        return try {
+            val payloadBytes = try {
+                android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.DEFAULT)
+            } catch (_: Throwable) {
+                java.util.Base64.getUrlDecoder().decode(parts[1])
+            }
+            val payloadString = String(payloadBytes, Charsets.UTF_8)
+            val expMatch = Regex("\"exp\"\\s*:\\s*([0-9]+)").find(payloadString)
+            if (expMatch != null) {
+                val expSeconds = expMatch.groupValues[1].toLong()
+                val expMillis = expSeconds * 1000L
+                System.currentTimeMillis() >= expMillis
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Lưu thông tin chi tiết hồ sơ người dùng
+     */
+    fun saveUserProfile(profile: UserProfile) {
+        profile.id?.let { putLong(KEY_USER_ID, it) }
+        putString(KEY_USER_FULL_NAME, profile.fullName)
+        putString(KEY_USER_EMAIL, profile.email)
+        putString(KEY_USER_PHONE, profile.phoneNumber)
+        putString(KEY_USER_AVATAR, profile.avatarUrl)
+        putString(KEY_USER_GENDER, profile.gender)
+        putString(KEY_USER_BIRTH_DATE, profile.birthDate)
+        putString(KEY_USER_ROLE, profile.role)
+    }
+
+    /**
      * Tạo UserProfile từ thông tin đang lưu
      */
     fun getUserProfile(): UserProfile {
         return UserProfile(
+            id = getUserId(),
             fullName = getFullName() ?: "Người dùng",
-            phoneNumber = "",
+            phoneNumber = getString(KEY_USER_PHONE) ?: "",
             email = getEmail() ?: "",
-            gender = "Nam",
-            birthDate = ""
+            avatarUrl = getString(KEY_USER_AVATAR),
+            gender = getString(KEY_USER_GENDER) ?: "Nam",
+            birthDate = getString(KEY_USER_BIRTH_DATE) ?: "15/08/1995",
+            role = getRole() ?: "BUYER"
         )
     }
 
@@ -145,6 +189,10 @@ class TokenManager private constructor(context: Context?) {
         remove(KEY_USER_ID)
         remove(KEY_USER_EMAIL)
         remove(KEY_USER_FULL_NAME)
+        remove(KEY_USER_PHONE)
+        remove(KEY_USER_AVATAR)
+        remove(KEY_USER_GENDER)
+        remove(KEY_USER_BIRTH_DATE)
         remove(KEY_USER_ROLE)
         remove(KEY_USER_ROLES)
         _isLoggedInState.value = false
@@ -166,6 +214,10 @@ class TokenManager private constructor(context: Context?) {
         private const val KEY_USER_ID = "key_user_id"
         private const val KEY_USER_EMAIL = "key_user_email"
         private const val KEY_USER_FULL_NAME = "key_user_full_name"
+        private const val KEY_USER_PHONE = "key_user_phone"
+        private const val KEY_USER_AVATAR = "key_user_avatar"
+        private const val KEY_USER_GENDER = "key_user_gender"
+        private const val KEY_USER_BIRTH_DATE = "key_user_birth_date"
         private const val KEY_USER_ROLE = "key_user_role"
         private const val KEY_USER_ROLES = "key_user_roles"
         private const val KEY_CUSTOM_BASE_URL = "key_custom_base_url"

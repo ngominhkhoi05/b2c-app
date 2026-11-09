@@ -114,6 +114,22 @@ class HomeRepository(
         return fetchCartCount()
     }
 
+    /**
+     * Lấy thông tin chi tiết đầy đủ của sản phẩm từ API
+     */
+    suspend fun getProductDetailById(id: Long): com.example.b2capp.data.remote.dto.ProductDetailDto? {
+        return try {
+            val response = homeApiService.getProductDetailById(id)
+            if (response.isSuccessful) {
+                response.body()?.data
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     // ==================== INTERNAL HELPER METHODS ====================
 
     private suspend fun fetchCategories(): List<QuickCategoryItem> {

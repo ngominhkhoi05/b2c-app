@@ -3,9 +3,11 @@ package com.example.b2capp.data.repository
 import com.example.b2capp.core.model.UserProfile
 import com.example.b2capp.data.local.TokenManager
 import com.example.b2capp.data.remote.ApiClient
+import com.example.b2capp.data.remote.api.UserApiService
 import com.example.b2capp.data.remote.dto.AuthResponseDto
 import com.example.b2capp.data.remote.dto.LoginRequestDto
 import com.example.b2capp.data.remote.dto.RegisterRequestDto
+import com.example.b2capp.data.remote.dto.UserProfileDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -93,6 +95,27 @@ class AuthRepository(
         }
         tokenManager.clearAuth()
         Result.success(Unit)
+    }
+
+    /**
+     * Xác thực người dùng hiện tại từ API Backend (GET /api/v1/users/me).
+     * Khi Access Token hết hạn, OkHttp Authenticator sẽ tự động thử Refresh Token.
+     * Nếu Refresh Token hết hạn hoặc User không tồn tại (401, 404, 403), phương thức trả về lỗi.
+     */
+    suspend fun validateCurrentUser(): Result<UserProfileDto> = withContext(Dispatchers.IO) {
+        try {
+            val userApiService = ApiClient.createAuthenticatedService(UserApiService::class.java)
+            val response = userApiService.getMyProfile()
+            if (response.isSuccessful && response.body()?.data != null) {
+                val profile = response.body()!!.data!!
+                Result.success(profile)
+            } else {
+                val errorMsg = ApiClient.parseErrorMessage(response.errorBody()?.string())
+                Result.failure(Exception("HTTP ${response.code()}: $errorMsg"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     fun isLoggedIn(): Boolean = tokenManager.isLoggedIn()

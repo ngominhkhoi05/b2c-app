@@ -866,7 +866,10 @@ fun CheckoutScreen(
                                 if (selectedPaymentMethod == "VNPAY") {
                                     viewModel.openVnpayPayment()
                                 } else {
-                                    viewModel.completeOrderPlacement()
+                                    viewModel.completeOrderPlacement(
+                                        paymentMethod = selectedPaymentMethod,
+                                        sellerNote = sellerNote
+                                    )
                                 }
                             }
                             .padding(horizontal = 24.dp),

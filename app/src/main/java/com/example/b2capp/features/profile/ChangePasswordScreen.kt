@@ -42,6 +42,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -96,9 +97,9 @@ fun ChangePasswordScreen(
     onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var oldPassword by remember { mutableStateOf("MatKhauCu123!") }
-    var newPassword by remember { mutableStateOf("ShopSafe2024@") }
-    var confirmPassword by remember { mutableStateOf("ShopSafe2024@") }
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
 
     var oldPasswordVisible by remember { mutableStateOf(false) }
     var newPasswordVisible by remember { mutableStateOf(false) }
@@ -567,36 +568,70 @@ fun ChangePasswordScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Button(
+                        enabled = !uiState.isChangingPassword,
                         onClick = {
-                            if (oldPassword.isBlank() || newPassword.isBlank()) return@Button
-                            if (!isPasswordMatching) {
-                                viewModel.showToast("Mật khẩu xác nhận không khớp!")
+                            if (oldPassword.isBlank()) {
+                                viewModel.showErrorToast("Vui lòng nhập mật khẩu hiện tại")
                                 return@Button
                             }
-                            viewModel.showToast("Đã cập nhật mật khẩu mới thành công!")
-                            onBackClick()
+                            if (newPassword.length < 8) {
+                                viewModel.showErrorToast("Mật khẩu mới phải có tối thiểu 8 ký tự")
+                                return@Button
+                            }
+                            if (!isPasswordMatching) {
+                                viewModel.showErrorToast("Mật khẩu xác nhận không khớp!")
+                                return@Button
+                            }
+                            viewModel.changePassword(
+                                oldPass = oldPassword,
+                                newPass = newPassword,
+                                confirmPass = confirmPassword
+                            ) { success ->
+                                if (success) {
+                                    onBackClick()
+                                }
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA2211))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFBA2211),
+                            disabledContainerColor = Color(0xFFBA2211).copy(alpha = 0.6f)
+                        )
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Cập nhật",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                        if (uiState.isChangingPassword) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "CẬP NHẬT MẬT KHẨU",
+                                text = "ĐANG CẬP NHẬT...",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 letterSpacing = 0.5.sp
                             )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = "Cập nhật",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "CẬP NHẬT MẬT KHẨU",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
                         }
                     }
 
