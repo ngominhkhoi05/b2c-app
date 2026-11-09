@@ -58,6 +58,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -132,6 +133,20 @@ fun EditProfileScreen(
     var birthDate by remember { mutableStateOf(currentProfile.birthDate) }
 
     var showDatePicker by remember { mutableStateOf(false) }
+
+    // Tự động đồng bộ các trường trên form khi dữ liệu Profile được nạp hoặc cập nhật từ API
+    LaunchedEffect(currentProfile) {
+        fullName = currentProfile.fullName
+        phoneNumber = currentProfile.phoneNumber.removePrefix("+84 ").removePrefix("+84").trim()
+        email = currentProfile.email
+        selectedGender = currentProfile.gender
+        birthDate = currentProfile.birthDate
+    }
+
+    // Khi mở màn hình, đảm bảo nạp thông tin mới nhất từ API backend GET /api/v1/users/me
+    LaunchedEffect(Unit) {
+        viewModel.loadUserProfile()
+    }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -701,6 +716,10 @@ fun EditProfileScreen(
                                 return@Button
                             }
                             val cleanPhone = phoneNumber.replace("\\s+".toRegex(), "")
+                            if (cleanPhone.isNotBlank() && (!cleanPhone.all { it.isDigit() } || cleanPhone.length !in 9..11)) {
+                                viewModel.showErrorToast("Số điện thoại không hợp lệ (cần từ 9 đến 11 chữ số)")
+                                return@Button
+                            }
                             val formattedPhone = if (cleanPhone.isNotBlank()) {
                                 if (cleanPhone.startsWith("0")) cleanPhone else "0$cleanPhone"
                             } else ""

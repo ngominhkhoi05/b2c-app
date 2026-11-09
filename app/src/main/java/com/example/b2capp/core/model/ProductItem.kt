@@ -75,7 +75,8 @@ data class ProductItem(
     val shopLocation: String = "Hà Nội",
     val images: List<String> = emptyList(),
     val options: List<ProductOptionItem> = emptyList(),
-    val variants: List<ProductVariantItem> = emptyList()
+    val variants: List<ProductVariantItem> = emptyList(),
+    val sellerId: Long? = null
 ) {
     val formattedPrice: String
         get() {

@@ -179,6 +179,46 @@ class HomeRepository(
         }
     }
 
+    /**
+     * Tìm kiếm sản phẩm theo từ khóa (LIKE) và bộ lọc từ backend
+     */
+    suspend fun searchProducts(
+        query: String?,
+        page: Int = 0,
+        size: Int = 20,
+        sortBy: String = "created",
+        sortDir: String = "desc",
+        categoryId: Long? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        brand: String? = null,
+        minRating: Float? = null
+    ): Pair<List<ProductItem>, Long> {
+        return try {
+            val response = homeApiService.searchProducts(
+                query = query?.ifBlank { null },
+                page = page,
+                size = size,
+                sortBy = sortBy,
+                sortDir = sortDir,
+                categoryId = categoryId,
+                minPrice = minPrice,
+                maxPrice = maxPrice,
+                brand = brand,
+                minRating = minRating
+            )
+            if (response.isSuccessful && response.body()?.data != null) {
+                val pageData = response.body()!!.data!!
+                val items = pageData.content.map { it.toProductItem() }
+                Pair(items, pageData.totalElements)
+            } else {
+                Pair(emptyList(), 0L)
+            }
+        } catch (_: Exception) {
+            Pair(emptyList(), 0L)
+        }
+    }
+
     // ==================== INTERNAL HELPER METHODS ====================
 
     private suspend fun fetchCategories(): List<QuickCategoryItem> {
@@ -554,7 +594,8 @@ fun ProductSummaryDto.toProductItem(): ProductItem {
         description = "Sản phẩm chính hãng chất lượng cao.",
         shopName = shopName ?: "Coolmate Official Store",
         shopLocation = "Việt Nam",
-        images = listOfNotNull(thumbnailUrl)
+        images = listOfNotNull(thumbnailUrl),
+        sellerId = sellerId
     )
 }
 

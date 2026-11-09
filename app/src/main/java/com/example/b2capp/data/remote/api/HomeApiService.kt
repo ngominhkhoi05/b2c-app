@@ -52,6 +52,20 @@ interface HomeApiService {
         @Query("q") query: String? = null
     ): Response<ApiResponse<PageResponse<ProductSummaryDto>>>
 
+    @GET("api/v1/products")
+    suspend fun searchProducts(
+        @Query("q") query: String? = null,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20,
+        @Query("sortBy") sortBy: String = "created",
+        @Query("sortDir") sortDir: String = "desc",
+        @Query("categoryId") categoryId: Long? = null,
+        @Query("minPrice") minPrice: Long? = null,
+        @Query("maxPrice") maxPrice: Long? = null,
+        @Query("brand") brand: String? = null,
+        @Query("minRating") minRating: Float? = null
+    ): Response<ApiResponse<PageResponse<ProductSummaryDto>>>
+
     @GET("api/v1/promotions")
     suspend fun getPublicPromotions(): Response<ApiResponse<List<PromotionDto>>>
 

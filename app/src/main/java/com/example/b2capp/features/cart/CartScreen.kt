@@ -21,6 +21,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.RemoveShoppingCart
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +55,7 @@ import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
 import com.example.b2capp.core.ui.components.EmptyStateView
+import com.example.b2capp.data.remote.dto.shopDisplayName
 import com.example.b2capp.features.cart.components.CartBottomSummaryBar
 import com.example.b2capp.features.cart.components.CartProductItemRow
 import com.example.b2capp.features.cart.components.RoundCheckbox
@@ -58,6 +63,15 @@ import com.example.b2capp.viewmodel.B2CUiState
 import com.example.b2capp.viewmodel.B2CViewModel
 import java.text.NumberFormat
 import java.util.Locale
+
+/**
+ * Thông tin xác nhận khi người dùng muốn đổi vùng chọn sang shop khác
+ */
+data class SwitchShopConfirmation(
+    val currentShopName: String,
+    val targetShopName: String,
+    val onConfirm: () -> Unit
+)
 
 /**
  * Màn hình Giỏ hàng (Shopping Cart Screen) kết nối trực tiếp API Backend:
@@ -77,6 +91,7 @@ fun CartScreen(
     modifier: Modifier = Modifier
 ) {
     var isEditMode by remember { mutableStateOf(false) }
+    var pendingSwitchDialog by remember { mutableStateOf<SwitchShopConfirmation?>(null) }
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN")) }
 
     // Tự động tải lại giỏ hàng từ API mỗi khi vào màn hình
@@ -89,16 +104,15 @@ fun CartScreen(
 
     // Nhóm các sản phẩm trong giỏ hàng theo Shop Name hoặc Seller ID
     val shopGroups = remember(cartItems) {
-        cartItems.groupBy { item ->
-            item.shopName?.ifBlank { null }
-                ?: item.sellerId?.let { "Cửa hàng #$it" }
-                ?: "Cửa hàng chính hãng"
-        }
+        cartItems.groupBy { item -> item.shopDisplayName }
     }
 
     // Tính toán tổng tiền và số lượng của các sản phẩm ĐƯỢC CHỌN
     val selectedItems = remember(cartItems) {
         cartItems.filter { it.isSelected }
+    }
+    val currentSelectedShopName = remember(selectedItems) {
+        selectedItems.firstOrNull()?.shopDisplayName
     }
     val selectedTotalPrice = remember(selectedItems) {
         selectedItems.sumOf { item ->
@@ -108,7 +122,19 @@ fun CartScreen(
     val selectedTotalCount = remember(selectedItems) {
         selectedItems.sumOf { it.quantity }
     }
-    val isAllSelected = cartItems.isNotEmpty() && cartItems.all { it.isSelected }
+    val isAllSelected = remember(cartItems, currentSelectedShopName, selectedItems) {
+        if (currentSelectedShopName != null) {
+            val itemsInCurrentShop = shopGroups[currentSelectedShopName] ?: emptyList()
+            itemsInCurrentShop.isNotEmpty() && itemsInCurrentShop.all { it.isSelected }
+        } else {
+            false
+        }
+    }
+    val currentShopLabel = if (currentSelectedShopName != null) {
+        "$currentSelectedShopName ($selectedTotalCount)"
+    } else {
+        "Chưa chọn"
+    }
 
     val formattedTotalPrice = "₫${currencyFormatter.format(selectedTotalPrice)}"
     val formattedSavings = "₫0"
@@ -233,6 +259,42 @@ fun CartScreen(
                     shopGroups.forEach { (shopName, shopItems) ->
                         item(key = "shop_$shopName") {
                             val isShopAllSelected = shopItems.all { it.isSelected }
+                            val sellerId = shopItems.firstOrNull()?.sellerId
+
+                            val handleShopHeaderClick = {
+                                val willSelectAll = !isShopAllSelected
+                                if (!willSelectAll) {
+                                    viewModel.toggleShopItemsSelection(
+                                        sellerId = sellerId,
+                                        shopName = shopName,
+                                        selectAll = false
+                                    )
+                                } else {
+                                    val selectedFromOtherShops = cartItems.filter { other ->
+                                        other.isSelected && other.shopDisplayName != shopName
+                                    }
+                                    if (selectedFromOtherShops.isNotEmpty()) {
+                                        val currentShop = selectedFromOtherShops.first().shopDisplayName
+                                        pendingSwitchDialog = SwitchShopConfirmation(
+                                            currentShopName = currentShop,
+                                            targetShopName = shopName,
+                                            onConfirm = {
+                                                viewModel.switchSelectedShop(
+                                                    sellerId = sellerId,
+                                                    shopName = shopName
+                                                )
+                                            }
+                                        )
+                                    } else {
+                                        viewModel.toggleShopItemsSelection(
+                                            sellerId = sellerId,
+                                            shopName = shopName,
+                                            selectAll = true
+                                        )
+                                    }
+                                }
+                            }
+
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -246,27 +308,13 @@ fun CartScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable {
-                                                val sellerId = shopItems.firstOrNull()?.sellerId
-                                                viewModel.toggleShopItemsSelection(
-                                                    sellerId = sellerId,
-                                                    shopName = shopName,
-                                                    selectAll = !isShopAllSelected
-                                                )
-                                            }
+                                            .clickable { handleShopHeaderClick() }
                                             .padding(horizontal = 12.dp, vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         RoundCheckbox(
                                             isChecked = isShopAllSelected,
-                                            onClick = {
-                                                val sellerId = shopItems.firstOrNull()?.sellerId
-                                                viewModel.toggleShopItemsSelection(
-                                                    sellerId = sellerId,
-                                                    shopName = shopName,
-                                                    selectAll = !isShopAllSelected
-                                                )
-                                            }
+                                            onClick = handleShopHeaderClick
                                         )
 
                                         Spacer(modifier = Modifier.width(10.dp))
@@ -315,7 +363,27 @@ fun CartScreen(
                                         CartProductItemRow(
                                             isChecked = item.isSelected,
                                             onCheckChange = {
-                                                viewModel.toggleCartItemSelection(item.id, !item.isSelected)
+                                                val willSelect = !item.isSelected
+                                                if (!willSelect) {
+                                                    viewModel.toggleCartItemSelection(item.id, false)
+                                                } else {
+                                                    val targetShop = item.shopDisplayName
+                                                    val selectedFromOtherShops = cartItems.filter { other ->
+                                                        other.isSelected && other.shopDisplayName != targetShop
+                                                    }
+                                                    if (selectedFromOtherShops.isNotEmpty()) {
+                                                        val currentShop = selectedFromOtherShops.first().shopDisplayName
+                                                        pendingSwitchDialog = SwitchShopConfirmation(
+                                                            currentShopName = currentShop,
+                                                            targetShopName = targetShop,
+                                                            onConfirm = {
+                                                                viewModel.switchSelectedCartItem(item.id)
+                                                            }
+                                                        )
+                                                    } else {
+                                                        viewModel.toggleCartItemSelection(item.id, true)
+                                                    }
+                                                }
                                             },
                                             imageUrl = item.thumbnailUrl,
                                             name = item.productName ?: "Sản phẩm",
@@ -349,7 +417,7 @@ fun CartScreen(
         // 3. Thanh tóm tắt và nút Mua Hàng / Xóa ở đáy màn hình
         if (cartItems.isNotEmpty()) {
             CartBottomSummaryBar(
-                currentShopLabel = if (selectedTotalCount > 0) "Đã chọn ($selectedTotalCount)" else "Chưa chọn",
+                currentShopLabel = currentShopLabel,
                 formattedTotalPrice = formattedTotalPrice,
                 formattedSavings = formattedSavings,
                 totalItemsCount = selectedTotalCount,
@@ -371,5 +439,60 @@ fun CartScreen(
                 }
             )
         }
+    }
+
+    // 4. Hộp thoại xác nhận khi người dùng chọn sản phẩm sang shop khác
+    pendingSwitchDialog?.let { dialogData ->
+        AlertDialog(
+            onDismissRequest = { pendingSwitchDialog = null },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White,
+            title = {
+                Text(
+                    text = "Chuyển sang shop khác?",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Bạn chỉ có thể chọn các sản phẩm trong cùng 1 shop.\n\nBạn có muốn chuyển sang mua sản phẩm của shop \"${dialogData.targetShopName}\" không? (Các sản phẩm đã chọn của shop \"${dialogData.currentShopName}\" sẽ bị bỏ tích)",
+                    fontSize = 14.sp,
+                    color = TextSecondary,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        dialogData.onConfirm()
+                        pendingSwitchDialog = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Xác nhận",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingSwitchDialog = null },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Hủy",
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        )
     }
 }

@@ -26,6 +26,11 @@ data class CartItemDto(
     @Json(name = "isAvailable") val isAvailable: Boolean? = null
 )
 
+val CartItemDto.shopDisplayName: String
+    get() = shopName?.ifBlank { null }
+        ?: sellerId?.let { "Cửa hàng #$it" }
+        ?: "Cửa hàng chính hãng"
+
 /**
  * DTO yêu cầu thêm sản phẩm vào giỏ hàng
  */

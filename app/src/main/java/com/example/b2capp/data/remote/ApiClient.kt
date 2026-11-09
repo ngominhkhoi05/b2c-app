@@ -121,6 +121,18 @@ object ApiClient {
     }
 
     /**
+     * ChatApiService có bảo vệ token (quản lý tin nhắn và hội thoại)
+     */
+    val chatApiService: com.example.b2capp.data.remote.api.ChatApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.ChatApiService::class.java)
+
+    /**
+     * WishlistApiService có bảo vệ token (quản lý danh sách sản phẩm yêu thích)
+     */
+    val wishlistApiService: com.example.b2capp.data.remote.api.WishlistApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.WishlistApiService::class.java)
+
+    /**
      * Tạo Service cho bất kỳ endpoint nào cần xác thực (Cart, Order, User...)
      */
     fun <T> createAuthenticatedService(serviceClass: Class<T>): T {

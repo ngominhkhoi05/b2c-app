@@ -92,6 +92,7 @@ fun ProductVariantBottomSheet(
 ) {
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
 
+    val isRealBackendProduct = product.id.toLongOrNull() != null
     val hasDynamicOptions = product.options.isNotEmpty()
 
     // Map lưu lựa chọn optionId -> optionValueId
@@ -142,13 +143,15 @@ fun ProductVariantBottomSheet(
     val formattedOriginalPrice = originalPrice?.let { "₫${currencyFormatter.format(it)}" }
 
     // Chuỗi mô tả phân loại đã chọn
-    val selectedSummaryText = if (hasDynamicOptions) {
-        currentVariant?.variantName ?: product.options.mapNotNull { opt ->
-            val valId = selectedOptionValues[opt.id]
-            opt.values.find { it.id == valId }?.value
-        }.joinToString(", ")
-    } else {
-        "$fallbackColor, Size $fallbackSize"
+    val selectedSummaryText = when {
+        hasDynamicOptions -> {
+            currentVariant?.variantName ?: product.options.mapNotNull { opt ->
+                val valId = selectedOptionValues[opt.id]
+                opt.values.find { it.id == valId }?.value
+            }.joinToString(", ")
+        }
+        isRealBackendProduct -> "Tiêu chuẩn"
+        else -> "$fallbackColor, Size $fallbackSize"
     }
 
     val displayThumbnail = currentVariant?.imageUrl?.ifBlank { null } ?: product.imageUrl
@@ -407,7 +410,7 @@ fun ProductVariantBottomSheet(
 
                     Spacer(modifier = Modifier.height(14.dp))
                 }
-            } else {
+            } else if (!isRealBackendProduct) {
                 // Fallback hiển thị màu sắc và kích cỡ cho dữ liệu mẫu áo thun
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -571,6 +574,13 @@ fun ProductVariantBottomSheet(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                Text(
+                    text = "Phân loại: Tiêu chuẩn",
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(bottom = 14.dp)
+                )
             }
 
             // 3. Chọn Số lượng

@@ -139,7 +139,8 @@ fun ProductDetailsScreen(
 
     var selectedColor by remember { mutableStateOf("Đen Huyền Bí") }
     var selectedSize by remember { mutableStateOf("M") }
-    var isFavorite by remember { mutableStateOf(true) }
+    val numericProductId = product.id.toLongOrNull()
+    val isWishlisted = numericProductId != null && uiState.wishlistProductIds.contains(numericProductId)
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var showVariantSheet by remember { mutableStateOf(false) }
     var variantSheetMode by remember { mutableStateOf(VariantSheetMode.ADD_TO_CART) }
@@ -216,10 +217,16 @@ fun ProductDetailsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             TranslucentIconButton(
-                                icon = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                icon = if (isWishlisted) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                                 contentDescription = "Yêu thích",
-                                iconTint = if (isFavorite) Color(0xFFD32F2F) else Color.White,
-                                onClick = { isFavorite = !isFavorite }
+                                iconTint = if (isWishlisted) Color(0xFFD32F2F) else Color.White,
+                                onClick = {
+                                    if (numericProductId != null) {
+                                        viewModel.toggleWishlist(numericProductId, product.name)
+                                    } else {
+                                        viewModel.showToast("Đã lưu vào danh sách yêu thích!")
+                                    }
+                                }
                             )
 
                             // Nút túi xách mở trang sản phẩm yêu thích (Wishlist)

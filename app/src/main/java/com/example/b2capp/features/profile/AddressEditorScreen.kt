@@ -59,6 +59,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -126,24 +127,6 @@ fun AddressEditorScreen(
     onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var recipientName by remember { mutableStateOf(initialAddress?.recipientName ?: "Nguyễn Văn A") }
-    var phoneNumber by remember { mutableStateOf(initialAddress?.phoneNumber?.replace("+84 ", "") ?: "0987 654 321") }
-    var selectedCity by remember { mutableStateOf("TP. Hồ Chí Minh") }
-    var selectedDistrict by remember { mutableStateOf("Quận 1") }
-    var selectedWard by remember { mutableStateOf("Phường Bến Nghé") }
-    var specificAddress by remember {
-        mutableStateOf(initialAddress?.fullAddress ?: "Số 123 Đường Nguyễn Huệ (Tòa nhà Landmark)")
-    }
-    var addressType by remember { mutableStateOf(initialAddress?.addressType ?: "Nhà riêng") }
-    var isDefault by remember { mutableStateOf(initialAddress?.isDefault ?: true) }
-    var isWorkHoursOnly by remember { mutableStateOf(true) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
-    // State cho Dropdowns
-    var cityExpanded by remember { mutableStateOf(false) }
-    var districtExpanded by remember { mutableStateOf(false) }
-    var wardExpanded by remember { mutableStateOf(false) }
-
     val cityToDistricts = mapOf(
         "TP. Hồ Chí Minh" to listOf("Quận 1", "Quận 3", "Quận 7", "Quận Bình Thạnh", "TP. Thủ Đức"),
         "Hà Nội" to listOf("Quận Hoàn Kiếm", "Quận Ba Đình", "Quận Đống Đa", "Quận Cầu Giấy", "Quận Tây Hồ"),
@@ -179,6 +162,49 @@ fun AddressEditorScreen(
         "Thị xã Hương Thủy" to listOf("Phường Thủy Dương", "Phường Thủy Phương", "Phường Phú Bài"),
         "Thị xã Hương Trà" to listOf("Phường Tứ Hạ", "Phường Hương Văn", "Phường Hương Vân")
     )
+
+    val initialCity = initialAddress?.provinceCode?.takeIf { it in cityToDistricts.keys }
+        ?: cityToDistricts.keys.firstOrNull { initialAddress?.fullAddress?.contains(it) == true }
+        ?: "TP. Hồ Chí Minh"
+
+    val validDistricts = cityToDistricts[initialCity] ?: emptyList()
+    val initialDistrict = initialAddress?.districtCode?.takeIf { it in validDistricts }
+        ?: validDistricts.firstOrNull { initialAddress?.fullAddress?.contains(it) == true }
+        ?: validDistricts.firstOrNull()
+        ?: "Quận 1"
+
+    val validWards = districtToWards[initialDistrict] ?: emptyList()
+    val initialWard = initialAddress?.wardCode?.takeIf { it in validWards }
+        ?: validWards.firstOrNull { initialAddress?.fullAddress?.contains(it) == true }
+        ?: validWards.firstOrNull()
+        ?: "Phường Bến Nghé"
+
+    val initialStreet = initialAddress?.streetDetail?.takeIf { it.isNotBlank() }
+        ?: initialAddress?.fullAddress?.split(",")?.firstOrNull()?.trim()
+        ?: ""
+
+    var recipientName by remember {
+        mutableStateOf(initialAddress?.recipientName ?: uiState.userProfile.fullName.ifBlank { "" })
+    }
+    var phoneNumber by remember {
+        mutableStateOf(
+            initialAddress?.phoneNumber?.replace("+84 ", "")
+                ?: uiState.userProfile.phoneNumber.replace("+84 ", "")
+        )
+    }
+    var selectedCity by remember { mutableStateOf(initialCity) }
+    var selectedDistrict by remember { mutableStateOf(initialDistrict) }
+    var selectedWard by remember { mutableStateOf(initialWard) }
+    var specificAddress by remember { mutableStateOf(initialStreet) }
+    var addressType by remember { mutableStateOf(initialAddress?.addressType ?: "Nhà riêng") }
+    var isDefault by remember { mutableStateOf(initialAddress?.isDefault ?: uiState.addresses.isEmpty()) }
+    var isWorkHoursOnly by remember { mutableStateOf(initialAddress?.deliveryNote?.contains("hành chính") == true || initialAddress == null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // State cho Dropdowns
+    var cityExpanded by remember { mutableStateOf(false) }
+    var districtExpanded by remember { mutableStateOf(false) }
+    var wardExpanded by remember { mutableStateOf(false) }
 
     val cities = cityToDistricts.keys.toList()
     val districts = cityToDistricts[selectedCity] ?: listOf("Quận 1", "Quận 3")
@@ -271,43 +297,72 @@ fun AddressEditorScreen(
 
                     Button(
                         onClick = {
-                            if (recipientName.isBlank() || phoneNumber.isBlank()) return@Button
-                            val formattedFullAddr = if (specificAddress.contains(selectedWard)) specificAddress
-                            else "$specificAddress, $selectedWard, $selectedDistrict, $selectedCity"
+                            if (recipientName.isBlank()) {
+                                viewModel.showToast("Vui lòng nhập họ tên người nhận")
+                                return@Button
+                            }
+                            if (phoneNumber.isBlank() || phoneNumber.length < 9) {
+                                viewModel.showToast("Vui lòng nhập số điện thoại hợp lệ")
+                                return@Button
+                            }
+                            if (specificAddress.isBlank()) {
+                                viewModel.showToast("Vui lòng nhập số nhà, tên đường cụ thể")
+                                return@Button
+                            }
+
+                            val formattedFullAddr = if (specificAddress.contains(selectedWard)) {
+                                specificAddress.trim()
+                            } else {
+                                "${specificAddress.trim()}, $selectedWard, $selectedDistrict, $selectedCity"
+                            }
 
                             val newAddress = UserAddress(
-                                id = initialAddress?.id ?: "addr_${System.currentTimeMillis()}",
-                                recipientName = recipientName,
-                                phoneNumber = phoneNumber,
+                                id = initialAddress?.id ?: "",
+                                recipientName = recipientName.trim(),
+                                phoneNumber = phoneNumber.trim(),
                                 addressType = addressType,
                                 fullAddress = formattedFullAddr,
+                                streetDetail = specificAddress.trim(),
+                                provinceCode = selectedCity,
+                                districtCode = selectedDistrict,
+                                wardCode = selectedWard,
                                 isDefault = isDefault,
                                 deliveryNote = if (isWorkHoursOnly) "Lưu ý: Giao giờ hành chính (8h00 - 17h30)" else null
                             )
-                            viewModel.addOrUpdateAddress(newAddress)
-                            onBackClick()
+                            viewModel.addOrUpdateAddress(newAddress) {
+                                onBackClick()
+                            }
                         },
+                        enabled = !uiState.isAddressSaving,
                         modifier = Modifier
                             .weight(0.68f)
                             .height(48.dp),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA2211))
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "HOÀN THÀNH",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
+                        if (uiState.isAddressSaving) {
+                            CircularProgressIndicator(
                                 color = Color.White,
-                                letterSpacing = 0.5.sp
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
                             )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "HOÀN THÀNH",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -591,7 +646,12 @@ fun AddressEditorScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFFE0EDFF))
-                                    .clickable { viewModel.showToast("Đang xác định GPS...") }
+                                    .clickable {
+                                        selectedCity = "TP. Hồ Chí Minh"
+                                        selectedDistrict = "Quận 1"
+                                        selectedWard = "Phường Bến Nghé"
+                                        viewModel.showToast("Đã định vị: Phường Bến Nghé, Quận 1, TP. HCM")
+                                    }
                                     .padding(horizontal = 10.dp, vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {

@@ -203,12 +203,25 @@ fun AccountScreen(
                     border = androidx.compose.foundation.BorderStroke(0.8.dp, BorderDivider.copy(alpha = 0.7f))
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        val defaultAddr = uiState.addresses.firstOrNull { it.isDefault } ?: uiState.addresses.firstOrNull()
+                        val addressSubtitle = if (uiState.addresses.isEmpty()) {
+                            "Chưa có địa chỉ nào được lưu"
+                        } else {
+                            val shortLoc = defaultAddr?.let { addr ->
+                                addr.districtCode?.takeIf { it.isNotBlank() }
+                                    ?: addr.fullAddress.split(",").let { parts ->
+                                        if (parts.size >= 2) parts.takeLast(2).joinToString(", ") { it.trim() } else parts.lastOrNull()?.trim()
+                                    }
+                            } ?: "Mặc định"
+                            "${uiState.addresses.size} địa chỉ đã lưu (Mặc định: $shortLoc)"
+                        }
+
                         MenuListItem(
                             icon = Icons.Outlined.LocationOn,
                             iconTint = CoralPrimary,
                             iconBg = Color(0xFFFDECEE),
                             title = "Sổ địa chỉ nhận hàng",
-                            subtitle = "3 địa chỉ đã lưu (Mặc định: Q.1, TP. HCM)",
+                            subtitle = addressSubtitle,
                             onClick = { viewModel.openAddressBook() }
                         )
 
@@ -230,7 +243,7 @@ fun AccountScreen(
                             iconTint = CoralPrimary,
                             iconBg = Color(0xFFFDECEE),
                             title = "Sản phẩm yêu thích",
-                            subtitle = "12 sản phẩm đang quan tâm",
+                            subtitle = "${uiState.wishlistCount} sản phẩm đang quan tâm",
                             onClick = { viewModel.openWishlist() }
                         )
 

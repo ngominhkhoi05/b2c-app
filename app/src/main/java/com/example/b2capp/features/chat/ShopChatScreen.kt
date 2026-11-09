@@ -50,11 +50,13 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Straighten
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.example.b2capp.data.repository.ChatRepository
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -102,6 +104,8 @@ data class DetailedChatMessage(
     val time: String,
     val isFromUser: Boolean,
     val senderAvatarRes: Int? = null,
+    val avatarLetter: String? = null,
+    val avatarBg: Color? = null,
     val attachedProduct: ProductItem? = null,
     val isVoucher: Boolean = false,
     val voucherValue: String? = null
@@ -109,31 +113,7 @@ data class DetailedChatMessage(
 
 /**
  * Màn hình Tin Nhắn Với Shop (Shop Chat Screen)
- * Thiết kế chính xác 100% theo ShopChatScreen_a0957472.png:
- * 1. Top Bar:
- *    - Nút Back
- *    - Avatar Coolmate tròn kèm badge đỏ "MALL" ở đáy avatar
- *    - Tên Shop "Coolmate Official St" kèm tích xanh xác minh verified
- *    - Trạng thái "● Đang hoạt động" màu xanh lá
- *    - Nút viền "Xem Shop" bên phải
- * 2. Widget sản phẩm ghim (Pinned Product):
- *    - Ảnh áo thun đen kèm badge "Xtra"
- *    - Tag "FREESHIP XTRA", Tên sản phẩm "Áo Thun Cott...", Giá ₫199.000 (gốc ₫299.000 gạch ngang)
- *    - Nút pill "Gửi link" màu hồng/cam nhạt
- * 3. Hàng câu hỏi gợi ý nhanh (Suggestion Chips):
- *    - "Tư vấn chọn size?", "Còn màu đen size L không?", "Thời gian giao hàng bao lâu?",...
- * 4. Luồng tin nhắn:
- *    - Pill ngày tháng "Hôm nay, 14:15"
- *    - Tin nhắn 1 (User): Bóng cam đỏ bo góc, chứa thẻ sản phẩm đính kèm "Áo Thun Cc ₫199.000",
- *      văn bản "Shop tư vấn giúp mình mẫu này với ạ!", giờ 14:15 kèm ✓✓
- *    - Tin nhắn 2 (Shop): Avatar nhân viên hỗ trợ, bóng trắng viền mỏng "Chào bạn! Cảm ơn bạn...", 14:15
- *    - Tin nhắn 3 (User): "Shop ơi cho mình hỏi mình cao 1m73 nặng 70kg thì mặc size L vừa hay cần lên XL ạ?", 14:16 ✓✓
- *    - Tin nhắn 4 (Shop): Avatar Coolmate C, bóng trắng "Dạ với chiều cao 1m73 và 70kg bạn chọn size L là chuẩn form...", 14:17
- *    - Tin nhắn 5 (Voucher ưu đãi): Thẻ voucher giảm giá độc quyền
- * 5. Thanh nhập tin nhắn dính đáy:
- *    - Icon (+), Camera, Mặt cười cảm xúc (Sticker)
- *    - Ô nhập bo tròn pill "Nhập tin nhắn..." tích hợp icon Micro
- *    - Nút Gửi tròn màu cam đỏ
+ * Thiết kế chuẩn UI kết nối Backend API thực tế
  */
 @Composable
 fun ShopChatScreen(
@@ -147,55 +127,61 @@ fun ShopChatScreen(
     val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
     var showAttachmentSheet by remember { mutableStateOf(false) }
+    var isLoadingMessages by remember { mutableStateOf(false) }
+    var activeConversationId by remember { mutableStateOf(chatInfo.conversationId) }
 
-    // Sản phẩm hiện tại đang được ghim
-    val currentProduct = chatInfo.product ?: uiState.products.firstOrNull()
+    // Sản phẩm đính kèm nếu mở chat từ trang chi tiết sản phẩm
+    val currentProduct = chatInfo.product
 
-    // Khởi tạo danh sách tin nhắn mẫu chuẩn xác như trong ảnh ShopChatScreen_a0957472.png
-    val messages = remember {
-        mutableStateListOf(
-            DetailedChatMessage(
-                id = "msg_1",
-                text = "Shop tư vấn giúp mình mẫu này với ạ!",
-                time = "14:15",
-                isFromUser = true,
-                attachedProduct = currentProduct
-            ),
-            DetailedChatMessage(
-                id = "msg_2",
-                text = "Chào bạn! Cảm ơn bạn đã quan tâm đến Coolmate. Shop có thể hỗ trợ gì cho bạn về mẫu Áo Thun Cotton Compact này ạ?",
-                time = "14:15",
-                isFromUser = false,
-                senderAvatarRes = R.drawable.support_agent_avatar_1793960174892
-            ),
-            DetailedChatMessage(
-                id = "msg_3",
-                text = "Shop ơi cho mình hỏi mình cao 1m73 nặng 70kg thì mặc size L vừa hay cần lên XL ạ?",
-                time = "14:16",
-                isFromUser = true
-            ),
-            DetailedChatMessage(
-                id = "msg_4",
-                text = "Dạ với chiều cao 1m73 và 70kg bạn chọn size L là chuẩn form vừa vặn, thoải mái luôn bạn nhé! Chất vải cotton compact 100% co giãn 4 chiều và thấm hút mồ hôi rất tốt ạ. ✨",
-                time = "14:17",
-                isFromUser = false,
-                senderAvatarRes = R.drawable.coolmate_shop_avatar_1793960155632
-            ),
-            DetailedChatMessage(
-                id = "msg_5",
-                text = "Shop gửi tặng bạn Voucher giảm giá ₫20.000 độc quyền cho đơn hàng từ ₫299.000 áp dụng hôm nay ạ!",
-                time = "14:18",
-                isFromUser = false,
-                isVoucher = true,
-                voucherValue = "₫20.000",
-                senderAvatarRes = R.drawable.coolmate_shop_avatar_1793960155632
+    val messages = remember { mutableStateListOf<DetailedChatMessage>() }
+
+    // Tự động tải tin nhắn từ Backend API
+    LaunchedEffect(chatInfo.conversationId, chatInfo.sellerId) {
+        isLoadingMessages = true
+        var targetConvId = chatInfo.conversationId
+
+        // Nếu chưa có conversationId nhưng có sellerId -> gọi API tạo hoặc tìm hội thoại
+        if (targetConvId == null && chatInfo.sellerId != null) {
+            val startedId = viewModel.startOrGetConversation(chatInfo.sellerId)
+            if (startedId != null) {
+                targetConvId = startedId
+                activeConversationId = startedId
+            }
+        }
+
+        // Tải danh sách tin nhắn qua API
+        if (targetConvId != null) {
+            val apiMessages = viewModel.loadMessagesForConversation(
+                conversationId = targetConvId,
+                shopName = chatInfo.shopName,
+                avatarLetter = chatInfo.avatarLetter,
+                avatarBg = chatInfo.avatarBg
+            )
+            if (apiMessages.isNotEmpty()) {
+                messages.clear()
+                messages.addAll(apiMessages)
+                isLoadingMessages = false
+                return@LaunchedEffect
+            }
+        }
+
+        // Dữ liệu ban đầu tùy biến theo từng Shop nếu offline hoặc cuộc trò chuyện mới
+        messages.clear()
+        messages.addAll(
+            ChatRepository.getDefaultMessagesForShop(
+                shopName = chatInfo.shopName,
+                avatarLetter = chatInfo.avatarLetter,
+                avatarBg = chatInfo.avatarBg
             )
         )
+        isLoadingMessages = false
     }
 
     // Tự động cuộn xuống tin nhắn cuối cùng khi có tin mới
     LaunchedEffect(messages.size) {
-        listState.animateScrollToItem(messages.size - 1)
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
     }
 
     // Hàm gửi tin nhắn
@@ -208,40 +194,56 @@ fun ShopChatScreen(
         val userMsg = DetailedChatMessage(
             id = "user_${System.currentTimeMillis()}",
             text = content,
-            time = "14:20",
+            time = "Vừa xong",
             isFromUser = true,
             attachedProduct = productAttachment
         )
         messages.add(userMsg)
         inputText = ""
 
-        // Giả lập shop phản hồi tự nhiên thông minh
+        // Gửi qua API Backend
+        viewModel.sendChatMessage(
+            conversationId = activeConversationId,
+            sellerId = chatInfo.sellerId,
+            content = content
+        )
+
+        // Phản hồi tự động thông minh từ Shop sau 1.2s
         coroutineScope.launch {
-            delay(1000)
+            delay(100)
+            if (messages.isNotEmpty()) {
+                listState.animateScrollToItem(messages.size - 1)
+            }
+            delay(1200)
+
+            val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
             val replyText = when {
                 content.contains("size", ignoreCase = true) || content.contains("chiều cao", ignoreCase = true) ->
-                    "Dạ sản phẩm may theo bảng size chuẩn nam Việt Nam. Nếu bạn thích mặc rộng thoải mái có thể tăng lên 1 size nhé ạ!"
-                content.contains("màu đen", ignoreCase = true) || content.contains("màu", ignoreCase = true) ->
-                    "Dạ màu đen hiện kho bên mình đang còn sẵn size M, L, XL ạ. Bạn có thể nhấn đặt ngay nhé!"
+                    "Dạ sản phẩm may theo bảng size chuẩn. Bạn thích mặc rộng thoải mái có thể tăng lên 1 size nhé ạ!"
+                content.contains("màu", ignoreCase = true) ->
+                    "Dạ kho bên mình hiện đang còn đủ màu và size ạ. Bạn có thể nhấn đặt ngay nhé!"
                 content.contains("giao hàng", ignoreCase = true) || content.contains("bao lâu", ignoreCase = true) ->
                     "Dạ đơn hàng nội thành Hà Nội & TP.HCM giao hỏa tốc 2-4h hoặc 1-2 ngày, các tỉnh thành khác 2-3 ngày bạn nha!"
                 content.contains("kiểm tra", ignoreCase = true) ->
                     "Dạ chính sách của shop là khách được đồng kiểm trước khi nhận hàng và đổi trả miễn phí trong 60 ngày ạ!"
                 productAttachment != null ->
-                    "Dạ mẫu Áo Thun Cotton Compact này là dòng Best Seller của shop đó ạ, vải rất mát và không nhăn!"
+                    "Dạ mẫu sản phẩm ${productAttachment.name} này đang là dòng bán chạy nhất của shop đó ạ, chất lượng cực tốt!"
                 else ->
-                    "Cảm ơn bạn! Chuyên viên tư vấn Coolmate đã ghi nhận và sẽ phản hồi chi tiết ngay cho bạn nhé ạ! ❤️"
+                    "Cảm ơn bạn! Chuyên viên tư vấn ${chatInfo.shopName} đã ghi nhận tin nhắn và sẽ phản hồi chi tiết ngay cho bạn nhé ạ! ❤️"
             }
 
             messages.add(
                 DetailedChatMessage(
                     id = "shop_${System.currentTimeMillis()}",
                     text = replyText,
-                    time = "14:21",
+                    time = "Vừa xong",
                     isFromUser = false,
-                    senderAvatarRes = R.drawable.coolmate_shop_avatar_1793960155632
+                    avatarLetter = chatInfo.avatarLetter,
+                    avatarBg = chatInfo.avatarBg,
+                    senderAvatarRes = if (isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null
                 )
             )
+            listState.animateScrollToItem(messages.size - 1)
         }
     }
 
@@ -251,7 +253,7 @@ fun ShopChatScreen(
             .background(Color(0xFFF8F9FA))
             .testTag("shop_chat_screen")
     ) {
-        // 1. Top Bar chuẩn ảnh
+        // 1. Top Bar
         Surface(
             color = SurfaceCard,
             shadowElevation = 1.dp,
@@ -279,35 +281,56 @@ fun ShopChatScreen(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // Avatar Coolmate tròn kèm badge MALL ở chân avatar
+                // Avatar Shop tròn kèm badge MALL ở chân avatar
+                val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
                 Box(
                     modifier = Modifier.size(44.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.coolmate_shop_avatar_1793960155632),
-                        contentDescription = chatInfo.shopName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .border(1.dp, Color(0xFFE5E7EB), CircleShape)
-                    )
+                    if (chatInfo.avatarLetter != null && !isCoolmate) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(chatInfo.avatarBg ?: Color(0xFFF0FDF4))
+                                .border(1.dp, Color(0xFFE5E7EB), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (chatInfo.avatarLetter.length > 3) chatInfo.avatarLetter.take(3) else chatInfo.avatarLetter,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NavySecondary
+                            )
+                        }
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.coolmate_shop_avatar_1793960155632),
+                            contentDescription = chatInfo.shopName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, Color(0xFFE5E7EB), CircleShape)
+                        )
+                    }
 
                     // Badge MALL đỏ chữ trắng ở dưới cùng avatar
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(Color(0xFFEE4D2D))
-                            .padding(horizontal = 4.dp, vertical = 0.5.dp)
-                    ) {
-                        Text(
-                            text = "MALL",
-                            fontSize = 7.5.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
+                    if (chatInfo.isMall) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color(0xFFEE4D2D))
+                                .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                        ) {
+                            Text(
+                                text = "MALL",
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
 
@@ -317,7 +340,7 @@ fun ShopChatScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Coolmate Official St",
+                            text = chatInfo.shopName,
                             fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1F2937),
@@ -367,7 +390,7 @@ fun ShopChatScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .border(1.2.dp, NavySecondary, RoundedCornerShape(16.dp))
                         .clickable {
-                            viewModel.showToast("Đang mở trang chủ gian hàng Coolmate Official")
+                            viewModel.showToast("Đang mở trang chủ gian hàng ${chatInfo.shopName}")
                         }
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
@@ -390,103 +413,97 @@ fun ShopChatScreen(
             }
         }
 
-        // 2. Widget Sản phẩm đang được ghim (Pinned Product Strip)
-        Surface(
-            color = SurfaceCard,
-            shadowElevation = 0.5.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically
+        // 2. Widget Sản phẩm đang được ghim (chỉ hiện khi có sản phẩm được ghim)
+        if (currentProduct != null) {
+            Surface(
+                color = SurfaceCard,
+                shadowElevation = 0.5.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                // Ảnh sản phẩm có badge Xtra
-                Box(
+                Row(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFF3F4F6))
-                        .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.folded_black_tshirt_1793956682242),
-                        contentDescription = "Áo Thun Cotton",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    // Badge Xtra
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .clip(RoundedCornerShape(bottomEnd = 4.dp, topStart = 6.dp))
-                            .background(Color(0xFF00897B))
-                            .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFF3F4F6))
+                            .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
                     ) {
-                        Text(
-                            text = "Xtra",
-                            fontSize = 7.5.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
+                        Image(
+                            painter = painterResource(id = R.drawable.folded_black_tshirt_1793956682242),
+                            contentDescription = currentProduct.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
                         )
-                    }
-                }
 
-                Spacer(modifier = Modifier.width(10.dp))
-
-                // Cột thông tin sản phẩm
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Áo Thun Cott...",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1F2937),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "₫199.000",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CoralPrimary
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "₫299.000",
-                            fontSize = 11.sp,
-                            color = Color(0xFF9CA3AF),
-                            textDecoration = TextDecoration.LineThrough
-                        )
-                    }
-                }
-
-                // Nút "Gửi link"
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFFFEBE7))
-                        .clickable {
-                            sendMessage(
-                                content = "Shop ơi mình quan tâm sản phẩm này ạ!",
-                                productAttachment = currentProduct
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .clip(RoundedCornerShape(bottomEnd = 4.dp, topStart = 6.dp))
+                                .background(Color(0xFF00897B))
+                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                        ) {
+                            Text(
+                                text = "Xtra",
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
                             )
                         }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.Share,
-                            contentDescription = null,
-                            tint = CoralPrimary,
-                            modifier = Modifier.size(13.dp)
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentProduct.name,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2937),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentProduct.formattedPrice,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CoralPrimary
+                            )
+                            val origPrice = currentProduct.formattedOriginalPrice
+                            if (!origPrice.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = origPrice,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF9CA3AF),
+                                    textDecoration = TextDecoration.LineThrough
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFFFEBE7))
+                            .clickable {
+                                sendMessage(
+                                    content = "Shop tư vấn giúp mình sản phẩm ${currentProduct.name} này với ạ!",
+                                    productAttachment = currentProduct
+                                )
+                            }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
                         Text(
                             text = "Gửi link",
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = CoralPrimary
                         )
@@ -622,6 +639,23 @@ fun ShopChatScreen(
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFF64748B)
+                        )
+                    }
+                }
+            }
+
+            if (isLoadingMessages && messages.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = CoralPrimary,
+                            strokeWidth = 2.dp
                         )
                     }
                 }

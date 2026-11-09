@@ -12,6 +12,7 @@ import com.example.b2capp.data.remote.dto.ApiResponse
 import com.example.b2capp.data.remote.dto.AvatarUploadResponseDto
 import com.example.b2capp.data.remote.dto.ChangePasswordRequestDto
 import com.example.b2capp.data.remote.dto.UpdateProfileRequestDto
+import com.example.b2capp.data.remote.dto.UploadResponseDto
 import com.example.b2capp.data.remote.dto.UserProfileDto
 import com.example.b2capp.data.repository.UserRepository
 import kotlinx.coroutines.runBlocking
@@ -204,9 +205,27 @@ class UserProfileApiTest {
                 return Response.success(ApiResponse(data = uploadResponse))
             }
 
+            override suspend fun uploadImage(file: MultipartBody.Part, purpose: String?): Response<ApiResponse<com.example.b2capp.data.remote.dto.UploadResponseDto>> {
+                val uploadResponse = com.example.b2capp.data.remote.dto.UploadResponseDto(
+                    url = "https://res.cloudinary.com/uploaded_generic.jpg",
+                    secureUrl = "https://res.cloudinary.com/uploaded_generic.jpg",
+                    publicId = "test_upload_id",
+                    format = "jpg",
+                    bytes = 4096L
+                )
+                return Response.success(ApiResponse(data = uploadResponse))
+            }
+
             override suspend fun changePassword(request: ChangePasswordRequestDto): Response<ApiResponse<Void>> {
                 return Response.success(ApiResponse(data = null))
             }
+
+            override suspend fun getMyAddresses() = throw NotImplementedError()
+            override suspend fun createAddress(request: com.example.b2capp.data.remote.dto.AddressRequestDto) = throw NotImplementedError()
+            override suspend fun getAddress(addressId: Long) = throw NotImplementedError()
+            override suspend fun updateAddress(addressId: Long, request: com.example.b2capp.data.remote.dto.AddressRequestDto) = throw NotImplementedError()
+            override suspend fun deleteAddress(addressId: Long) = throw NotImplementedError()
+            override suspend fun setDefaultAddress(addressId: Long) = throw NotImplementedError()
         }
 
         val repository = UserRepository(apiServiceHolder = { fakeService })
@@ -241,6 +260,40 @@ class UserProfileApiTest {
             ChangePasswordRequestDto("old", "new123456", "new123456")
         )
         assertTrue(changePasswordResult.isSuccess)
+
+        // 5. Generic uploadImage via /api/v1/upload
+        val uploadResult = repository.uploadImage(
+            bytes = byteArrayOf(4, 5, 6),
+            mimeType = "image/jpeg",
+            fileName = "generic.jpg",
+            purpose = "mobile_uploads"
+        )
+        assertTrue(uploadResult.isSuccess)
+        assertEquals("https://res.cloudinary.com/uploaded_generic.jpg", uploadResult.getOrNull()?.secureUrl)
+    }
+
+    @Test
+    fun testUploadResponseDtoDeserialization() {
+        val json = """
+            {
+                "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+                "secureUrl": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+                "publicId": "b2c/uploads/abc123",
+                "resourceType": "image",
+                "format": "jpg",
+                "originalFilename": "avatar.jpg",
+                "bytes": 524288
+            }
+        """.trimIndent()
+
+        val adapter = ApiClient.moshi.adapter(com.example.b2capp.data.remote.dto.UploadResponseDto::class.java)
+        val response = adapter.fromJson(json)
+
+        assertNotNull(response)
+        assertEquals("https://res.cloudinary.com/demo/image/upload/sample.jpg", response?.secureUrl)
+        assertEquals("b2c/uploads/abc123", response?.publicId)
+        assertEquals("image", response?.resourceType)
+        assertEquals(524288L, response?.bytes)
     }
 
     @Test
@@ -268,9 +321,20 @@ class UserProfileApiTest {
                 return Response.error(400, "{\"message\":\"File too large\"}".toResponseBody())
             }
 
+            override suspend fun uploadImage(file: MultipartBody.Part, purpose: String?): Response<ApiResponse<UploadResponseDto>> {
+                return Response.error(400, "{\"message\":\"Upload failed\"}".toResponseBody())
+            }
+
             override suspend fun changePassword(request: ChangePasswordRequestDto): Response<ApiResponse<Void>> {
                 return Response.error(400, "{\"message\":\"Wrong current password\"}".toResponseBody())
             }
+
+            override suspend fun getMyAddresses() = throw NotImplementedError()
+            override suspend fun createAddress(request: com.example.b2capp.data.remote.dto.AddressRequestDto) = throw NotImplementedError()
+            override suspend fun getAddress(addressId: Long) = throw NotImplementedError()
+            override suspend fun updateAddress(addressId: Long, request: com.example.b2capp.data.remote.dto.AddressRequestDto) = throw NotImplementedError()
+            override suspend fun deleteAddress(addressId: Long) = throw NotImplementedError()
+            override suspend fun setDefaultAddress(addressId: Long) = throw NotImplementedError()
         }
 
         val repository = UserRepository(apiServiceHolder = { failingService })

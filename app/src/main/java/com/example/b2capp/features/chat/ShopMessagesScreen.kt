@@ -92,14 +92,21 @@ import com.example.b2capp.core.designsystem.theme.TextSecondary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import com.example.b2capp.data.repository.ChatRepository
+
 /**
  * Model cho từng hội thoại tin nhắn với Shop
  */
 data class ShopConversation(
     val id: String,
+    val numericId: Long? = null,
+    val sellerId: Long? = null,
     val shopName: String,
     val avatarLetter: String,
     val avatarBg: Color,
+    val avatarUrl: String? = null,
     val isOnline: Boolean,
     val tagText: String? = null,
     val tagBg: Color = Color(0xFFB82414),
@@ -132,7 +139,10 @@ data class ChatMessage(
     val senderName: String,
     val text: String,
     val time: String,
-    val isFromUser: Boolean
+    val isFromUser: Boolean,
+    val avatarLetter: String? = null,
+    val avatarBg: androidx.compose.ui.graphics.Color? = null,
+    val senderAvatarRes: Int? = null
 )
 
 /**
@@ -171,89 +181,27 @@ fun ShopMessagesScreen(
     var selectedFilterPill by remember { mutableStateOf("Tất cả") }
     var activeChatConversation by remember { mutableStateOf<ShopConversation?>(null) }
 
-    val filterPills = listOf(
-        "Tất cả",
-        "Chưa đọc",
-        "Đã đọc"
-    )
+    // Tự động kích hoạt gọi API load danh sách tin nhắn khi mở màn hình
+    LaunchedEffect(Unit) {
+        viewModel.loadShopConversations()
+    }
 
-    // Danh sách 6 hội thoại chuẩn theo ảnh
-    val conversations = remember {
+    val conversations = remember(uiState.shopConversations) {
+        if (uiState.shopConversations.isNotEmpty()) {
+            uiState.shopConversations
+        } else {
+            ChatRepository.getDefaultConversations()
+        }
+    }
+
+    val unreadCount = remember(conversations) { conversations.count { it.unreadCount > 0 } }
+    val readCount = remember(conversations) { conversations.count { it.unreadCount == 0 } }
+
+    val filterPills = remember(conversations.size, unreadCount, readCount) {
         listOf(
-            ShopConversation(
-                id = "conv_coolmate",
-                shopName = "Coolmate Official Store",
-                avatarLetter = "AURA",
-                avatarBg = Color(0xFFF0FDF4),
-                isOnline = true,
-                tagText = "Mall",
-                tagBg = Color(0xFFB82414),
-                time = "10:30",
-                isTimeRed = true,
-                lastMessage = "Dạ sản phẩm này shop còn size L bạn nhé!",
-                isLastMessageBold = true,
-                unreadCount = 2
-            ),
-            ShopConversation(
-                id = "conv_logitech",
-                shopName = "Logitech Flagship Store",
-                avatarLetter = "logi",
-                avatarBg = Color(0xFFE5E7EB),
-                isOnline = true,
-                tagText = "Mall",
-                tagBg = Color(0xFFB82414),
-                time = "09:15",
-                isTimeRed = true,
-                lastMessage = "[Hình ảnh] Bạn kiểm tra mã đơn hàng #OF...",
-                isLastMessageBold = true,
-                prefixIconType = PrefixIconType.IMAGE,
-                unreadCount = 1
-            ),
-            ShopConversation(
-                id = "conv_anker",
-                shopName = "Anker Audio Flagship",
-                avatarLetter = "ANKER",
-                avatarBg = Color(0xFFEFF6FF),
-                isOnline = false,
-                tagText = "Chính hãng",
-                tagBg = Color(0xFF28537D),
-                time = "Hôm qua",
-                lastMessage = "Cảm ơn bạn đã đặt hàng. Đơn sẽ sớm được bàn...",
-                checkStatus = CheckStatus.DOUBLE_CHECK_READ
-            ),
-            ShopConversation(
-                id = "conv_minimalist",
-                shopName = "Nội Thất Minimalist Living",
-                avatarLetter = "Nội Thất",
-                avatarBg = Color(0xFFFFFBEB),
-                isOnline = true,
-                time = "15 Th10",
-                lastMessage = "Dạ shop đã gửi tặng voucher giảm giá 20k...",
-                prefixIconType = PrefixIconType.VOUCHER,
-                checkStatus = CheckStatus.SINGLE_CHECK
-            ),
-            ShopConversation(
-                id = "conv_locknlock",
-                shopName = "Gia Dụng Thông Minh Lock&Lock",
-                avatarLetter = "L&L",
-                avatarBg = Color(0xFFF3F4F6),
-                isOnline = false,
-                tagText = "Mall",
-                tagBg = Color(0xFFB82414),
-                time = "12 Th10",
-                lastMessage = "Bạn có hài lòng với máy tăm nước vừa nhận khô...",
-                checkStatus = CheckStatus.DOUBLE_CHECK_READ
-            ),
-            ShopConversation(
-                id = "conv_unisex",
-                shopName = "Thời Trang Unisex Studio",
-                avatarLetter = "STUDIO",
-                avatarBg = Color(0xFF1E1E1E),
-                isOnline = false,
-                time = "05 Th10",
-                lastMessage = "Áo polo form rộng hiện đã restock đủ màu bạn...",
-                checkStatus = CheckStatus.SINGLE_CHECK
-            )
+            "Tất cả (${conversations.size})",
+            "Chưa đọc ($unreadCount)",
+            "Đã đọc ($readCount)"
         )
     }
 
@@ -264,9 +212,9 @@ fun ShopMessagesScreen(
                     conv.shopName.contains(searchQuery, ignoreCase = true) ||
                     conv.lastMessage.contains(searchQuery, ignoreCase = true)
 
-            val matchPill = when (selectedFilterPill) {
-                "Chưa đọc" -> conv.unreadCount > 0
-                "Đã đọc" -> conv.unreadCount == 0
+            val matchPill = when {
+                selectedFilterPill.startsWith("Chưa đọc") -> conv.unreadCount > 0
+                selectedFilterPill.startsWith("Đã đọc") -> conv.unreadCount == 0
                 else -> true
             }
 
@@ -316,16 +264,38 @@ fun ShopMessagesScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = { /* Tìm kiếm */ },
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = "Tìm kiếm",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(22.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { viewModel.loadShopConversations(forceRefresh = true) },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            if (uiState.isShopConversationsLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = CoralPrimary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = "Tải lại",
+                                    tint = TextPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { /* Tìm kiếm */ },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Tìm kiếm",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
 
@@ -558,8 +528,16 @@ fun ShopMessagesScreen(
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { /* Toggle bộ lọc */ }
+                        modifier = Modifier.clickable { viewModel.loadShopConversations(forceRefresh = true) }
                     ) {
+                        if (uiState.isShopConversationsLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = Color(0xFF1E5B94)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
                         Icon(
                             imageVector = Icons.Outlined.Tune,
                             contentDescription = null,
@@ -568,11 +546,43 @@ fun ShopMessagesScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Bộ lọc hoạt động",
+                            text = if (uiState.isShopConversationsLoading) "Đang cập nhật..." else "Bộ lọc hoạt động",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFF1E5B94)
                         )
+                    }
+                }
+            }
+
+            // Banner thông báo lỗi nếu có
+            if (uiState.shopConversationsError != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Ngoại tuyến: Đang hiển thị tin nhắn có sẵn",
+                                fontSize = 12.sp,
+                                color = Color(0xFF991B1B)
+                            )
+                            Text(
+                                text = "Thử lại",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB91C1C),
+                                modifier = Modifier.clickable { viewModel.loadShopConversations(forceRefresh = true) }
+                            )
+                        }
                     }
                 }
             }
@@ -587,8 +597,8 @@ fun ShopMessagesScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (selectedFilterPill == "Chưa đọc") "Không có tin nhắn chưa đọc"
-                            else if (selectedFilterPill == "Đã đọc") "Không có tin nhắn đã đọc"
+                            text = if (selectedFilterPill.startsWith("Chưa đọc")) "Không có tin nhắn chưa đọc"
+                            else if (selectedFilterPill.startsWith("Đã đọc")) "Không có tin nhắn đã đọc"
                             else "Không tìm thấy tin nhắn nào",
                             fontSize = 13.5.sp,
                             color = TextSecondary
@@ -605,7 +615,17 @@ fun ShopMessagesScreen(
                             filteredConversations.forEachIndexed { index, conv ->
                                 ShopConversationItemRow(
                                     conversation = conv,
-                                    onClick = { viewModel.openShopChat(conv.shopName) }
+                                    onClick = {
+                                        viewModel.openShopChat(
+                                            shopName = conv.shopName,
+                                            conversationId = conv.numericId,
+                                            sellerId = conv.sellerId,
+                                            avatarLetter = conv.avatarLetter,
+                                            avatarBg = conv.avatarBg,
+                                            avatarUrl = conv.avatarUrl,
+                                            isMall = conv.tagText == "Mall"
+                                        )
+                                    }
                                 )
 
                                 if (index < filteredConversations.size - 1) {

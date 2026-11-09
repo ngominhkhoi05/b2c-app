@@ -4,6 +4,7 @@ import com.example.b2capp.data.local.TokenManager
 import com.example.b2capp.data.remote.ApiClient
 import com.example.b2capp.data.remote.dto.BulkDeleteCartItemRequestDto
 import com.example.b2capp.data.remote.dto.CartItemDto
+import com.example.b2capp.data.remote.dto.shopDisplayName
 import com.example.b2capp.data.remote.dto.UpdateCartItemRequestDto
 import com.example.b2capp.data.remote.dto.UserProfileDto
 import com.example.b2capp.viewmodel.B2CUiState
@@ -175,5 +176,60 @@ class CartAndSessionValidationTest {
         // Tổng tiền các sản phẩm ĐƯỢC CHỌN (item1 + item3): 200.000 + 150.000 = 350.000
         assertEquals(350000L, state.totalCartPrice)
         assertTrue(state.formattedCartTotal.contains("350.000"))
+    }
+
+    @Test
+    fun testCartItemShopDisplayName() {
+        val itemWithShopName = CartItemDto(id = 1L, shopName = "Coolmate Official", sellerId = 10L)
+        assertEquals("Coolmate Official", itemWithShopName.shopDisplayName)
+
+        val itemWithOnlySellerId = CartItemDto(id = 2L, shopName = null, sellerId = 5L)
+        assertEquals("Cửa hàng #5", itemWithOnlySellerId.shopDisplayName)
+
+        val itemFallback = CartItemDto(id = 3L, shopName = "", sellerId = null)
+        assertEquals("Cửa hàng chính hãng", itemFallback.shopDisplayName)
+    }
+
+    @Test
+    fun testSingleShopCartSelectionInvariant() {
+        val itemShopA1 = CartItemDto(id = 1L, shopName = "Shop A", isSelected = true)
+        val itemShopA2 = CartItemDto(id = 2L, shopName = "Shop A", isSelected = true)
+        val itemShopB1 = CartItemDto(id = 3L, shopName = "Shop B", isSelected = false)
+        val itemShopB2 = CartItemDto(id = 4L, shopName = "Shop B", isSelected = false)
+
+        val initialCart = listOf(itemShopA1, itemShopA2, itemShopB1, itemShopB2)
+
+        // Kiểm tra ban đầu: chỉ có Shop A được chọn
+        val selectedShopsInitial = initialCart.filter { it.isSelected }.map { it.shopDisplayName }.distinct()
+        assertEquals(listOf("Shop A"), selectedShopsInitial)
+
+        // Khi người dùng chọn sang sản phẩm Shop B (itemShopB1):
+        // Bỏ chọn tất cả sản phẩm của Shop A, chọn itemShopB1
+        val switchedCart = initialCart.map { item ->
+            when {
+                item.id == itemShopB1.id -> item.copy(isSelected = true)
+                item.isSelected -> item.copy(isSelected = false)
+                else -> item
+            }
+        }
+
+        val selectedShopsAfterSwitch = switchedCart.filter { it.isSelected }.map { it.shopDisplayName }.distinct()
+        assertEquals(listOf("Shop B"), selectedShopsAfterSwitch)
+        assertFalse(switchedCart.first { it.id == itemShopA1.id }.isSelected)
+        assertFalse(switchedCart.first { it.id == itemShopA2.id }.isSelected)
+        assertTrue(switchedCart.first { it.id == itemShopB1.id }.isSelected)
+        assertFalse(switchedCart.first { it.id == itemShopB2.id }.isSelected)
+
+        // Khi người dùng chọn toàn bộ Shop B:
+        val selectAllShopBCart = switchedCart.map { item ->
+            if (item.shopDisplayName == "Shop B") item.copy(isSelected = true)
+            else if (item.isSelected) item.copy(isSelected = false)
+            else item
+        }
+        val selectedShopsAfterSelectAllShopB = selectAllShopBCart.filter { it.isSelected }.map { it.shopDisplayName }.distinct()
+        assertEquals(listOf("Shop B"), selectedShopsAfterSelectAllShopB)
+        assertTrue(selectAllShopBCart.first { it.id == itemShopB1.id }.isSelected)
+        assertTrue(selectAllShopBCart.first { it.id == itemShopB2.id }.isSelected)
+        assertFalse(selectAllShopBCart.first { it.id == itemShopA1.id }.isSelected)
     }
 }
