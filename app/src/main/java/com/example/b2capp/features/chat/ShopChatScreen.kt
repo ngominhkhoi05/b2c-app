@@ -107,6 +107,7 @@ data class DetailedChatMessage(
     val avatarLetter: String? = null,
     val avatarBg: Color? = null,
     val attachedProduct: ProductItem? = null,
+    val attachmentUrl: String? = null,
     val isVoucher: Boolean = false,
     val voucherValue: String? = null
 )
