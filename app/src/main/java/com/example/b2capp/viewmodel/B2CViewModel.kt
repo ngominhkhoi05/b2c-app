@@ -19,6 +19,7 @@ import com.example.b2capp.core.ui.components.ToastType
 import com.example.b2capp.core.ui.components.createToastData
 import com.example.b2capp.data.SampleData
 import com.example.b2capp.data.local.TokenManager
+import com.example.b2capp.data.remote.dto.CategoryDto
 import com.example.b2capp.data.remote.dto.CartItemDto
 import com.example.b2capp.data.remote.dto.ChangePasswordRequestDto
 import com.example.b2capp.data.remote.dto.CreateOrderRequestDto
@@ -136,7 +137,14 @@ data class B2CUiState(
     val isOrderDetailLoading: Boolean = false,
     val orderDetailErrorMessage: String? = null,
     val cancellingOrderId: Long? = null,
-    val retryingOrderId: Long? = null
+    val retryingOrderId: Long? = null,
+    val browserCategories: List<CategoryDto> = HomeRepository.getDefaultCategoryDtos(),
+    val selectedBrowserCategory: CategoryDto? = null,
+    val selectedBrowserSubCategoryId: Long? = null,
+    val browserProducts: List<ProductItem> = emptyList(),
+    val isBrowserCategoriesLoading: Boolean = false,
+    val isBrowserProductsLoading: Boolean = false,
+    val browserCategoryErrorMessage: String? = null
 ) {
     val pendingOrdersCount: Int
         get() = orders.count { it.status.equals("PENDING", ignoreCase = true) }
@@ -587,7 +595,9 @@ class B2CViewModel : ViewModel() {
 
     fun selectTab(tabIndex: Int) {
         _uiState.update { it.copy(currentTab = tabIndex) }
-        if (tabIndex == 2) {
+        if (tabIndex == 1) {
+            loadBrowserCategories()
+        } else if (tabIndex == 2) {
             loadCartItems()
         } else if (tabIndex == 3) {
             loadOrders()
@@ -602,6 +612,93 @@ class B2CViewModel : ViewModel() {
 
     fun selectCategory(category: String) {
         _uiState.update { it.copy(selectedCategory = category) }
+        val match = _uiState.value.browserCategories.find {
+            it.name.equals(category, ignoreCase = true) ||
+            it.slug.contains(category, ignoreCase = true)
+        }
+        if (match != null) {
+            selectBrowserCategory(match)
+        }
+    }
+
+    /**
+     * Nạp danh sách danh mục từ Database qua API cho Màn hình Duyệt danh mục (Cột trái)
+     */
+    fun loadBrowserCategories(autoSelectFirst: Boolean = true) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBrowserCategoriesLoading = true, browserCategoryErrorMessage = null) }
+            val categories = homeRepository.getCategoriesForBrowser()
+            val currentSelected = _uiState.value.selectedBrowserCategory
+            val toSelect = when {
+                currentSelected != null && categories.any { it.id == currentSelected.id } ->
+                    categories.first { it.id == currentSelected.id }
+                autoSelectFirst && categories.isNotEmpty() ->
+                    categories.first()
+                else -> currentSelected
+            }
+
+            _uiState.update {
+                it.copy(
+                    browserCategories = categories,
+                    selectedBrowserCategory = toSelect,
+                    selectedBrowserSubCategoryId = null,
+                    isBrowserCategoriesLoading = false
+                )
+            }
+
+            if (toSelect != null && _uiState.value.browserProducts.isEmpty()) {
+                loadBrowserProducts(toSelect.id)
+            }
+        }
+    }
+
+    /**
+     * Người dùng click chọn một danh mục bên cột trái -> nạp sản phẩm tương ứng bên cột phải
+     */
+    fun selectBrowserCategory(category: CategoryDto) {
+        if (_uiState.value.selectedBrowserCategory?.id == category.id && _uiState.value.browserProducts.isNotEmpty()) {
+            return
+        }
+        _uiState.update {
+            it.copy(
+                selectedBrowserCategory = category,
+                selectedBrowserSubCategoryId = null
+            )
+        }
+        loadBrowserProducts(category.id)
+    }
+
+    /**
+     * Người dùng click lọc theo danh mục con (hoặc "Tất cả")
+     */
+    fun selectBrowserSubCategory(subCategoryId: Long?) {
+        _uiState.update { it.copy(selectedBrowserSubCategoryId = subCategoryId) }
+        val targetCatId = subCategoryId ?: _uiState.value.selectedBrowserCategory?.id
+        loadBrowserProducts(targetCatId)
+    }
+
+    /**
+     * Nạp danh sách sản phẩm thuộc danh mục đang chọn từ Database qua API (Cột phải)
+     */
+    fun loadBrowserProducts(categoryId: Long?) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBrowserProductsLoading = true, browserCategoryErrorMessage = null) }
+            val products = homeRepository.getProductsByCategory(categoryId)
+            _uiState.update {
+                it.copy(
+                    browserProducts = products,
+                    isBrowserProductsLoading = false
+                )
+            }
+        }
+    }
+
+    fun refreshBrowserCategories() {
+        val selectedId = _uiState.value.selectedBrowserSubCategoryId ?: _uiState.value.selectedBrowserCategory?.id
+        loadBrowserCategories(autoSelectFirst = false)
+        if (selectedId != null) {
+            loadBrowserProducts(selectedId)
+        }
     }
 
     fun updateSearchQuery(query: String) {

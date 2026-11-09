@@ -26,13 +26,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
@@ -176,7 +174,7 @@ fun ProductVariantBottomSheet(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // 1. Header: Thumbnail, Giá, Kho, Đã chọn, Nút đóng [X]
+            // 1. Header: Thumbnail, Giá, Kho, Đã chọn
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -316,22 +314,6 @@ fun ProductVariantBottomSheet(
                             maxLines = 1
                         )
                     }
-                }
-
-                // Nút đóng [X]
-                IconButton(
-                    onClick = onDismissRequest,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(Color(0xFFF3F4F6), CircleShape)
-                        .testTag("btn_close_variant_sheet")
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Đóng",
-                        tint = Color(0xFF555555),
-                        modifier = Modifier.size(16.dp)
-                    )
                 }
             }
 

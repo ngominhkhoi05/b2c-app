@@ -1,16 +1,18 @@
 package com.example.b2capp.features.catalog
 
-import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,30 +22,43 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Brush
+import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.ChildCare
 import androidx.compose.material.icons.outlined.DirectionsRun
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material.icons.outlined.Weekend
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,64 +66,39 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.example.R
-import com.example.b2capp.viewmodel.B2CUiState
-import com.example.b2capp.viewmodel.B2CViewModel
-import com.example.b2capp.core.designsystem.theme.BackgroundApp
 import com.example.b2capp.core.designsystem.theme.BorderDivider
 import com.example.b2capp.core.designsystem.theme.CoralPrimary
 import com.example.b2capp.core.designsystem.theme.NavySecondary
+import com.example.b2capp.core.designsystem.theme.StarRatingGold
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.core.model.ProductItem
+import com.example.b2capp.data.remote.dto.CategoryDto
+import com.example.b2capp.viewmodel.B2CUiState
+import com.example.b2capp.viewmodel.B2CViewModel
+import java.util.Locale
 
 /**
- * Dữ liệu danh mục chính bên thanh Sidebar trái
- */
-data class MainCategoryItem(
-    val id: String,
-    val name: String,
-    val icon: ImageVector
-)
-
-/**
- * Dữ liệu nhóm danh mục con (Áo nam, Quần nam, Phụ kiện nam...)
- */
-data class SubCategoryItem(
-    val name: String,
-    val imageUrl: String
-)
-
-data class SubCategorySection(
-    val title: String,
-    val accentColor: Color,
-    val items: List<SubCategoryItem>
-)
-
-/**
- * Màn hình Duyệt danh mục chuẩn xác theo CategoryBrowserScreen_9bda734a.png:
- * 1. Top bar: Nút quay lại, thanh tìm kiếm bo góc kèm icon camera, giỏ hàng kèm badge đỏ số 3.
- * 2. Cột trái: Danh mục chính dạng dọc (Thời trang nam đang chọn có vạch đỏ và icon nổi bật).
- * 3. Cột phải:
- *    - Banner HOT DEAL màu hồng đào: "Ưu đãi thời trang nam - Giảm đến 40% hôm nay" kèm ảnh người mẫu.
- *    - Nhóm 1: "Áo nam" (Áo thun, Áo sơ mi, Áo polo, Áo khoác, Áo hoodie, Áo len).
- *    - Nhóm 2: "Quần nam" (Quần jeans, Quần tây, Quần short, Quần jogger, Quần kaki, Quần lót nam).
- *    - Nhóm 3: "Phụ kiện nam" (Thắt lưng, Ví da, Cà vạt & Nơ).
+ * Màn hình Duyệt danh mục:
+ * - Bên trái: Thanh danh mục được nạp từ Database qua API (roots / categories tree)
+ * - Bên phải: Các sản phẩm thuộc danh mục đó được nạp từ Database qua API
+ * - Hỗ trợ lọc theo danh mục con (Subcategories) nếu danh mục có nhóm con
+ * - Tương tác click sản phẩm mở chi tiết đầy đủ
  */
 @Composable
 fun CategoriesScreen(
@@ -118,57 +108,17 @@ fun CategoriesScreen(
     onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var selectedCategoryId by remember { mutableStateOf("cat_men_fashion") }
     var searchInput by remember { mutableStateOf("") }
 
-    // Danh sách danh mục chính bên cột trái
-    val mainCategories = listOf(
-        MainCategoryItem("cat_men_fashion", "Thời trang nam", Icons.Filled.Person),
-        MainCategoryItem("cat_tech", "Điện thoại &\nTablet", Icons.Outlined.PhoneAndroid),
-        MainCategoryItem("cat_beauty", "Mỹ phẩm &\nLàm đẹp", Icons.Outlined.Brush),
-        MainCategoryItem("cat_home", "Nhà cửa &\nĐời sống", Icons.Outlined.Weekend),
-        MainCategoryItem("cat_sport", "Thể thao &\nDã ngoại", Icons.Outlined.FitnessCenter),
-        MainCategoryItem("cat_baby", "Mẹ & Bé", Icons.Outlined.ChildCare),
-        MainCategoryItem("cat_shoes", "Giày dép nam", Icons.Outlined.DirectionsRun),
-        MainCategoryItem("cat_watches", "Đồng hồ &...", Icons.Outlined.Watch)
-    )
-
-    // Dữ liệu các nhóm danh mục con cho Thời trang nam (như trong ảnh mẫu)
-    val subSections = listOf(
-        SubCategorySection(
-            title = "Áo nam",
-            accentColor = Color(0xFFD32F2F),
-            items = listOf(
-                SubCategoryItem("Áo thun", "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Áo sơ mi", "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Áo polo", "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Áo khoác", "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Áo hoodie", "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Áo len", "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=250&auto=format&fit=crop&q=70")
-            )
-        ),
-        SubCategorySection(
-            title = "Quần nam",
-            accentColor = Color(0xFF1E5B94),
-            items = listOf(
-                SubCategoryItem("Quần jeans", "https://images.unsplash.com/photo-1542272604-780c96856592?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Quần tây", "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Quần short", "https://images.unsplash.com/photo-1591195853828-11db59a44f6b?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Quần jogger", "https://images.unsplash.com/photo-1552902865-b72c031ac5ea?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Quần kaki", "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Quần lót nam", "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=250&auto=format&fit=crop&q=70")
-            )
-        ),
-        SubCategorySection(
-            title = "Phụ kiện nam",
-            accentColor = Color(0xFF26AA99),
-            items = listOf(
-                SubCategoryItem("Thắt lưng", "https://images.unsplash.com/photo-1624222247344-550fb60583dc?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Ví da", "https://images.unsplash.com/photo-1627123424574-724758594e93?w=250&auto=format&fit=crop&q=70"),
-                SubCategoryItem("Cà vạt & Nơ", "https://images.unsplash.com/photo-1589756033938-7fed161c9e89?w=250&auto=format&fit=crop&q=70")
-            )
-        )
-    )
+    // Tự động tải danh mục từ API nếu chưa có
+    LaunchedEffect(Unit) {
+        if (uiState.browserCategories.isEmpty() || uiState.selectedBrowserCategory == null) {
+            viewModel.loadBrowserCategories(autoSelectFirst = true)
+        } else if (uiState.browserProducts.isEmpty()) {
+            val selectedId = uiState.selectedBrowserSubCategoryId ?: uiState.selectedBrowserCategory?.id
+            viewModel.loadBrowserProducts(selectedId)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -176,12 +126,12 @@ fun CategoriesScreen(
             .background(SurfaceCard)
             .testTag("category_browser_screen")
     ) {
-        // 1. Top Bar: Nút Back, Ô tìm kiếm với icon camera, và Giỏ hàng có badge
+        // 1. Top Bar: Nút Back, Thanh tìm kiếm, Giỏ hàng có Badge
         CategoryTopBar(
             searchQuery = searchInput,
             onSearchChange = { searchInput = it },
             onSearchSubmit = { query ->
-                viewModel.openSearchResults(query.ifBlank { "áo thun nam" })
+                viewModel.openSearchResults(query.ifBlank { uiState.selectedBrowserCategory?.name ?: "sản phẩm" })
             },
             cartBadgeCount = uiState.totalCartCount,
             onBackClick = onBackClick,
@@ -190,78 +140,58 @@ fun CategoriesScreen(
 
         HorizontalDivider(color = BorderDivider.copy(alpha = 0.6f), thickness = 0.8.dp)
 
-        // 2. Nội dung dạng Split View 2 cột: Cột trái (Sidebar) & Cột phải (Sub-categories)
+        // 2. Nội dung dạng Split View 2 cột:
+        // - Cột trái: Thanh danh mục nạp từ Database
+        // - Cột phải: Danh sách sản phẩm thuộc danh mục
         Row(modifier = Modifier.fillMaxSize()) {
-            // Sidebar danh mục bên trái (~92.dp)
-            LazyColumn(
+            // Cột trái: Sidebar Danh mục
+            LeftCategorySidebar(
+                categories = uiState.browserCategories,
+                selectedCategory = uiState.selectedBrowserCategory,
+                isLoading = uiState.isBrowserCategoriesLoading,
+                onCategoryClick = { cat ->
+                    viewModel.selectBrowserCategory(cat)
+                },
+                onRetry = {
+                    viewModel.refreshBrowserCategories()
+                },
                 modifier = Modifier
-                    .width(92.dp)
+                    .width(96.dp)
                     .fillMaxHeight()
-                    .background(Color(0xFFF5F6F8))
-            ) {
-                items(mainCategories, key = { it.id }) { cat ->
-                    val isSelected = cat.id == selectedCategoryId
+            )
 
-                    SidebarCategoryItem(
-                        item = cat,
-                        isSelected = isSelected,
-                        onClick = { selectedCategoryId = cat.id }
-                    )
-                }
-            }
-
-            // Nội dung bên phải cuộn dọc (Banner + Các nhóm Áo nam, Quần nam, Phụ kiện)
-            LazyColumn(
+            // Cột phải: Các sản phẩm thuộc danh mục đó
+            RightProductsPanel(
+                selectedCategory = uiState.selectedBrowserCategory,
+                selectedSubCategoryId = uiState.selectedBrowserSubCategoryId,
+                products = uiState.browserProducts,
+                isLoading = uiState.isBrowserProductsLoading,
+                onSubCategorySelect = { subId ->
+                    viewModel.selectBrowserSubCategory(subId)
+                },
+                onProductClick = { product ->
+                    viewModel.openProductDetailsScreen(product)
+                },
+                onRetry = {
+                    val currentId = uiState.selectedBrowserSubCategoryId ?: uiState.selectedBrowserCategory?.id
+                    viewModel.loadBrowserProducts(currentId)
+                },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .background(SurfaceCard),
-                contentPadding = PaddingValues(12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Thẻ Banner HOT DEAL
-                item {
-                    HotDealBanner(
-                        title = "Ưu đãi thời trang nam",
-                        subtitle = "Giảm đến 40% hôm nay",
-                        onClick = {
-                            val sample = uiState.products.firstOrNull()
-                            if (sample != null) {
-                                viewModel.openProductDetailsScreen(sample)
-                            }
-                        }
-                    )
-                }
-
-                // Các nhóm danh mục con (Áo nam, Quần nam, Phụ kiện nam)
-                items(subSections) { section ->
-                    SubCategorySectionBlock(
-                        section = section,
-                        onItemClick = { item ->
-                            val sample = uiState.products.firstOrNull()
-                            if (sample != null) {
-                                viewModel.openProductDetailsScreen(sample.copy(name = "${item.name} cao cấp phong cách Hàn Quốc"))
-                            }
-                        }
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(30.dp))
-                }
-            }
+            )
         }
     }
 }
 
 /**
- * Top Bar chuẩn theo ảnh CategoryBrowserScreen_9bda734a.png
+ * Top Bar chuẩn e-commerce
  */
 @Composable
 private fun CategoryTopBar(
     searchQuery: String,
     onSearchChange: (String) -> Unit,
-    onSearchSubmit: (String) -> Unit = {},
+    onSearchSubmit: (String) -> Unit,
     cartBadgeCount: Int,
     onBackClick: () -> Unit,
     onCartClick: () -> Unit
@@ -276,7 +206,7 @@ private fun CategoryTopBar(
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Nút Back mũi tên trái
+            // Nút Back
             IconButton(
                 onClick = onBackClick,
                 modifier = Modifier.size(40.dp)
@@ -291,7 +221,7 @@ private fun CategoryTopBar(
 
             Spacer(modifier = Modifier.width(4.dp))
 
-            // Ô tìm kiếm bo tròn nhẹ kèm icon kính lúp và máy ảnh
+            // Ô tìm kiếm bo góc kèm icon kính lúp và máy ảnh
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -335,16 +265,11 @@ private fun CategoryTopBar(
                             color = TextPrimary
                         ),
                         cursorBrush = SolidColor(CoralPrimary),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            imeAction = androidx.compose.ui.text.input.ImeAction.Search
-                        ),
-                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                            onSearch = { onSearchSubmit(searchQuery) }
-                        )
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSearchSubmit(searchQuery) })
                     )
                 }
 
-                // Icon Camera chụp ảnh tìm kiếm
                 Icon(
                     imageVector = Icons.Outlined.PhotoCamera,
                     contentDescription = "Tìm kiếm bằng hình ảnh",
@@ -357,7 +282,7 @@ private fun CategoryTopBar(
 
             Spacer(modifier = Modifier.width(4.dp))
 
-            // Giỏ hàng bên phải kèm Badge đỏ "3"
+            // Giỏ hàng bên phải kèm Badge đỏ
             Box(contentAlignment = Alignment.TopEnd) {
                 IconButton(
                     onClick = onCartClick,
@@ -395,16 +320,98 @@ private fun CategoryTopBar(
 }
 
 /**
- * Mục danh mục chính ở thanh Sidebar bên trái
+ * Cột trái: Thanh danh mục nạp từ Database
  */
 @Composable
-private fun SidebarCategoryItem(
-    item: MainCategoryItem,
+private fun LeftCategorySidebar(
+    categories: List<CategoryDto>,
+    selectedCategory: CategoryDto?,
+    isLoading: Boolean,
+    onCategoryClick: (CategoryDto) -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFFF5F6F8))
+            .border(width = 0.5.dp, color = BorderDivider.copy(alpha = 0.4f))
+    ) {
+        if (isLoading && categories.isEmpty()) {
+            // Skeleton loading bên cột trái
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                repeat(7) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE2E4E8))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(55.dp)
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFE2E4E8))
+                    )
+                }
+            }
+        } else if (categories.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                IconButton(onClick = onRetry) {
+                    Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = "Thử lại",
+                        tint = CoralPrimary
+                    )
+                }
+                Text(
+                    text = "Tải lại",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(categories, key = { it.id }) { cat ->
+                    val isSelected = selectedCategory?.id == cat.id
+                    SidebarItemRow(
+                        category = cat,
+                        isSelected = isSelected,
+                        onClick = { onCategoryClick(cat) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Mục từng danh mục trên thanh Sidebar trái
+ */
+@Composable
+private fun SidebarItemRow(
+    category: CategoryDto,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
     val bgColor = if (isSelected) SurfaceCard else Color.Transparent
-    val textColor = if (isSelected) Color(0xFFD32F2F) else Color(0xFF555555)
+    val textColor = if (isSelected) CoralPrimary else Color(0xFF4A4A4A)
+    val icon = resolveCategoryIcon(category)
 
     Box(
         modifier = Modifier
@@ -414,14 +421,15 @@ private fun SidebarCategoryItem(
             .padding(vertical = 12.dp, horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Vạch đỏ chỉ thị bên mép trái
+        // Vạch đỏ/cam chỉ thị bên mép trái
         if (isSelected) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .width(3.5.dp)
-                    .fillMaxHeight()
-                    .background(Color(0xFFD32F2F))
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
+                    .background(CoralPrimary)
             )
         }
 
@@ -440,9 +448,9 @@ private fun SidebarCategoryItem(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = item.icon,
-                    contentDescription = item.name,
-                    tint = if (isSelected) Color(0xFFD32F2F) else Color(0xFF555555),
+                    imageVector = icon,
+                    contentDescription = category.name,
+                    tint = if (isSelected) CoralPrimary else Color(0xFF555555),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -450,230 +458,416 @@ private fun SidebarCategoryItem(
             Spacer(modifier = Modifier.height(5.dp))
 
             Text(
-                text = item.name,
+                text = category.name,
                 fontSize = 11.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 color = textColor,
                 textAlign = TextAlign.Center,
                 lineHeight = 14.sp,
-                maxLines = 2
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 2.dp)
             )
         }
     }
 }
 
 /**
- * Banner HOT DEAL màu hồng đào phía trên cột phải
+ * Cột phải: Các sản phẩm thuộc danh mục được chọn
  */
 @Composable
-private fun HotDealBanner(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(
-                        Color(0xFFFFECE7),
-                        Color(0xFFFFDDD6)
-                    )
-                )
-            )
-            .clickable(onClick = onClick)
-            .padding(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                // Tag HOT DEAL đỏ
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFFB82414), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "HOT DEAL",
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFB82414)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Ảnh người mẫu thời trang nam
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.fashion_hot_deal_model_1793954934603),
-                    contentDescription = "Hot Deal Model",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-    }
-}
-
-/**
- * Khối nhóm danh mục con (Áo nam, Quần nam, Phụ kiện nam...)
- */
-@Composable
-private fun SubCategorySectionBlock(
-    section: SubCategorySection,
-    onItemClick: (SubCategoryItem) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // Tiêu đề nhóm kèm vạch màu chỉ thị và "Xem tất cả >"
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Vạch màu chỉ thị dọc
-                Box(
-                    modifier = Modifier
-                        .width(3.5.dp)
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(section.accentColor)
-                )
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                Text(
-                    text = section.title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = NavySecondary
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { /* Xem tất cả */ }
-            ) {
-                Text(
-                    text = "Xem tất cả",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(10.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Lưới 3 cột các danh mục con
-        val rows = section.items.chunked(3)
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            rows.forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    rowItems.forEach { item ->
-                        SubCategoryGridCell(
-                            item = item,
-                            onClick = { onItemClick(item) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Điền khoảng trống nếu hàng không đủ 3 mục
-                    val emptySlots = 3 - rowItems.size
-                    repeat(emptySlots) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Ô danh mục con trong lưới (ảnh tỷ lệ vuông bo tròn góc + tên danh mục bên dưới)
- */
-@Composable
-private fun SubCategoryGridCell(
-    item: SubCategoryItem,
-    onClick: () -> Unit,
+private fun RightProductsPanel(
+    selectedCategory: CategoryDto?,
+    selectedSubCategoryId: Long?,
+    products: List<ProductItem>,
+    isLoading: Boolean,
+    onSubCategorySelect: (Long?) -> Unit,
+    onProductClick: (ProductItem) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(SurfaceCard)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        // Khung ảnh vuông bo góc 12.dp
-        Box(
+        // 1. Header: Tiêu đề danh mục và số lượng sản phẩm
+        Row(
             modifier = Modifier
-                .size(66.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFFF7F8FA))
-                .border(0.8.dp, Color(0xFFEAEAEA), RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            AsyncImage(
-                model = item.imageUrl,
-                contentDescription = item.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+            Text(
+                text = selectedCategory?.name ?: "Danh mục sản phẩm",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = NavySecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = "${products.size} sản phẩm",
+                fontSize = 11.5.sp,
+                color = TextSecondary
             )
         }
 
-        Spacer(modifier = Modifier.height(5.dp))
+        // 2. Nếu danh mục có các nhóm con (Subcategories), hiển thị thanh Chips để lọc
+        val subcategories = selectedCategory?.children.orEmpty()
+        if (subcategories.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Chip "Tất cả"
+                item {
+                    val isAllSelected = selectedSubCategoryId == null
+                    FilterChip(
+                        selected = isAllSelected,
+                        onClick = { onSubCategorySelect(null) },
+                        label = {
+                            Text(
+                                text = "Tất cả",
+                                fontSize = 11.sp,
+                                fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFFFEECE8),
+                            selectedLabelColor = CoralPrimary,
+                            containerColor = Color(0xFFF4F5F7),
+                            labelColor = TextPrimary
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isAllSelected,
+                            borderColor = if (isAllSelected) CoralPrimary else Color.Transparent,
+                            selectedBorderColor = CoralPrimary,
+                            borderWidth = 0.8.dp,
+                            selectedBorderWidth = 1.dp
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.height(28.dp)
+                    )
+                }
 
-        // Tên danh mục con
-        Text(
-            text = item.name,
-            fontSize = 12.sp,
-            color = TextPrimary,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+                // Từng danh mục con
+                items(subcategories, key = { it.id }) { subCat ->
+                    val isSelected = selectedSubCategoryId == subCat.id
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onSubCategorySelect(subCat.id) },
+                        label = {
+                            Text(
+                                text = subCat.name,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFFFEECE8),
+                            selectedLabelColor = CoralPrimary,
+                            containerColor = Color(0xFFF4F5F7),
+                            labelColor = TextPrimary
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isSelected) CoralPrimary else Color.Transparent,
+                            selectedBorderColor = CoralPrimary,
+                            borderWidth = 0.8.dp,
+                            selectedBorderWidth = 1.dp
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.height(28.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 3. Khối hiển thị sản phẩm
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isLoading) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = CoralPrimary,
+                        modifier = Modifier.size(32.dp),
+                        strokeWidth = 2.5.dp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Đang tải sản phẩm từ hệ thống...",
+                        fontSize = 11.5.sp,
+                        color = TextSecondary
+                    )
+                }
+            } else if (products.isEmpty()) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(Color(0xFFF5F6F8), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ShoppingBag,
+                            contentDescription = null,
+                            tint = TextSecondary.copy(alpha = 0.7f),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Chưa có sản phẩm nào",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Các sản phẩm thuộc danh mục này sẽ sớm được cập nhật.",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    IconButton(
+                        onClick = onRetry,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = "Tải lại",
+                            tint = CoralPrimary
+                        )
+                    }
+                }
+            } else {
+                // Lưới 2 cột các sản phẩm thuộc danh mục
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp, top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(products, key = { it.id }) { product ->
+                        CategoryProductGridCard(
+                            product = product,
+                            onClick = { onProductClick(product) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Thẻ hiển thị sản phẩm tinh gọn trong lưới 2 cột bên phải
+ */
+@Composable
+private fun CategoryProductGridCard(
+    product: ProductItem,
+    onClick: () -> Unit
+) {
+    val discount = product.discountPercent
+    val originalPrice = product.formattedOriginalPrice
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(SurfaceCard)
+            .border(0.8.dp, BorderDivider.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+    ) {
+        // Ảnh sản phẩm tỷ lệ 1:1
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .background(Color(0xFFF7F8FA))
+        ) {
+            AsyncImage(
+                model = product.imageUrl,
+                contentDescription = product.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Badge giảm giá ở góc trên phải nếu có
+            if (discount != null && discount > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .background(
+                            color = CoralPrimary,
+                            shape = RoundedCornerShape(bottomStart = 6.dp)
+                        )
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "-$discount%",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Badge Yêu thích ở góc trên trái
+            if (product.rating >= 4.8f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                        .background(
+                            color = Color(0xFFD32F2F),
+                            shape = RoundedCornerShape(3.dp)
+                        )
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "Yêu thích",
+                        color = Color.White,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // Thông tin tên, giá, đánh giá
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(6.dp)
+        ) {
+            Text(
+                text = product.name,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 15.sp
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Giá hiện tại
+            Text(
+                text = product.formattedPrice,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = CoralPrimary,
+                maxLines = 1
+            )
+
+            // Giá gốc gạch ngang nếu có
+            if (originalPrice != null) {
+                Text(
+                    text = originalPrice,
+                    fontSize = 9.5.sp,
+                    color = TextSecondary,
+                    textDecoration = TextDecoration.LineThrough,
+                    maxLines = 1
+                )
+            }
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            // Rating & Đã bán
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Star,
+                    contentDescription = null,
+                    tint = StarRatingGold,
+                    modifier = Modifier.size(10.dp)
+                )
+                Text(
+                    text = String.format(Locale.US, "%.1f", product.rating),
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "|",
+                    fontSize = 8.sp,
+                    color = BorderDivider,
+                    modifier = Modifier.padding(horizontal = 1.dp)
+                )
+                Text(
+                    text = product.formattedSoldCount,
+                    fontSize = 9.5.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Ánh xạ Icon phù hợp với tên/slug của danh mục
+ */
+private fun resolveCategoryIcon(category: CategoryDto): ImageVector {
+    val slug = category.slug.lowercase(Locale.ROOT)
+    val name = category.name.lowercase(Locale.ROOT)
+    val iconUrl = category.iconUrl?.lowercase(Locale.ROOT) ?: ""
+
+    return when {
+        slug.contains("thoi-trang") || name.contains("thời trang") || slug.contains("ao") || slug.contains("quan") || iconUrl.contains("person") ->
+            Icons.Filled.Person
+
+        slug.contains("dien-tu") || slug.contains("cong-nghe") || name.contains("điện tử") || iconUrl.contains("laptop") || iconUrl.contains("phone") || iconUrl.contains("headphones") ->
+            Icons.Outlined.PhoneAndroid
+
+        slug.contains("gia-dung") || name.contains("gia dụng") || name.contains("nhà cửa") || iconUrl.contains("house") || iconUrl.contains("cup") ->
+            Icons.Outlined.Weekend
+
+        slug.contains("lam-dep") || slug.contains("my-pham") || name.contains("làm đẹp") || name.contains("mỹ phẩm") || iconUrl.contains("stars") ->
+            Icons.Outlined.Brush
+
+        slug.contains("giay") || name.contains("giày") || iconUrl.contains("bicycle") || iconUrl.contains("run") ->
+            Icons.Outlined.DirectionsRun
+
+        slug.contains("dong-ho") || name.contains("đồng hồ") || iconUrl.contains("watch") ->
+            Icons.Outlined.Watch
+
+        slug.contains("me-va-be") || name.contains("mẹ") || name.contains("bé") || iconUrl.contains("balloon") || iconUrl.contains("child") ->
+            Icons.Outlined.ChildCare
+
+        slug.contains("bach-hoa") || name.contains("bách hóa") || name.contains("đồ ăn") ->
+            Icons.Outlined.ShoppingBag
+
+        slug.contains("the-thao") || name.contains("thể thao") ->
+            Icons.Outlined.FitnessCenter
+
+        else -> Icons.Outlined.ShoppingBag
     }
 }

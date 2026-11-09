@@ -24,6 +24,18 @@ interface HomeApiService {
     @GET("api/v1/categories")
     suspend fun getAllCategories(): Response<ApiResponse<List<CategoryDto>>>
 
+    @GET("api/v1/categories/tree")
+    suspend fun getCategoryTree(): Response<ApiResponse<List<CategoryDto>>>
+
+    @GET("api/v1/categories/{id}/products")
+    suspend fun getCategoryProducts(
+        @retrofit2.http.Path("id") id: Long,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 30,
+        @Query("sortBy") sortBy: String = "created",
+        @Query("sortDir") sortDir: String = "desc"
+    ): Response<ApiResponse<PageResponse<ProductSummaryDto>>>
+
     @GET("api/v1/products/featured")
     suspend fun getFeaturedProducts(
         @Query("page") page: Int = 0,

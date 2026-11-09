@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material.icons.outlined.Weekend
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.b2capp.core.model.ProductItem
 import com.example.b2capp.data.local.TokenManager
 import com.example.b2capp.data.remote.ApiClient
 import com.example.b2capp.data.remote.api.CartApiService
@@ -127,6 +128,54 @@ class HomeRepository(
             }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * Nạp danh sách danh mục đa cấp từ Database qua API cho Màn hình Danh mục
+     */
+    suspend fun getCategoriesForBrowser(): List<CategoryDto> {
+        return try {
+            val treeResponse = homeApiService.getCategoryTree()
+            if (treeResponse.isSuccessful && !treeResponse.body()?.data.isNullOrEmpty()) {
+                treeResponse.body()!!.data!!
+            } else {
+                val rootsResponse = homeApiService.getRootCategories()
+                if (rootsResponse.isSuccessful && !rootsResponse.body()?.data.isNullOrEmpty()) {
+                    rootsResponse.body()!!.data!!
+                } else {
+                    val allResponse = homeApiService.getAllCategories()
+                    if (allResponse.isSuccessful && !allResponse.body()?.data.isNullOrEmpty()) {
+                        allResponse.body()!!.data!!.filter { it.parentId == null || it.level == 1 }
+                    } else {
+                        getDefaultCategoryDtos()
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            getDefaultCategoryDtos()
+        }
+    }
+
+    /**
+     * Nạp danh sách sản phẩm thuộc danh mục từ Database qua API
+     */
+    suspend fun getProductsByCategory(categoryId: Long?): List<ProductItem> {
+        return try {
+            if (categoryId != null) {
+                val catResponse = homeApiService.getCategoryProducts(categoryId)
+                if (catResponse.isSuccessful && catResponse.body()?.data != null && catResponse.body()!!.data!!.content.isNotEmpty()) {
+                    return catResponse.body()!!.data!!.content.map { it.toProductItem() }
+                }
+            }
+            val searchResponse = homeApiService.getProducts(page = 0, size = 30, categoryId = categoryId)
+            if (searchResponse.isSuccessful && searchResponse.body()?.data != null) {
+                searchResponse.body()!!.data!!.content.map { it.toProductItem() }
+            } else {
+                emptyList()
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
@@ -468,6 +517,44 @@ class HomeRepository(
                 )
             )
         }
+
+        fun getDefaultCategoryDtos(): List<CategoryDto> {
+            return listOf(
+                CategoryDto(id = 1L, name = "Thời trang", slug = "thoi-trang", iconUrl = "bi bi-person", level = 1),
+                CategoryDto(id = 2L, name = "Điện tử", slug = "dien-tu", iconUrl = "bi bi-laptop", level = 1),
+                CategoryDto(id = 3L, name = "Gia dụng", slug = "gia-dung", iconUrl = "bi bi-house-door", level = 1),
+                CategoryDto(id = 4L, name = "Làm đẹp", slug = "lam-dep", iconUrl = "bi bi-stars", level = 1),
+                CategoryDto(id = 5L, name = "Giày dép", slug = "giay-dep", iconUrl = "bi bi-bicycle", level = 1),
+                CategoryDto(id = 6L, name = "Đồng hồ", slug = "dong-ho", iconUrl = "bi bi-watch", level = 1),
+                CategoryDto(id = 7L, name = "Mẹ & Bé", slug = "me-va-be", iconUrl = "bi bi-balloon-heart", level = 1),
+                CategoryDto(id = 8L, name = "Bách hóa", slug = "bach-hoa", iconUrl = "bi bi-cup-hot", level = 1)
+            )
+        }
     }
+}
+
+/**
+ * Chuyển đổi từ DTO tóm tắt sản phẩm của backend sang ProductItem
+ */
+fun ProductSummaryDto.toProductItem(): ProductItem {
+    val priceLong = (minPrice ?: 0.0).toLong()
+    val origPriceLong = (maxPrice ?: minPrice ?: 0.0).toLong()
+    return ProductItem(
+        id = id.toString(),
+        name = name,
+        imageUrl = thumbnailUrl?.ifBlank { "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80" }
+            ?: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80",
+        price = priceLong,
+        originalPrice = if (origPriceLong > priceLong) origPriceLong else null,
+        rating = (ratingAvg ?: 5.0).toFloat(),
+        soldCount = soldCount ?: 0,
+        isFreeShipping = true,
+        stock = 99,
+        category = categoryName ?: "Danh mục",
+        description = "Sản phẩm chính hãng chất lượng cao.",
+        shopName = shopName ?: "Coolmate Official Store",
+        shopLocation = "Việt Nam",
+        images = listOfNotNull(thumbnailUrl)
+    )
 }
 
