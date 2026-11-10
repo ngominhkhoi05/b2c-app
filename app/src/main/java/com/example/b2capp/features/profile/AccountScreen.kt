@@ -191,7 +191,8 @@ fun AccountScreen(
                         processingCount = uiState.orderStatusCounts.processingCount,
                         shippingCount = uiState.orderStatusCounts.shippingCount,
                         toReviewCount = uiState.orderStatusCounts.toReviewCount,
-                        onViewHistoryClick = onNavigateToOrders,
+                        // "Xem lịch sử": luôn mở trang Đơn hàng ở tab "Tất cả" (xóa tab/bộ lọc đã chọn trước đó)
+                        onViewHistoryClick = { viewModel.reloadTab(3) },
                         onOrderStatusClick = { statusName ->
                             val mappedTab = when (statusName) {
                                 "Chờ xác nhận" -> "Chờ thanh toán"

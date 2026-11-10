@@ -315,7 +315,7 @@ fun SearchResultsScreen(
                 selectedTab = uiState.currentTab,
                 onTabSelected = { tabId ->
                     viewModel.closeSearchResults()
-                    viewModel.selectTab(tabId)
+                    viewModel.reloadTab(tabId)
                 },
                 cartBadgeCount = uiState.totalCartCount
             )

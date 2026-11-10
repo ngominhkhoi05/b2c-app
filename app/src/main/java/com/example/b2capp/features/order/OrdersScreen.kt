@@ -621,10 +621,22 @@ fun OrdersScreen(
                 // Render danh sách đơn hàng thực tế từ API Backend
                 items(filteredOrders, key = { it.id }) { order ->
                     val status = order.status?.uppercase() ?: "PENDING"
-                    val (statusLabel, statusColor, statusBgColor) = getOrderStatusVisuals(status)
+                    val (statusLabel, statusColor, statusBgColor) = getOrderStatusVisuals(
+                        status = status,
+                        paymentMethod = order.paymentMethod,
+                        paymentStatus = order.paymentStatus
+                    )
+
+                    val isCod = order.paymentMethod?.uppercase() == "COD"
+                    val isVnpay = order.paymentMethod?.uppercase()?.contains("VNPAY") == true
+                    val isPaid = order.paymentStatus.equals("PAID", ignoreCase = true)
 
                     val deliveryBanner = when (status) {
-                        "PENDING" -> "Vui lòng thanh toán sớm để đơn hàng không bị tự động hủy."
+                        "PENDING" -> when {
+                            isCod -> "Đơn hàng đang chờ người bán xác nhận và chuẩn bị hàng (COD)."
+                            isPaid -> "Đơn hàng đã được thanh toán thành công, người bán đang chuẩn bị đóng gói."
+                            else -> "Vui lòng thanh toán sớm để đơn hàng không bị tự động hủy."
+                        }
                         "CONFIRMED" -> "Người bán đã xác nhận và đang đóng gói sản phẩm của bạn."
                         "PACKED" -> "Kiện hàng đã được đóng gói kỹ lưỡng và bàn giao đơn vị vận chuyển."
                         "SHIPPING" -> "Đang trên đường giao bởi SPX Express tới địa chỉ nhận hàng của bạn."
@@ -666,7 +678,10 @@ fun OrdersScreen(
                             ) {
                                 when (status) {
                                     "PENDING" -> {
-                                        // 2 Nút: [Hủy đơn], [THANH TOÁN NGAY]
+                                        // 1. Nếu là COD: Tuyệt đối KHÔNG có nút thanh toán ngay! Hiển thị [Hủy đơn] và [Xem chi tiết].
+                                        // 2. Nếu là VNPay:
+                                        //    - Chưa thanh toán (!isPaid): Hiển thị [Hủy đơn] và [THANH TOÁN NGAY] (quay về trang thanh toán VNPay)
+                                        //    - Đã thanh toán (isPaid): Hiển thị [Hủy đơn] và [Xem chi tiết]
                                         Box(
                                             modifier = Modifier
                                                 .height(34.dp)
@@ -689,23 +704,53 @@ fun OrdersScreen(
 
                                         Spacer(modifier = Modifier.width(10.dp))
 
-                                        Box(
-                                            modifier = Modifier
-                                                .height(34.dp)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(Color(0xFFBA2211))
-                                                .clickable {
-                                                    viewModel.retryOrderPayment(order.id)
+                                        if (!isCod && !isPaid) {
+                                            val isRetryingThis = uiState.retryingOrderId == order.id
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(34.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(Color(0xFFBA2211))
+                                                    .clickable(enabled = !isRetryingThis) {
+                                                        viewModel.retryOrderPayment(order.id)
+                                                    }
+                                                    .padding(horizontal = 14.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isRetryingThis) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(16.dp),
+                                                        color = Color.White,
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = "THANH TOÁN NGAY",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
                                                 }
-                                                .padding(horizontal = 14.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "THANH TOÁN NGAY",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
+                                            }
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(34.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(Color(0xFFE0EDFF))
+                                                    .clickable {
+                                                        viewModel.openOrderDetailsTrackingScreen(order.orderCode ?: order.id.toString())
+                                                    }
+                                                    .padding(horizontal = 14.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "Xem chi tiết",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1E5B94)
+                                                )
+                                            }
                                         }
                                     }
 
@@ -782,7 +827,7 @@ fun OrdersScreen(
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(Color(0xFFE6F7F5))
                                                 .clickable {
-                                                    viewModel.showSuccessToast("Cảm ơn bạn đã xác nhận đã nhận hàng!")
+                                                    viewModel.confirmOrderDelivery(order.id)
                                                 }
                                                 .padding(horizontal = 12.dp),
                                             contentAlignment = Alignment.Center
@@ -1316,9 +1361,21 @@ private fun isOrderWithinThisYear(createdAt: String?): Boolean {
 /**
  * Hàm helper định dạng trạng thái đơn hàng: Text, Màu chữ, Màu nền
  */
-private fun getOrderStatusVisuals(status: String): Triple<String, Color, Color> {
+private fun getOrderStatusVisuals(
+    status: String,
+    paymentMethod: String? = null,
+    paymentStatus: String? = null
+): Triple<String, Color, Color> {
     return when (status) {
-        "PENDING" -> Triple("CHỜ THANH TOÁN", Color(0xFFD97706), Color(0xFFFEF3C7))
+        "PENDING" -> {
+            val isCod = paymentMethod?.uppercase() == "COD"
+            val isPaid = paymentStatus?.uppercase() == "PAID"
+            when {
+                isCod -> Triple("CHỜ XÁC NHẬN", Color(0xFF1D4ED8), Color(0xFFE0EDFF))
+                isPaid -> Triple("ĐÃ THANH TOÁN", Color(0xFF1E8275), Color(0xFFE6F7F5))
+                else -> Triple("CHỜ THANH TOÁN", Color(0xFFD97706), Color(0xFFFEF3C7))
+            }
+        }
         "CONFIRMED" -> Triple("ĐÃ XÁC NHẬN", Color(0xFF1D4ED8), Color(0xFFE0EDFF))
         "PACKED" -> Triple("ĐANG CHUẨN BỊ", Color(0xFF4338CA), Color(0xFFEEF2FF))
         "SHIPPING" -> Triple("ĐANG GIAO HÀNG", Color(0xFF0284C7), Color(0xFFE0F2FE))

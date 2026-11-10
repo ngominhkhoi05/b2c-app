@@ -144,16 +144,37 @@ fun OrderDetailsAndTrackingScreen(
     val isReturnRequested = status == "RETURN_REQUESTED"
     val isReturned = status == "RETURNED"
 
+    val isCod = (detail?.paymentMethod ?: "COD").uppercase() == "COD"
+    val isPaid = detail?.paymentStatus.equals("PAID", ignoreCase = true)
+
     // Visuals của Hero Status Banner
     val bannerVisuals = when (status) {
-        "PENDING" -> BannerVisuals(
-            bg = Color(0xFF854D0E),
-            tagText = "• CHỜ THANH TOÁN",
-            tagColor = Color(0xFFFDE68A),
-            title = "Đơn hàng đang chờ thanh toán",
-            subtitle = "Vui lòng hoàn tất thanh toán trước khi đơn hàng hết hạn",
-            icon = Icons.Outlined.AccessTime
-        )
+        "PENDING" -> when {
+            isCod -> BannerVisuals(
+                bg = Color(0xFF1E3A8A),
+                tagText = "• CHỜ XÁC NHẬN",
+                tagColor = Color(0xFF93C5FD),
+                title = "Đơn hàng đang chờ xác nhận (COD)",
+                subtitle = "Người bán đang tiếp nhận và chuẩn bị đơn hàng của bạn",
+                icon = Icons.Outlined.AccessTime
+            )
+            isPaid -> BannerVisuals(
+                bg = Color(0xFF065F46),
+                tagText = "• ĐÃ THANH TOÁN",
+                tagColor = Color(0xFFA7F3D0),
+                title = "Đơn hàng đã thanh toán thành công",
+                subtitle = "Người bán đang tiếp nhận và chuẩn bị đóng gói sản phẩm",
+                icon = Icons.Default.Verified
+            )
+            else -> BannerVisuals(
+                bg = Color(0xFF854D0E),
+                tagText = "• CHỜ THANH TOÁN",
+                tagColor = Color(0xFFFDE68A),
+                title = "Đơn hàng đang chờ thanh toán",
+                subtitle = "Vui lòng hoàn tất thanh toán trước khi đơn hàng hết hạn",
+                icon = Icons.Outlined.AccessTime
+            )
+        }
         "CONFIRMED" -> BannerVisuals(
             bg = Color(0xFF1E3A8A),
             tagText = "• ĐÃ XÁC NHẬN",
@@ -1184,7 +1205,11 @@ fun OrderDetailsAndTrackingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isPending) {
-                    // Đơn PENDING: [Hủy đơn] & [THANH TOÁN NGAY]
+                    // Đơn PENDING:
+                    // 1. Nếu là COD: Tuyệt đối KHÔNG có nút thanh toán ngay! Hiển thị [Hủy đơn hàng] & [Liên hệ Shop]
+                    // 2. Nếu là VNPay:
+                    //    - Chưa thanh toán (!isPaid): Hiển thị [Hủy đơn hàng] & [THANH TOÁN NGAY]
+                    //    - Đã thanh toán (isPaid): Hiển thị [Hủy đơn hàng] & [Liên hệ Shop]
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1203,28 +1228,50 @@ fun OrderDetailsAndTrackingScreen(
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1.3f)
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFBA2211))
-                            .clickable {
-                                if (rawId != null) {
-                                    viewModel.retryOrderPayment(rawId)
-                                } else {
-                                    viewModel.openVnpayPayment()
+                    if (!isCod && !isPaid) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFBA2211))
+                                .clickable {
+                                    if (rawId != null) {
+                                        viewModel.retryOrderPayment(rawId)
+                                    } else {
+                                        viewModel.openVnpayPayment()
+                                    }
                                 }
-                            }
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "THANH TOÁN NGAY",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "THANH TOÁN NGAY",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFE0EDFF))
+                                .clickable {
+                                    viewModel.openShopMessages()
+                                }
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Liên hệ Shop",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E5B94)
+                            )
+                        }
                     }
                 } else if (isConfirmed) {
                     // Đơn CONFIRMED/PACKED: [Hủy đơn] & [Liên hệ Shop]

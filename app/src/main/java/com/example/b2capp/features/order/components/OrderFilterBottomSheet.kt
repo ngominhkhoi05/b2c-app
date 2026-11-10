@@ -392,6 +392,7 @@ fun OrderFilterBottomSheet(
                     ) {
                         Text(
                             text = if (tempCriteria.isActive) "Áp dụng bộ lọc" else "Áp dụng",
+                            color = Color.White,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
                         )

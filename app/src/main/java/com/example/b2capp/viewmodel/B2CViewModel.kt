@@ -170,6 +170,7 @@ data class B2CUiState(
     val ordersErrorMessage: String? = null,
     val selectedOrdersTab: String = "Tất cả",
     val orderFilterCriteria: OrderFilterCriteria = OrderFilterCriteria(),
+    val tabReloadKey: Int = 0, // Tăng lên mỗi lần bấm một tab ở BottomBar để dựng lại toàn bộ màn hình của tab đó
     val activeOrderDetail: OrderDetailDto? = null,
     val isOrderDetailLoading: Boolean = false,
     val orderDetailErrorMessage: String? = null,
@@ -787,6 +788,39 @@ class B2CViewModel : ViewModel() {
         } else if (tabIndex == 4) {
             loadUserProfile()
             loadAddresses()
+        }
+    }
+
+    /**
+     * Reload lại toàn bộ trang khi bấm một tab ở BottomBar (Trang chủ, Danh mục, Giỏ hàng, Đơn mua, Tài khoản):
+     * - Tăng tabReloadKey để màn hình của tab được dựng lại từ đầu (xóa ô tìm kiếm, cuộn về đầu,
+     *   đóng dialog/bottom sheet...) và LaunchedEffect của màn hình tự gọi lại API
+     * - Với các màn hình chỉ tải khi dữ liệu trống (Trang chủ, Danh mục) thì chủ động làm mới dữ liệu
+     */
+    fun reloadTab(tabIndex: Int) {
+        _uiState.update { state ->
+            val base = state.copy(currentTab = tabIndex, tabReloadKey = state.tabReloadKey + 1)
+            when (tabIndex) {
+                // Danh mục: xóa lựa chọn hiện tại -> CategoriesScreen tự tải lại danh mục và chọn danh mục đầu tiên
+                1 -> base.copy(
+                    selectedBrowserCategory = null,
+                    selectedBrowserSubCategoryId = null,
+                    browserProducts = emptyList(),
+                    browserCategoryErrorMessage = null
+                )
+                // Đơn mua: đặt lại tab trạng thái về "Tất cả" và xóa bộ lọc nâng cao
+                3 -> base.copy(
+                    selectedOrdersTab = "Tất cả",
+                    orderFilterCriteria = OrderFilterCriteria(),
+                    ordersErrorMessage = null
+                )
+                else -> base
+            }
+        }
+        when (tabIndex) {
+            0 -> loadHomeData(isRefresh = true) // HomeScreen chỉ tự tải khi chưa có dữ liệu
+            4 -> loadAddresses()                 // AccountScreen tự tải hồ sơ + tổng hợp đơn hàng
+            // 1, 2, 3: màn hình tự gọi API trong LaunchedEffect khi được dựng lại
         }
     }
 

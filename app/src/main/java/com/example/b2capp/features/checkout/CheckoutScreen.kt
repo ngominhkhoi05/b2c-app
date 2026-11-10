@@ -295,46 +295,6 @@ fun CheckoutScreen(
                                             color = Color(0xFF9CA3AF)
                                         )
                                     }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    // Các nút thao tác nhanh: Đổi / Thêm mới / Sửa
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Đổi địa chỉ",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = NavySecondary,
-                                            modifier = Modifier.clickable { viewModel.openAddressBook() }
-                                        )
-                                        Text(
-                                            text = "•",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFD1D5DB)
-                                        )
-                                        Text(
-                                            text = "Sửa",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1E5B94),
-                                            modifier = Modifier.clickable { viewModel.openAddressEditor(currentAddress) }
-                                        )
-                                        Text(
-                                            text = "•",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFD1D5DB)
-                                        )
-                                        Text(
-                                            text = "+ Thêm mới",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = CoralPrimary,
-                                            modifier = Modifier.clickable { viewModel.openAddressEditor(null) }
-                                        )
-                                    }
                                 } else {
                                     Text(
                                         text = "Chưa có địa chỉ nhận hàng",
@@ -344,40 +304,18 @@ fun CheckoutScreen(
                                     )
                                     Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        text = "Nhấn vào đây để thêm địa chỉ giao hàng của bạn",
+                                        text = "Nhấn vào đây để chọn hoặc thêm địa chỉ nhận hàng",
                                         fontSize = 12.sp,
                                         color = Color(0xFF6B7280)
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = { viewModel.openAddressEditor(null) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Thêm địa chỉ ngay",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
                                 }
                             }
 
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
+                                contentDescription = "Chọn địa chỉ nhận hàng",
                                 tint = Color(0xFF9CA3AF),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }

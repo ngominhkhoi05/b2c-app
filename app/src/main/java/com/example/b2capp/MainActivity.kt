@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -391,11 +392,14 @@ private fun B2CMainScreens(
             // 1. Trang chủ | 2. Danh mục | 3. Giỏ hàng (badge 3) | 4. Đơn hàng | 5. Tài khoản
             AppBottomBar(
                 selectedTab = uiState.currentTab,
-                onTabSelected = { tabId -> viewModel.selectTab(tabId) },
+                // Bấm bất kỳ tab nào ở BottomBar đều reload lại toàn bộ trang của tab đó
+                onTabSelected = { tabId -> viewModel.reloadTab(tabId) },
                 cartBadgeCount = uiState.totalCartCount
             )
         }
     ) { innerPadding ->
+        // key(tabReloadKey): mỗi lần bấm tab ở BottomBar, màn hình được dựng lại từ đầu (reload toàn trang)
+        key(uiState.tabReloadKey) {
         when (uiState.currentTab) {
             0 -> HomeScreen(
                 uiState = uiState,
@@ -428,6 +432,7 @@ private fun B2CMainScreens(
                 onNavigateToOrders = { viewModel.selectTab(3) },
                 modifier = Modifier.padding(innerPadding)
             )
+        }
         }
     }
 }
