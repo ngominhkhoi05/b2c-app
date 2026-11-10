@@ -190,6 +190,7 @@ fun CheckoutScreen(
         ) {
             // 2. Thẻ Địa chỉ nhận hàng
             item {
+                val defaultAddr = uiState.addresses.firstOrNull { it.isDefault } ?: uiState.addresses.firstOrNull()
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -223,46 +224,62 @@ fun CheckoutScreen(
                             Spacer(modifier = Modifier.width(12.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (defaultAddr != null) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = defaultAddr.recipientName,
+                                            fontSize = 14.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF111827)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = defaultAddr.phoneNumber,
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF6B7280)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(3.dp))
+
+                                    // Nhãn Mặc định
+                                    if (defaultAddr.isDefault) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Color(0xFFE6F7F5))
+                                                .padding(horizontal = 6.dp, vertical = 1.5.dp)
+                                        ) {
+                                            Text(
+                                                text = "Mặc định",
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF00897B)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(5.dp))
+                                    }
+
                                     Text(
-                                        text = "Nguyễn Văn A",
-                                        fontSize = 14.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF111827)
+                                        text = defaultAddr.fullAddress,
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFF4B5563),
+                                        lineHeight = 17.sp
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                } else {
                                     Text(
-                                        text = "(+84) 987 654 321",
-                                        fontSize = 13.sp,
+                                        text = "Chưa có địa chỉ nhận hàng",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CoralPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = "Nhấn vào đây để thêm địa chỉ giao hàng của bạn",
+                                        fontSize = 12.sp,
                                         color = Color(0xFF6B7280)
                                     )
                                 }
-
-                                Spacer(modifier = Modifier.height(3.dp))
-
-                                // Nhãn Mặc định
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(3.dp))
-                                        .background(Color(0xFFE6F7F5))
-                                        .padding(horizontal = 6.dp, vertical = 1.5.dp)
-                                ) {
-                                    Text(
-                                        text = "Mặc định",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF00897B)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(5.dp))
-
-                                Text(
-                                    text = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
-                                    fontSize = 12.5.sp,
-                                    color = Color(0xFF4B5563),
-                                    lineHeight = 17.sp
-                                )
                             }
 
                             Icon(
@@ -866,7 +883,10 @@ fun CheckoutScreen(
                                 if (selectedPaymentMethod == "VNPAY") {
                                     viewModel.openVnpayPayment()
                                 } else {
-                                    viewModel.completeOrderPlacement()
+                                    viewModel.completeOrderPlacement(
+                                        paymentMethod = selectedPaymentMethod,
+                                        sellerNote = sellerNote
+                                    )
                                 }
                             }
                             .padding(horizontal = 24.dp),

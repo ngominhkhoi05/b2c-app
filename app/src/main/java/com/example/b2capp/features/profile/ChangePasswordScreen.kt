@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.profile
+package com.example.b2capp.features.profile
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -42,6 +41,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -96,9 +96,9 @@ fun ChangePasswordScreen(
     onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var oldPassword by remember { mutableStateOf("MatKhauCu123!") }
-    var newPassword by remember { mutableStateOf("ShopSafe2024@") }
-    var confirmPassword by remember { mutableStateOf("ShopSafe2024@") }
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
 
     var oldPasswordVisible by remember { mutableStateOf(false) }
     var newPasswordVisible by remember { mutableStateOf(false) }
@@ -111,6 +111,18 @@ fun ChangePasswordScreen(
     val hasUpperAndLower = newPassword.any { it.isUpperCase() } && newPassword.any { it.isLowerCase() }
     val hasDigitOrSpecial = newPassword.any { it.isDigit() || !it.isLetterOrDigit() }
     val isPasswordMatching = newPassword.isNotEmpty() && newPassword == confirmPassword
+
+    // Tính toán mức độ mạnh của mật khẩu mới
+    val criteriaCount = (if (hasMinLength) 1 else 0) +
+            (if (hasUpperAndLower) 1 else 0) +
+            (if (hasDigitOrSpecial) 1 else 0)
+
+    val (strengthLabel, strengthColor, activeBars) = when {
+        newPassword.isEmpty() -> Triple("Chưa nhập", Color(0xFF9CA3AF), 0)
+        criteriaCount == 1 -> Triple("Yếu", Color(0xFFDC2626), 1)
+        criteriaCount == 2 -> Triple("Trung bình", Color(0xFFD97706), 2)
+        else -> Triple("Rất mạnh", Color(0xFF15803D), 3)
+    }
 
     Scaffold(
         modifier = modifier
@@ -126,42 +138,25 @@ fun ChangePasswordScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Quay lại",
-                                tint = TextPrimary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Text(
-                            text = "Đổi Mật Khẩu",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color(0xFFBA2211), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = "Tài khoản",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Quay lại",
+                            tint = TextPrimary
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    Text(
+                        text = "Đổi Mật Khẩu",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
                 }
             }
         }
@@ -248,7 +243,7 @@ fun ChangePasswordScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFBA2211),
                                 modifier = Modifier.clickable {
-                                    viewModel.showToast("Mở quy trình khôi phục mật khẩu qua Email/SĐT...")
+                                    viewModel.openForgotPassword()
                                 }
                             )
                         }
@@ -373,21 +368,29 @@ fun ChangePasswordScreen(
                                 Box(
                                     modifier = Modifier
                                         .size(6.dp)
-                                        .background(Color(0xFF15803D), CircleShape)
+                                        .background(strengthColor, CircleShape)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Rất mạnh",
+                                    text = strengthLabel,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF15803D)
+                                    color = strengthColor
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // 3 Thanh tiến trình xanh lá
+                        // 3 Thanh tiến trình phản hồi theo độ mạnh mật khẩu
+                        val activeBarColor = when (activeBars) {
+                            1 -> Color(0xFFDC2626)
+                            2 -> Color(0xFFF59E0B)
+                            3 -> Color(0xFF16A34A)
+                            else -> Color(0xFFE5E7EB)
+                        }
+                        val inactiveBarColor = Color(0xFFE5E7EB)
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -397,21 +400,21 @@ fun ChangePasswordScreen(
                                     .weight(1f)
                                     .height(5.dp)
                                     .clip(RoundedCornerShape(3.dp))
-                                    .background(Color(0xFF16A34A))
+                                    .background(if (activeBars >= 1) activeBarColor else inactiveBarColor)
                             )
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(5.dp)
                                     .clip(RoundedCornerShape(3.dp))
-                                    .background(Color(0xFF16A34A))
+                                    .background(if (activeBars >= 2) activeBarColor else inactiveBarColor)
                             )
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(5.dp)
                                     .clip(RoundedCornerShape(3.dp))
-                                    .background(Color(0xFF16A34A))
+                                    .background(if (activeBars >= 3) activeBarColor else inactiveBarColor)
                             )
                         }
 
@@ -567,36 +570,82 @@ fun ChangePasswordScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Button(
+                        enabled = !uiState.isChangingPassword,
                         onClick = {
-                            if (oldPassword.isBlank() || newPassword.isBlank()) return@Button
-                            if (!isPasswordMatching) {
-                                viewModel.showToast("Mật khẩu xác nhận không khớp!")
+                            if (oldPassword.isBlank()) {
+                                viewModel.showErrorToast("Vui lòng nhập mật khẩu hiện tại")
                                 return@Button
                             }
-                            viewModel.showToast("Đã cập nhật mật khẩu mới thành công!")
-                            onBackClick()
+                            if (newPassword.isBlank()) {
+                                viewModel.showErrorToast("Vui lòng nhập mật khẩu mới")
+                                return@Button
+                            }
+                            if (newPassword.length < 8) {
+                                viewModel.showErrorToast("Mật khẩu mới phải có tối thiểu 8 ký tự")
+                                return@Button
+                            }
+                            if (newPassword == oldPassword) {
+                                viewModel.showErrorToast("Mật khẩu mới không được trùng với mật khẩu hiện tại")
+                                return@Button
+                            }
+                            if (confirmPassword.isBlank()) {
+                                viewModel.showErrorToast("Vui lòng xác nhận mật khẩu mới")
+                                return@Button
+                            }
+                            if (!isPasswordMatching) {
+                                viewModel.showErrorToast("Mật khẩu xác nhận không khớp!")
+                                return@Button
+                            }
+                            viewModel.changePassword(
+                                oldPass = oldPassword,
+                                newPass = newPassword,
+                                confirmPass = confirmPassword
+                            ) { success ->
+                                if (success) {
+                                    onBackClick()
+                                }
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA2211))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFBA2211),
+                            disabledContainerColor = Color(0xFFBA2211).copy(alpha = 0.6f)
+                        )
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Cập nhật",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                        if (uiState.isChangingPassword) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "CẬP NHẬT MẬT KHẨU",
+                                text = "ĐANG CẬP NHẬT...",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 letterSpacing = 0.5.sp
                             )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = "Cập nhật",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "CẬP NHẬT MẬT KHẨU",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
                         }
                     }
 

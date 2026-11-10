@@ -29,7 +29,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Apartment
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -59,8 +58,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -126,63 +124,38 @@ fun AddressEditorScreen(
     onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var recipientName by remember { mutableStateOf(initialAddress?.recipientName ?: "Nguyễn Văn A") }
-    var phoneNumber by remember { mutableStateOf(initialAddress?.phoneNumber?.replace("+84 ", "") ?: "0987 654 321") }
-    var selectedCity by remember { mutableStateOf("TP. Hồ Chí Minh") }
-    var selectedDistrict by remember { mutableStateOf("Quận 1") }
-    var selectedWard by remember { mutableStateOf("Phường Bến Nghé") }
-    var specificAddress by remember {
-        mutableStateOf(initialAddress?.fullAddress ?: "Số 123 Đường Nguyễn Huệ (Tòa nhà Landmark)")
+    val addrParts = initialAddress?.fullAddress?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+
+    val initialCity = initialAddress?.provinceCode?.takeIf { it.isNotBlank() }
+        ?: if (addrParts.isNotEmpty()) addrParts.last() else ""
+
+    val initialDistrict = initialAddress?.districtCode?.takeIf { it.isNotBlank() }
+        ?: if (addrParts.size >= 2) addrParts[addrParts.size - 2] else ""
+
+    val initialWard = initialAddress?.wardCode?.takeIf { it.isNotBlank() }
+        ?: if (addrParts.size >= 3) addrParts[addrParts.size - 3] else ""
+
+    val initialStreet = initialAddress?.streetDetail?.takeIf { it.isNotBlank() }
+        ?: if (addrParts.size >= 4) addrParts.dropLast(3).joinToString(", ")
+        else (initialAddress?.fullAddress?.split(",")?.firstOrNull()?.trim() ?: "")
+
+    var recipientName by remember {
+        mutableStateOf(initialAddress?.recipientName ?: uiState.userProfile.fullName.ifBlank { "" })
     }
+    var phoneNumber by remember {
+        mutableStateOf(
+            initialAddress?.phoneNumber?.replace("+84 ", "")
+                ?: uiState.userProfile.phoneNumber.replace("+84 ", "")
+        )
+    }
+    var selectedCity by remember { mutableStateOf(initialCity) }
+    var selectedDistrict by remember { mutableStateOf(initialDistrict) }
+    var selectedWard by remember { mutableStateOf(initialWard) }
+    var specificAddress by remember { mutableStateOf(initialStreet) }
     var addressType by remember { mutableStateOf(initialAddress?.addressType ?: "Nhà riêng") }
-    var isDefault by remember { mutableStateOf(initialAddress?.isDefault ?: true) }
-    var isWorkHoursOnly by remember { mutableStateOf(true) }
+    var isDefault by remember { mutableStateOf(initialAddress?.isDefault ?: uiState.addresses.isEmpty()) }
+    var isWorkHoursOnly by remember { mutableStateOf(initialAddress?.deliveryNote?.contains("hành chính") == true || initialAddress == null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-
-    // State cho Dropdowns
-    var cityExpanded by remember { mutableStateOf(false) }
-    var districtExpanded by remember { mutableStateOf(false) }
-    var wardExpanded by remember { mutableStateOf(false) }
-
-    val cityToDistricts = mapOf(
-        "TP. Hồ Chí Minh" to listOf("Quận 1", "Quận 3", "Quận 7", "Quận Bình Thạnh", "TP. Thủ Đức"),
-        "Hà Nội" to listOf("Quận Hoàn Kiếm", "Quận Ba Đình", "Quận Đống Đa", "Quận Cầu Giấy", "Quận Tây Hồ"),
-        "Đà Nẵng" to listOf("Quận Hải Châu", "Quận Sơn Trà", "Quận Ngũ Hành Sơn", "Quận Thanh Khê"),
-        "Cần Thơ" to listOf("Quận Ninh Kiều", "Quận Cái Răng", "Quận Bình Thủy"),
-        "Thừa Thiên Huế" to listOf("TP. Huế", "Thị xã Hương Thủy", "Thị xã Hương Trà")
-    )
-
-    val districtToWards = mapOf(
-        // TP. HCM
-        "Quận 1" to listOf("Phường Bến Nghé", "Phường Bến Thành", "Phường Phạm Ngũ Lão", "Phường Đa Kao"),
-        "Quận 3" to listOf("Phường Võ Thị Sáu", "Phường 01", "Phường 02", "Phường 03"),
-        "Quận 7" to listOf("Phường Tân Phong", "Phường Tân Phú", "Phường Phú Mỹ"),
-        "Quận Bình Thạnh" to listOf("Phường 01", "Phường 03", "Phường 11", "Phường 25"),
-        "TP. Thủ Đức" to listOf("Phường An Khánh", "Phường Thảo Điền", "Phường Linh Chiểu", "Phường Hiệp Phú"),
-        // Hà Nội
-        "Quận Hoàn Kiếm" to listOf("Phường Tràng Tiền", "Phường Hàng Bài", "Phường Hàng Mã", "Phường Lý Thái Tổ"),
-        "Quận Ba Đình" to listOf("Phường Điện Biên", "Phường Kim Mã", "Phường Trúc Bạch", "Phường Đội Cấn"),
-        "Quận Đống Đa" to listOf("Phường Láng Hạ", "Phường Cát Linh", "Phường Ô Chợ Dừa", "Phường Nam Đồng"),
-        "Quận Cầu Giấy" to listOf("Phường Dịch Vọng", "Phường Mai Dịch", "Phường Yên Hòa", "Phường Trung Hòa"),
-        "Quận Tây Hồ" to listOf("Phường Quảng An", "Phường Nhật Tân", "Phường Thụy Khuê"),
-        // Đà Nẵng
-        "Quận Hải Châu" to listOf("Phường Hải Châu 1", "Phường Hải Châu 2", "Phường Thạch Thang"),
-        "Quận Sơn Trà" to listOf("Phường An Hải Bắc", "Phường Phước Mỹ", "Phường Thọ Quang"),
-        "Quận Ngũ Hành Sơn" to listOf("Phường Mỹ An", "Phường Khuê Mỹ", "Phường Hoà Hải"),
-        "Quận Thanh Khê" to listOf("Phường Tam Thuận", "Phường Thanh Khê Đông", "Phường Vĩnh Trung"),
-        // Cần Thơ
-        "Quận Ninh Kiều" to listOf("Phường Tân An", "Phường An Cư", "Phường An Nghiệp", "Phường Hưng Lợi"),
-        "Quận Cái Răng" to listOf("Phường Lê Bình", "Phường Hưng Thạnh", "Phường Ba Láng"),
-        "Quận Bình Thủy" to listOf("Phường Bình Thủy", "Phường Trà An", "Phường An Thới"),
-        // Huế
-        "TP. Huế" to listOf("Phường Vĩnh Ninh", "Phường Phú Nộn", "Phường Tây Lộc", "Phường Thuận Hóa"),
-        "Thị xã Hương Thủy" to listOf("Phường Thủy Dương", "Phường Thủy Phương", "Phường Phú Bài"),
-        "Thị xã Hương Trà" to listOf("Phường Tứ Hạ", "Phường Hương Văn", "Phường Hương Vân")
-    )
-
-    val cities = cityToDistricts.keys.toList()
-    val districts = cityToDistricts[selectedCity] ?: listOf("Quận 1", "Quận 3")
-    val wards = districtToWards[selectedDistrict] ?: listOf("Phường 01", "Phường 02")
 
     Scaffold(
         modifier = modifier
@@ -199,41 +172,24 @@ fun AddressEditorScreen(
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Quay lại",
-                                tint = TextPrimary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Text(
-                            text = if (initialAddress == null) "Them Dia Chi Moi" else "Chỉnh Sửa Địa Chỉ",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color(0xFFBA2211), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = "Tài khoản",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Quay lại",
+                            tint = TextPrimary
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    Text(
+                        text = if (initialAddress == null) "Thêm Địa Chỉ Mới" else "Chỉnh Sửa Địa Chỉ",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
                 }
             }
         },
@@ -271,43 +227,85 @@ fun AddressEditorScreen(
 
                     Button(
                         onClick = {
-                            if (recipientName.isBlank() || phoneNumber.isBlank()) return@Button
-                            val formattedFullAddr = if (specificAddress.contains(selectedWard)) specificAddress
-                            else "$specificAddress, $selectedWard, $selectedDistrict, $selectedCity"
+                            if (recipientName.isBlank()) {
+                                viewModel.showToast("Vui lòng nhập họ tên người nhận")
+                                return@Button
+                            }
+                            if (phoneNumber.isBlank() || phoneNumber.length < 9) {
+                                viewModel.showToast("Vui lòng nhập số điện thoại hợp lệ")
+                                return@Button
+                            }
+                            if (selectedCity.isBlank()) {
+                                viewModel.showToast("Vui lòng nhập Tỉnh / Thành phố")
+                                return@Button
+                            }
+                            if (selectedDistrict.isBlank()) {
+                                viewModel.showToast("Vui lòng nhập Quận / Huyện")
+                                return@Button
+                            }
+                            if (selectedWard.isBlank()) {
+                                viewModel.showToast("Vui lòng nhập Phường / Xã")
+                                return@Button
+                            }
+                            if (specificAddress.isBlank()) {
+                                viewModel.showToast("Vui lòng nhập số nhà, tên đường cụ thể")
+                                return@Button
+                            }
+
+                            val formattedFullAddr = listOf(
+                                specificAddress.trim(),
+                                selectedWard.trim(),
+                                selectedDistrict.trim(),
+                                selectedCity.trim()
+                            ).filter { it.isNotBlank() }.joinToString(", ")
 
                             val newAddress = UserAddress(
-                                id = initialAddress?.id ?: "addr_${System.currentTimeMillis()}",
-                                recipientName = recipientName,
-                                phoneNumber = phoneNumber,
+                                id = initialAddress?.id ?: "",
+                                recipientName = recipientName.trim(),
+                                phoneNumber = phoneNumber.trim(),
                                 addressType = addressType,
                                 fullAddress = formattedFullAddr,
+                                streetDetail = specificAddress.trim(),
+                                provinceCode = selectedCity.trim(),
+                                districtCode = selectedDistrict.trim(),
+                                wardCode = selectedWard.trim(),
                                 isDefault = isDefault,
                                 deliveryNote = if (isWorkHoursOnly) "Lưu ý: Giao giờ hành chính (8h00 - 17h30)" else null
                             )
-                            viewModel.addOrUpdateAddress(newAddress)
-                            onBackClick()
+                            viewModel.addOrUpdateAddress(newAddress) {
+                                onBackClick()
+                            }
                         },
+                        enabled = !uiState.isAddressSaving,
                         modifier = Modifier
                             .weight(0.68f)
                             .height(48.dp),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA2211))
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "HOÀN THÀNH",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
+                        if (uiState.isAddressSaving) {
+                            CircularProgressIndicator(
                                 color = Color.White,
-                                letterSpacing = 0.5.sp
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
                             )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "HOÀN THÀNH",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -591,7 +589,12 @@ fun AddressEditorScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFFE0EDFF))
-                                    .clickable { viewModel.showToast("Đang xác định GPS...") }
+                                    .clickable {
+                                        selectedCity = "TP. Hồ Chí Minh"
+                                        selectedDistrict = "Quận 1"
+                                        selectedWard = "Phường Bến Nghé"
+                                        viewModel.showToast("Đã định vị: Phường Bến Nghé, Quận 1, TP. HCM")
+                                    }
                                     .padding(horizontal = 10.dp, vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -615,7 +618,7 @@ fun AddressEditorScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Dropdown 1: Tỉnh / Thành phố
+                        // Textbox 1: Tỉnh / Thành phố
                         Text(
                             text = "Tỉnh / Thành phố",
                             fontSize = 12.sp,
@@ -623,52 +626,54 @@ fun AddressEditorScreen(
                             color = TextSecondary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF3F4F6))
-                                    .clickable { cityExpanded = true }
-                                    .padding(horizontal = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Apartment,
-                                        contentDescription = null,
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = selectedCity,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF3F4F6))
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Apartment,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            BasicTextField(
+                                value = selectedCity,
+                                onValueChange = { selectedCity = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 14.sp,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                cursorBrush = SolidColor(Color(0xFFBA2211)),
+                                decorationBox = { innerTextField ->
+                                    if (selectedCity.isEmpty()) {
+                                        Text(
+                                            text = "Nhập Tỉnh / Thành phố (VD: TP. Hồ Chí Minh)",
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                    innerTextField()
                                 }
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = null,
-                                    tint = TextSecondary
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = cityExpanded,
-                                onDismissRequest = { cityExpanded = false }
-                            ) {
-                                cities.forEach { c ->
-                                    DropdownMenuItem(
-                                        text = { Text(c) },
-                                        onClick = {
-                                            selectedCity = c
-                                            selectedDistrict = cityToDistricts[c]?.firstOrNull() ?: ""
-                                            selectedWard = districtToWards[selectedDistrict]?.firstOrNull() ?: ""
-                                            cityExpanded = false
-                                        }
+                            )
+                            if (selectedCity.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { selectedCity = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Clear,
+                                        contentDescription = "Xóa",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -676,7 +681,7 @@ fun AddressEditorScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Dropdown 2: Quận / Huyện
+                        // Textbox 2: Quận / Huyện
                         Text(
                             text = "Quận / Huyện",
                             fontSize = 12.sp,
@@ -684,51 +689,54 @@ fun AddressEditorScreen(
                             color = TextSecondary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF3F4F6))
-                                    .clickable { districtExpanded = true }
-                                    .padding(horizontal = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Map,
-                                        contentDescription = null,
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = selectedDistrict,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF3F4F6))
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Map,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            BasicTextField(
+                                value = selectedDistrict,
+                                onValueChange = { selectedDistrict = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 14.sp,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                cursorBrush = SolidColor(Color(0xFFBA2211)),
+                                decorationBox = { innerTextField ->
+                                    if (selectedDistrict.isEmpty()) {
+                                        Text(
+                                            text = "Nhập Quận / Huyện (VD: Quận 1)",
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                    innerTextField()
                                 }
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = null,
-                                    tint = TextSecondary
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = districtExpanded,
-                                onDismissRequest = { districtExpanded = false }
-                            ) {
-                                districts.forEach { d ->
-                                    DropdownMenuItem(
-                                        text = { Text(d) },
-                                        onClick = {
-                                            selectedDistrict = d
-                                            selectedWard = districtToWards[d]?.firstOrNull() ?: ""
-                                            districtExpanded = false
-                                        }
+                            )
+                            if (selectedDistrict.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { selectedDistrict = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Clear,
+                                        contentDescription = "Xóa",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -736,7 +744,7 @@ fun AddressEditorScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Dropdown 3: Phường / Xã
+                        // Textbox 3: Phường / Xã
                         Text(
                             text = "Phường / Xã",
                             fontSize = 12.sp,
@@ -744,50 +752,54 @@ fun AddressEditorScreen(
                             color = TextSecondary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF3F4F6))
-                                    .clickable { wardExpanded = true }
-                                    .padding(horizontal = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Signpost,
-                                        contentDescription = null,
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = selectedWard,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF3F4F6))
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Signpost,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            BasicTextField(
+                                value = selectedWard,
+                                onValueChange = { selectedWard = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 14.sp,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                cursorBrush = SolidColor(Color(0xFFBA2211)),
+                                decorationBox = { innerTextField ->
+                                    if (selectedWard.isEmpty()) {
+                                        Text(
+                                            text = "Nhập Phường / Xã (VD: Phường Bến Nghé)",
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                    innerTextField()
                                 }
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = null,
-                                    tint = TextSecondary
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = wardExpanded,
-                                onDismissRequest = { wardExpanded = false }
-                            ) {
-                                wards.forEach { w ->
-                                    DropdownMenuItem(
-                                        text = { Text(w) },
-                                        onClick = {
-                                            selectedWard = w
-                                            wardExpanded = false
-                                        }
+                            )
+                            if (selectedWard.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { selectedWard = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Clear,
+                                        contentDescription = "Xóa",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }

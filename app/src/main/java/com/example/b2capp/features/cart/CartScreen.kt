@@ -1,16 +1,6 @@
 package com.example.b2capp.features.cart
 
-import com.example.b2capp.features.cart.components.CartBottomSummaryBar
-import com.example.b2capp.features.cart.components.CartProductItemRow
-import com.example.b2capp.features.cart.components.RoundCheckbox
-import com.example.b2capp.features.product.ProductVariantBottomSheet
-import com.example.b2capp.features.product.VariantSheetMode
-
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,23 +11,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.RemoveShoppingCart
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,79 +35,52 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
-import com.example.b2capp.core.ui.components.EmptyStateView
-import com.example.b2capp.core.model.ProductItem
-import com.example.b2capp.viewmodel.B2CUiState
-import com.example.b2capp.viewmodel.B2CViewModel
-import com.example.b2capp.core.designsystem.theme.BackgroundApp
-import com.example.b2capp.core.designsystem.theme.BorderDivider
 import com.example.b2capp.core.designsystem.theme.CoralPrimary
 import com.example.b2capp.core.designsystem.theme.NavySecondary
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.core.ui.components.EmptyStateView
+import com.example.b2capp.data.remote.dto.shopDisplayName
+import com.example.b2capp.features.cart.components.CartBottomSummaryBar
+import com.example.b2capp.features.cart.components.CartProductItemRow
+import com.example.b2capp.features.cart.components.RoundCheckbox
+import com.example.b2capp.viewmodel.B2CUiState
+import com.example.b2capp.viewmodel.B2CViewModel
 import java.text.NumberFormat
 import java.util.Locale
 
 /**
- * Dữ liệu sản phẩm mẫu trong giỏ hàng theo từng shop
+ * Thông tin xác nhận khi người dùng muốn đổi vùng chọn sang shop khác
  */
-data class ShopCartItem(
-    val id: String,
-    val name: String,
-    val imageRes: Int,
-    val variantText: String,
-    val price: Long,
-    var quantity: Int,
-    val stockAlert: String? = null
-)
-
-data class ShopGroup(
-    val id: String,
-    val shopName: String,
-    val isMall: Boolean = false,
-    val mallBadgeColor: Color = Color(0xFFB82414),
-    val voucherBadge: String? = null,
-    val freeshipNotice: String? = null,
-    val items: List<ShopCartItem>
+data class SwitchShopConfirmation(
+    val currentShopName: String,
+    val targetShopName: String,
+    val onConfirm: () -> Unit
 )
 
 /**
- * Màn hình Giỏ hàng (Shopping Cart Screen)
- * Thiết kế chính xác theo ShoppingCartScreen_040b475d.png:
- * 1. Top Bar: Nút Back, "Giỏ hàng", nút đỏ "Sửa / Xong", icon chat shop.
- * 2. Thẻ Shop 1 (Coolmate Official - Đang chọn):
- *    - Checkbox đỏ tick trắng, tag MALL đỏ, icon Shop + Coolmate Offici >, tag "Giảm 15k >".
- *    - Item 1: Áo Thun Nam Cotton Compact Siêu Thoáng Khí Cao Cấp, Phân loại: Đen, L, ₫199.000, Tạm tính: ₫398.000, [-] 2 [+].
- *    - Item 2: Áo Thun Regular Fit Basic Thoáng Khí Hàng Ngày, Phân loại: Trắng, XL, ₫219.000, [-] 1 [+].
- * 3. Thẻ Shop 2 (Anker Audio Flagship - Chưa chọn):
- *    - Checkbox xám tròn, tag MALL xanh navy, "Voucher Shop >".
- *    - Item: Tai Nghe Chống Ồn Anker Space One Không Dây Hi–Res, Màu: Đen Titan, ₫890.000, [-] 1 [+].
- * 4. Thẻ Shop 3 (Uniqlo Vietnam - Chưa chọn):
- *    - Checkbox xám tròn, Uniqlo Vietnam >, "2 sản phẩm".
- *    - Item: Áo Polo Dry Pique Ngắn Tay Kháng Khuẩn, Xanh Navy, M, tag "Chỉ còn 2", ₫399.000, [-] 1 [+].
- * 5. Sticky Bottom Checkout Bar:
- *    - Checkbox đỏ "Tất cả", "Coolmate (2)".
- *    - "Tổng: ₫617.000", "Tiết kiệm ₫145.000".
- *    - Nút lớn "MUA HÀNG (3)".
+ * Màn hình Giỏ hàng (Shopping Cart Screen) kết nối trực tiếp API Backend:
+ * - Đọc danh sách giỏ hàng của người dùng hiện tại (GET /api/v1/cart)
+ * - Tự động nhóm sản phẩm theo từng Shop / Người bán
+ * - Chọn / Bỏ chọn từng sản phẩm hoặc toàn bộ sản phẩm trong shop / toàn giỏ hàng
+ * - Thay đổi số lượng sản phẩm (PATCH /api/v1/cart/items/{id})
+ * - Xóa sản phẩm đơn lẻ hoặc xóa hàng loạt trong chế độ "Sửa" (DELETE /api/v1/cart/items)
+ * - Hiển thị trạng thái Giỏ hàng trống khi không có sản phẩm
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,42 +90,54 @@ fun CartScreen(
     onNavigateToHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Trạng thái shop đang được chọn để thanh toán (mặc định là shop 1: Coolmate)
-    var selectedShopId by remember { mutableStateOf("shop_coolmate") }
     var isEditMode by remember { mutableStateOf(false) }
+    var pendingSwitchDialog by remember { mutableStateOf<SwitchShopConfirmation?>(null) }
+    val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN")) }
 
-    // Số lượng của từng sản phẩm trong các shop
-    var qtyCoolmate1 by remember { mutableIntStateOf(2) }
-    var qtyCoolmate2 by remember { mutableIntStateOf(1) }
-    var qtyAnker by remember { mutableIntStateOf(1) }
-    var qtyUniqlo by remember { mutableIntStateOf(1) }
-
-    // Mở popup chọn phân loại sản phẩm
-    var productForVariantSheet by remember { mutableStateOf<ProductItem?>(null) }
-    var variantSheetColor by remember { mutableStateOf("Đen") }
-    var variantSheetSize by remember { mutableStateOf("L") }
-
-    val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
-
-    // Tính toán tổng tiền theo shop đang chọn
-    val (currentTotalPrice, totalItemsCount, savingsAmount, currentShopLabel) = when (selectedShopId) {
-        "shop_coolmate" -> {
-            val subtotal = (199000L * qtyCoolmate1) + (219000L * qtyCoolmate2)
-            val count = qtyCoolmate1 + qtyCoolmate2
-            Quadruple(subtotal, count, 145000L, "Coolmate (2)")
-        }
-        "shop_anker" -> {
-            val subtotal = 890000L * qtyAnker
-            Quadruple(subtotal, qtyAnker, 50000L, "Anker Audio (1)")
-        }
-        else -> {
-            val subtotal = 399000L * qtyUniqlo
-            Quadruple(subtotal, qtyUniqlo, 30000L, "Uniqlo (1)")
-        }
+    // Tự động tải lại giỏ hàng từ API mỗi khi vào màn hình
+    LaunchedEffect(Unit) {
+        viewModel.loadCartItems()
     }
 
-    val formattedTotalPrice = "₫${currencyFormatter.format(currentTotalPrice)}"
-    val formattedSavings = "₫${currencyFormatter.format(savingsAmount)}"
+    val cartItems = uiState.serverCartItems
+    val isLoading = uiState.isCartLoading
+
+    // Nhóm các sản phẩm trong giỏ hàng theo Shop Name hoặc Seller ID
+    val shopGroups = remember(cartItems) {
+        cartItems.groupBy { item -> item.shopDisplayName }
+    }
+
+    // Tính toán tổng tiền và số lượng của các sản phẩm ĐƯỢC CHỌN
+    val selectedItems = remember(cartItems) {
+        cartItems.filter { it.isSelected }
+    }
+    val currentSelectedShopName = remember(selectedItems) {
+        selectedItems.firstOrNull()?.shopDisplayName
+    }
+    val selectedTotalPrice = remember(selectedItems) {
+        selectedItems.sumOf { item ->
+            (item.lineTotal ?: ((item.priceSnapshot ?: 0.0) * item.quantity)).toLong()
+        }
+    }
+    val selectedTotalCount = remember(selectedItems) {
+        selectedItems.sumOf { it.quantity }
+    }
+    val isAllSelected = remember(cartItems, currentSelectedShopName, selectedItems) {
+        if (currentSelectedShopName != null) {
+            val itemsInCurrentShop = shopGroups[currentSelectedShopName] ?: emptyList()
+            itemsInCurrentShop.isNotEmpty() && itemsInCurrentShop.all { it.isSelected }
+        } else {
+            false
+        }
+    }
+    val currentShopLabel = if (currentSelectedShopName != null) {
+        "$currentSelectedShopName ($selectedTotalCount)"
+    } else {
+        "Chưa chọn"
+    }
+
+    val formattedTotalPrice = "₫${currencyFormatter.format(selectedTotalPrice)}"
+    val formattedSavings = "₫0"
 
     Column(
         modifier = modifier
@@ -171,7 +145,7 @@ fun CartScreen(
             .background(Color(0xFFF5F6F8))
             .testTag("cart_screen")
     ) {
-        // 1. Top Bar
+        // 1. Top Bar: Nút Back, "Giỏ hàng", nút "Sửa / Xong", icon Chat
         Surface(
             color = SurfaceCard,
             modifier = Modifier.fillMaxWidth()
@@ -207,15 +181,17 @@ fun CartScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (isEditMode) "Xong" else "Sửa",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = CoralPrimary,
-                        modifier = Modifier
-                            .clickable { isEditMode = !isEditMode }
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
+                    if (cartItems.isNotEmpty()) {
+                        Text(
+                            text = if (isEditMode) "Xong" else "Sửa",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CoralPrimary,
+                            modifier = Modifier
+                                .clickable { isEditMode = !isEditMode }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.width(2.dp))
 
@@ -234,316 +210,289 @@ fun CartScreen(
             }
         }
 
-        // Danh sách cuộn chính
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // 2. THẺ SHOP 1: Coolmate Official (Đang chọn)
-            item {
-                val isCoolmateSelected = selectedShopId == "shop_coolmate"
-                Card(
+        // 2. Nội dung chính: Trạng thái Loading / Empty / Danh sách theo Shop
+        when {
+            isLoading -> {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Shop Header
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedShopId = "shop_coolmate" }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RoundCheckbox(
-                                isChecked = isCoolmateSelected,
-                                onClick = { selectedShopId = "shop_coolmate" }
-                            )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = CoralPrimary)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Đang tải giỏ hàng...",
+                            fontSize = 14.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
 
-                            Spacer(modifier = Modifier.width(10.dp))
+            cartItems.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EmptyStateView(
+                        icon = Icons.Outlined.RemoveShoppingCart,
+                        title = "Giỏ hàng của bạn đang trống",
+                        description = "Hãy chọn thêm các sản phẩm ưng ý để đặt hàng bạn nhé!",
+                        actionText = "Tiếp tục mua sắm",
+                        onActionClick = onNavigateToHome
+                    )
+                }
+            }
 
-                            Icon(
-                                imageVector = Icons.Filled.Storefront,
-                                contentDescription = null,
-                                tint = NavySecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    shopGroups.forEach { (shopName, shopItems) ->
+                        item(key = "shop_$shopName") {
+                            val isShopAllSelected = shopItems.all { it.isSelected }
+                            val sellerId = shopItems.firstOrNull()?.sellerId
 
-                            Spacer(modifier = Modifier.width(4.dp))
+                            val handleShopHeaderClick = {
+                                val willSelectAll = !isShopAllSelected
+                                if (!willSelectAll) {
+                                    viewModel.toggleShopItemsSelection(
+                                        sellerId = sellerId,
+                                        shopName = shopName,
+                                        selectAll = false
+                                    )
+                                } else {
+                                    val selectedFromOtherShops = cartItems.filter { other ->
+                                        other.isSelected && other.shopDisplayName != shopName
+                                    }
+                                    if (selectedFromOtherShops.isNotEmpty()) {
+                                        val currentShop = selectedFromOtherShops.first().shopDisplayName
+                                        pendingSwitchDialog = SwitchShopConfirmation(
+                                            currentShopName = currentShop,
+                                            targetShopName = shopName,
+                                            onConfirm = {
+                                                viewModel.switchSelectedShop(
+                                                    sellerId = sellerId,
+                                                    shopName = shopName
+                                                )
+                                            }
+                                        )
+                                    } else {
+                                        viewModel.toggleShopItemsSelection(
+                                            sellerId = sellerId,
+                                            shopName = shopName,
+                                            selectAll = true
+                                        )
+                                    }
+                                }
+                            }
 
-                            Text(
-                                text = "Coolmate Offici >",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NavySecondary
-                            )
-
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            // Tag Giảm 15k
-                            Box(
+                            Card(
                                 modifier = Modifier
-                                    .background(Color(0xFFFFEBE7), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp)),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                                shape = RoundedCornerShape(12.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                             ) {
-                                Text(
-                                    text = "Giảm 15k >",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFD32F2F)
-                                )
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    // Header của Shop
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { handleShopHeaderClick() }
+                                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RoundCheckbox(
+                                            isChecked = isShopAllSelected,
+                                            onClick = handleShopHeaderClick
+                                        )
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        Icon(
+                                            imageVector = Icons.Filled.Storefront,
+                                            contentDescription = null,
+                                            tint = NavySecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+
+                                        Spacer(modifier = Modifier.width(6.dp))
+
+                                        Text(
+                                            text = "$shopName >",
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = NavySecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+
+                                        Spacer(modifier = Modifier.weight(1f))
+
+                                        Text(
+                                            text = "${shopItems.size} sản phẩm",
+                                            fontSize = 11.5.sp,
+                                            color = TextSecondary
+                                        )
+                                    }
+
+                                    HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 0.8.dp)
+
+                                    // Danh sách các sản phẩm của shop
+                                    shopItems.forEachIndexed { index, item ->
+                                        val price = (item.priceSnapshot ?: 0.0).toLong()
+                                        val lineTotal = (item.lineTotal ?: (price.toDouble() * item.quantity)).toLong()
+                                        val stock = item.stockQuantity ?: 99
+                                        val alert = if (item.isAvailable == false) {
+                                            "Hết hàng"
+                                        } else if (stock in 1..5) {
+                                            "Chỉ còn $stock"
+                                        } else null
+
+                                        CartProductItemRow(
+                                            isChecked = item.isSelected,
+                                            onCheckChange = {
+                                                val willSelect = !item.isSelected
+                                                if (!willSelect) {
+                                                    viewModel.toggleCartItemSelection(item.id, false)
+                                                } else {
+                                                    val targetShop = item.shopDisplayName
+                                                    val selectedFromOtherShops = cartItems.filter { other ->
+                                                        other.isSelected && other.shopDisplayName != targetShop
+                                                    }
+                                                    if (selectedFromOtherShops.isNotEmpty()) {
+                                                        val currentShop = selectedFromOtherShops.first().shopDisplayName
+                                                        pendingSwitchDialog = SwitchShopConfirmation(
+                                                            currentShopName = currentShop,
+                                                            targetShopName = targetShop,
+                                                            onConfirm = {
+                                                                viewModel.switchSelectedCartItem(item.id)
+                                                            }
+                                                        )
+                                                    } else {
+                                                        viewModel.toggleCartItemSelection(item.id, true)
+                                                    }
+                                                }
+                                            },
+                                            imageUrl = item.thumbnailUrl,
+                                            name = item.productName ?: "Sản phẩm",
+                                            variantText = item.variantName?.let { "Phân loại: $it" } ?: "Mặc định",
+                                            price = price,
+                                            quantity = item.quantity,
+                                            subtotalText = "Tạm tính:\n₫${currencyFormatter.format(lineTotal)}",
+                                            stockAlert = alert,
+                                            isPriceActive = item.isSelected,
+                                            onQuantityChange = { newQty ->
+                                                viewModel.updateCartItemQuantity(item.id, newQty)
+                                            }
+                                        )
+
+                                        if (index < shopItems.size - 1) {
+                                            HorizontalDivider(color = Color(0xFFF9FAFB), thickness = 0.8.dp)
+                                        }
+                                    }
+                                }
                             }
                         }
+                    }
 
-                        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 0.8.dp)
-
-                        // Item 1: Áo thun đen Cotton Compact
-                        CartProductItemRow(
-                            isChecked = isCoolmateSelected,
-                            onCheckChange = { selectedShopId = "shop_coolmate" },
-                            imageRes = R.drawable.folded_black_tshirt_1793956682242,
-                            name = "Áo Thun Nam Cotton Compact Siêu Thoáng Khí Cao Cấp",
-                            variantText = "Phân loại: Đen, L",
-                            price = 199000L,
-                            subtotalText = "Tạm tính:\n₫${currencyFormatter.format(199000L * qtyCoolmate1)}",
-                            quantity = qtyCoolmate1,
-                            onQuantityChange = { qtyCoolmate1 = it },
-                            onVariantClick = {
-                                productForVariantSheet = ProductItem(
-                                    id = "coolmate_1",
-                                    name = "Áo Thun Nam Cotton Compact Siêu Thoáng Khí Cao Cấp",
-                                    imageUrl = "",
-                                    price = 199000L,
-                                    stock = 15
-                                )
-                                variantSheetColor = "Đen"
-                                variantSheetSize = "L"
-                            }
-                        )
-
-                        HorizontalDivider(color = Color(0xFFF9FAFB), thickness = 0.8.dp)
-
-                        // Item 2: Áo thun trắng Regular Fit
-                        CartProductItemRow(
-                            isChecked = isCoolmateSelected,
-                            onCheckChange = { selectedShopId = "shop_coolmate" },
-                            imageRes = R.drawable.product_white_tshirt_1793955938236,
-                            name = "Áo Thun Regular Fit Basic Thoáng Khí Hàng Ngày",
-                            variantText = "Phân loại: Trắng, XL",
-                            price = 219000L,
-                            quantity = qtyCoolmate2,
-                            onQuantityChange = { qtyCoolmate2 = it },
-                            onVariantClick = {
-                                productForVariantSheet = ProductItem(
-                                    id = "coolmate_2",
-                                    name = "Áo Thun Regular Fit Basic Thoáng Khí Hàng Ngày",
-                                    imageUrl = "",
-                                    price = 219000L,
-                                    stock = 15
-                                )
-                                variantSheetColor = "Trắng"
-                                variantSheetSize = "XL"
-                            }
-                        )
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
-            }
-
-            // 3. THẺ SHOP 2: Anker Audio Flagship
-            item {
-                val isAnkerSelected = selectedShopId == "shop_anker"
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Shop Header
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedShopId = "shop_anker" }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RoundCheckbox(
-                                isChecked = isAnkerSelected,
-                                onClick = { selectedShopId = "shop_anker" }
-                            )
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Icon(
-                                imageVector = Icons.Filled.Storefront,
-                                contentDescription = null,
-                                tint = NavySecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            Text(
-                                text = "Anker Audio Fl... >",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NavySecondary
-                            )
-
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            Text(
-                                text = "Voucher Shop >",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = NavySecondary
-                            )
-                        }
-
-                        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 0.8.dp)
-
-                        // Item Tai nghe Anker Space One
-                        CartProductItemRow(
-                            isChecked = isAnkerSelected,
-                            onCheckChange = { selectedShopId = "shop_anker" },
-                            imageRes = R.drawable.headphones_anker_space_one_1793957334650,
-                            name = "Tai Nghe Chống Ồn Anker Space One Không Dây Hi–Res",
-                            variantText = "Màu: Đen Titan",
-                            price = 890000L,
-                            quantity = qtyAnker,
-                            isPriceActive = isAnkerSelected,
-                            onQuantityChange = { qtyAnker = it }
-                        )
-                    }
-                }
-            }
-
-            // 4. THẺ SHOP 3: Uniqlo Vietnam
-            item {
-                val isUniqloSelected = selectedShopId == "shop_uniqlo"
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Shop Header
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedShopId = "shop_uniqlo" }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RoundCheckbox(
-                                isChecked = isUniqloSelected,
-                                onClick = { selectedShopId = "shop_uniqlo" }
-                            )
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Icon(
-                                imageVector = Icons.Filled.Storefront,
-                                contentDescription = null,
-                                tint = NavySecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            Text(
-                                text = "Uniqlo Vietnam >",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NavySecondary
-                            )
-
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            Text(
-                                text = "2 sản phẩm",
-                                fontSize = 11.5.sp,
-                                color = TextSecondary
-                            )
-                        }
-
-                        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 0.8.dp)
-
-                        // Item Áo Polo Uniqlo
-                        CartProductItemRow(
-                            isChecked = isUniqloSelected,
-                            onCheckChange = { selectedShopId = "shop_uniqlo" },
-                            imageRes = R.drawable.polo_navy_folded_1793957349647,
-                            name = "Áo Polo Dry Pique Ngắn Tay Kháng Khuẩn",
-                            variantText = "Xanh Navy, M",
-                            stockAlert = "Chỉ còn 2",
-                            price = 399000L,
-                            quantity = qtyUniqlo,
-                            isPriceActive = isUniqloSelected,
-                            onQuantityChange = { qtyUniqlo = it }
-                        )
-                    }
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
-        // 5. STICKY BOTTOM CHECKOUT BAR
-        CartBottomSummaryBar(
-            currentShopLabel = currentShopLabel,
-            formattedTotalPrice = formattedTotalPrice,
-            formattedSavings = formattedSavings,
-            totalItemsCount = totalItemsCount,
-            isEditMode = isEditMode,
-            onCheckoutClick = {
-                if (isEditMode) {
-                    viewModel.showToast("Đã xóa sản phẩm khỏi giỏ hàng")
-                } else {
-                    viewModel.openCheckoutScreen()
+        // 3. Thanh tóm tắt và nút Mua Hàng / Xóa ở đáy màn hình
+        if (cartItems.isNotEmpty()) {
+            CartBottomSummaryBar(
+                currentShopLabel = currentShopLabel,
+                formattedTotalPrice = formattedTotalPrice,
+                formattedSavings = formattedSavings,
+                totalItemsCount = selectedTotalCount,
+                isEditMode = isEditMode,
+                isAllSelected = isAllSelected,
+                onSelectAllClick = {
+                    viewModel.toggleAllCartItemsSelection(!isAllSelected)
+                },
+                onCheckoutClick = {
+                    if (isEditMode) {
+                        viewModel.deleteSelectedCartItems()
+                    } else {
+                        if (selectedTotalCount == 0) {
+                            viewModel.showErrorToast("Vui lòng chọn ít nhất 1 sản phẩm để thanh toán")
+                        } else {
+                            viewModel.openCheckoutScreen()
+                        }
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
-    // Modal chọn phân loại khi chạm vào chip phân loại trong giỏ hàng
-    productForVariantSheet?.let { product ->
-        ProductVariantBottomSheet(
-            product = product,
-            initialColor = variantSheetColor,
-            initialSize = variantSheetSize,
-            initialQuantity = 1,
-            mode = VariantSheetMode.SELECT_ONLY,
-            onDismissRequest = { productForVariantSheet = null },
-            onConfirm = { chosenColor, chosenSize, _, _ ->
-                productForVariantSheet = null
+    // 4. Hộp thoại xác nhận khi người dùng chọn sản phẩm sang shop khác
+    pendingSwitchDialog?.let { dialogData ->
+        AlertDialog(
+            onDismissRequest = { pendingSwitchDialog = null },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White,
+            title = {
+                Text(
+                    text = "Chuyển sang shop khác?",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Bạn chỉ có thể chọn các sản phẩm trong cùng 1 shop.\n\nBạn có muốn chuyển sang mua sản phẩm của shop \"${dialogData.targetShopName}\" không? (Các sản phẩm đã chọn của shop \"${dialogData.currentShopName}\" sẽ bị bỏ tích)",
+                    fontSize = 14.sp,
+                    color = TextSecondary,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        dialogData.onConfirm()
+                        pendingSwitchDialog = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Xác nhận",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingSwitchDialog = null },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Hủy",
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                }
             }
         )
     }
 }
-
-
-
-/**
- * Helper class for 4 values
- */
-private data class Quadruple<A, B, C, D>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D
-)

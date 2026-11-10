@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.R
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
 import java.text.NumberFormat
@@ -47,7 +49,8 @@ import java.util.Locale
 fun CartProductItemRow(
     isChecked: Boolean,
     onCheckChange: () -> Unit,
-    imageRes: Int,
+    imageRes: Int? = null,
+    imageUrl: String? = null,
     name: String,
     variantText: String,
     price: Long,
@@ -82,12 +85,24 @@ fun CartProductItemRow(
                 .background(Color(0xFFF3F4F6))
                 .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(8.dp))
         ) {
-            Image(
-                painter = painterResource(id = imageRes),
-                contentDescription = name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            val fallbackRes = imageRes ?: R.drawable.folded_black_tshirt_1793956682242
+            if (!imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = name,
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(id = fallbackRes),
+                    error = painterResource(id = fallbackRes),
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = fallbackRes),
+                    contentDescription = name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(10.dp))

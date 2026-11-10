@@ -1,21 +1,53 @@
 package com.example.b2capp.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.b2capp.core.model.CartItem
 import com.example.b2capp.core.model.OrderSuccessInfo
 import com.example.b2capp.core.model.PageState
 import com.example.b2capp.core.model.ProductItem
+import com.example.b2capp.core.model.ProductOptionItem
+import com.example.b2capp.core.model.ProductOptionValueItem
+import com.example.b2capp.core.model.ProductVariantItem
 import com.example.b2capp.core.model.ShopChatInfo
 import com.example.b2capp.core.model.UserAddress
 import com.example.b2capp.core.model.UserProfile
+import com.example.b2capp.core.model.toDomain
+import com.example.b2capp.core.model.toRequestDto
+import com.example.b2capp.core.model.toUpdateRequest
 import com.example.b2capp.core.ui.components.ToastData
 import com.example.b2capp.core.ui.components.ToastType
 import com.example.b2capp.core.ui.components.createToastData
 import com.example.b2capp.data.SampleData
+import com.example.b2capp.data.local.TokenManager
+import com.example.b2capp.data.remote.dto.CategoryDto
+import com.example.b2capp.data.remote.dto.CartItemDto
+import com.example.b2capp.data.remote.dto.shopDisplayName
+import com.example.b2capp.data.remote.dto.ChangePasswordRequestDto
+import com.example.b2capp.data.remote.dto.CreateOrderRequestDto
+import com.example.b2capp.data.remote.dto.OrderDetailDto
+import com.example.b2capp.data.remote.dto.OrderItemDto
+import com.example.b2capp.data.remote.dto.OrderSummaryDto
+import com.example.b2capp.data.remote.dto.WishlistItemDto
+import com.example.b2capp.data.repository.AuthRepository
+import com.example.b2capp.data.repository.CartRepository
+import com.example.b2capp.data.repository.ChatRepository
+import com.example.b2capp.data.repository.HomeBannerItem
+import com.example.b2capp.data.repository.HomeRepository
+import com.example.b2capp.data.repository.OrderRepository
+import com.example.b2capp.data.repository.UserRepository
+import com.example.b2capp.data.repository.WishlistRepository
+import com.example.b2capp.features.chat.DetailedChatMessage
+import com.example.b2capp.features.chat.ShopConversation
+import com.example.b2capp.features.home.HomeBadgeType
+import com.example.b2capp.features.home.HomeBestSellerItem
+import com.example.b2capp.features.home.HomeSuggestedProduct
+import com.example.b2capp.features.home.QuickCategoryItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -31,14 +63,30 @@ data class B2CUiState(
     ),
     val selectedProductForSheet: ProductItem? = null,
     val detailedProductScreen: ProductItem? = null,
+    val isProductDetailLoading: Boolean = false,
     val searchResultQuery: String? = null,
+    val searchResults: List<ProductItem> = emptyList(),
+    val isSearching: Boolean = false,
+    val searchSortBy: String = "created",
+    val searchSortDir: String = "desc",
+    val searchTotalElements: Long = 0L,
+    val searchCategoryId: Long? = null,
+    val searchMinPrice: Long? = null,
+    val searchMaxPrice: Long? = null,
+    val searchBrand: String? = null,
+    val searchMinRating: Float? = null,
     val showShopMessages: Boolean = false,
+    val shopConversations: List<ShopConversation> = emptyList(),
+    val isShopConversationsLoading: Boolean = false,
+    val shopConversationsError: String? = null,
     val activeShopChat: ShopChatInfo? = null,
     val showCheckoutScreen: Boolean = false,
     val showVnpayPaymentScreen: Boolean = false,
     val completedOrderSuccess: OrderSuccessInfo? = null,
     val detailedOrderTrackingScreen: String? = null,
     val isLoggedIn: Boolean = false,
+    val isAuthLoading: Boolean = false,
+    val authErrorMessage: String? = null,
     val showSignInScreen: Boolean = true,
     val showSignUpScreen: Boolean = false,
     val showForgotPasswordScreen: Boolean = false,
@@ -47,6 +95,9 @@ data class B2CUiState(
     val showAddressBookScreen: Boolean = false,
     val showAddressEditorScreen: Boolean = false,
     val editingAddressForScreen: UserAddress? = null,
+    val isAddressLoading: Boolean = false,
+    val isAddressSaving: Boolean = false,
+    val addressErrorMessage: String? = null,
     val showEditProfileScreen: Boolean = false,
     val showWriteReviewScreen: Boolean = false,
     val showChangePasswordScreen: Boolean = false,
@@ -81,10 +132,58 @@ data class B2CUiState(
     val detailSelectedQuantity: Int = 1,
     val interactiveRatingDemo: Float = 4.0f,
     val toastMessage: String? = null,
-    val currentToast: ToastData? = null
+    val currentToast: ToastData? = null,
+    val homeCategories: List<QuickCategoryItem> = HomeRepository.getDefaultCategories(),
+    val homeBestSellers: List<HomeBestSellerItem> = HomeRepository.getDefaultBestSellers(),
+    val homeSuggestedProducts: List<HomeSuggestedProduct> = emptyList(),
+    val homeBanners: List<HomeBannerItem> = HomeRepository.getDefaultBanners(),
+    val isHomeLoading: Boolean = false,
+    val isHomeRefreshing: Boolean = false,
+    val isLoadingMoreSuggested: Boolean = false,
+    val isLastSuggestedPage: Boolean = false,
+    val homeSuggestedPage: Int = 0,
+    val serverCartCount: Int? = null,
+    val serverCartItems: List<CartItemDto> = emptyList(),
+    val isCartLoading: Boolean = false,
+    val isCartRefreshing: Boolean = false,
+    val cartErrorMessage: String? = null,
+    val isCheckingAuth: Boolean = false,
+    val isProfileLoading: Boolean = false,
+    val isUpdatingProfile: Boolean = false,
+    val isChangingPassword: Boolean = false,
+    val isUploadingAvatar: Boolean = false,
+    val orders: List<OrderSummaryDto> = emptyList(),
+    val isOrdersLoading: Boolean = false,
+    val isOrdersRefreshing: Boolean = false,
+    val ordersErrorMessage: String? = null,
+    val selectedOrdersTab: String = "Tất cả",
+    val activeOrderDetail: OrderDetailDto? = null,
+    val isOrderDetailLoading: Boolean = false,
+    val orderDetailErrorMessage: String? = null,
+    val cancellingOrderId: Long? = null,
+    val retryingOrderId: Long? = null,
+    val browserCategories: List<CategoryDto> = HomeRepository.getDefaultCategoryDtos(),
+    val selectedBrowserCategory: CategoryDto? = null,
+    val selectedBrowserSubCategoryId: Long? = null,
+    val browserProducts: List<ProductItem> = emptyList(),
+    val isBrowserCategoriesLoading: Boolean = false,
+    val isBrowserProductsLoading: Boolean = false,
+    val browserCategoryErrorMessage: String? = null,
+    val wishlistItems: List<WishlistItemDto> = emptyList(),
+    val wishlistProductIds: Set<Long> = emptySet(),
+    val isWishlistLoading: Boolean = false,
+    val isWishlistRefreshing: Boolean = false,
+    val wishlistErrorMessage: String? = null,
+    val wishlistCount: Int = 0
 ) {
+    val pendingOrdersCount: Int
+        get() = orders.count { it.status.equals("PENDING", ignoreCase = true) }
     val totalCartPrice: Long
-        get() = cartItems.sumOf { it.totalPrice }
+        get() = if (serverCartItems.isNotEmpty()) {
+            serverCartItems.filter { it.isSelected }.sumOf { (it.lineTotal ?: ((it.priceSnapshot ?: 0.0) * it.quantity)).toLong() }
+        } else {
+            cartItems.sumOf { it.totalPrice }
+        }
 
     val formattedCartTotal: String
         get() {
@@ -93,7 +192,11 @@ data class B2CUiState(
         }
 
     val totalCartCount: Int
-        get() = cartItems.sumOf { it.quantity }
+        get() = if (serverCartItems.isNotEmpty()) {
+            serverCartItems.sumOf { it.quantity }
+        } else {
+            serverCartCount ?: cartItems.sumOf { it.quantity }
+        }
 
     val filteredProducts: List<ProductItem>
         get() = products.filter { product ->
@@ -104,11 +207,542 @@ data class B2CUiState(
 }
 
 class B2CViewModel : ViewModel() {
+    private val authRepository: AuthRepository by lazy { AuthRepository() }
+    private val homeRepository: HomeRepository by lazy { HomeRepository() }
+    private val cartRepository: CartRepository by lazy { CartRepository() }
+    private val userRepository: UserRepository by lazy { UserRepository() }
+    private val orderRepository: OrderRepository by lazy { OrderRepository() }
+    private val chatRepository: ChatRepository by lazy { ChatRepository() }
+    private val wishlistRepository: WishlistRepository by lazy { WishlistRepository() }
+    private val tokenManager: TokenManager by lazy { TokenManager.getInstance() }
     private val _uiState = MutableStateFlow(B2CUiState())
     val uiState: StateFlow<B2CUiState> = _uiState.asStateFlow()
 
+    init {
+        // Tự động tải dữ liệu Trang chủ từ API Backend (có fallback dữ liệu mẫu)
+        loadHomeData()
+
+        // Kiểm tra phiên đăng nhập và tính hợp lệ của token / user khi mở app
+        validateSessionOnAppStart()
+
+        // Lắng nghe sự kiện đăng xuất khi Refresh Token hết hạn từ TokenAuthenticator
+        try {
+            viewModelScope.launch {
+                TokenManager.getInstance().isLoggedInState.collect { loggedIn ->
+                    if (!loggedIn) {
+                        _uiState.update {
+                            it.copy(
+                                isLoggedIn = false,
+                                showSignInScreen = true,
+                                serverCartItems = emptyList(),
+                                serverCartCount = null,
+                                wishlistItems = emptyList(),
+                                wishlistProductIds = emptySet(),
+                                wishlistCount = 0
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Trường hợp chạy trong Preview hoặc Unit Test chưa khởi tạo context
+        }
+    }
+
+    /**
+     * Nạp dữ liệu Trang chủ (Danh mục, Sản phẩm bán chạy, Gợi ý hôm nay, Banners, Giỏ hàng)
+     */
+    fun loadHomeData(isRefresh: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isHomeRefreshing = isRefresh,
+                    isHomeLoading = !isRefresh && it.homeSuggestedProducts.isEmpty()
+                )
+            }
+
+            val result = homeRepository.loadInitialHomeData()
+            result.onSuccess { data ->
+                _uiState.update { state ->
+                    state.copy(
+                        homeCategories = if (data.categories.isNotEmpty()) data.categories else state.homeCategories,
+                        homeBestSellers = if (data.bestSellerProducts.isNotEmpty()) data.bestSellerProducts else state.homeBestSellers,
+                        homeSuggestedProducts = if (data.suggestedProducts.isNotEmpty()) data.suggestedProducts else state.homeSuggestedProducts,
+                        homeBanners = if (data.banners.isNotEmpty()) data.banners else state.homeBanners,
+                        serverCartCount = if (state.isLoggedIn) data.cartCount else null,
+                        isLastSuggestedPage = data.isLastSuggestedPage,
+                        homeSuggestedPage = 1,
+                        isHomeLoading = false,
+                        isHomeRefreshing = false
+                    )
+                }
+            }.onFailure {
+                _uiState.update { state ->
+                    state.copy(
+                        isHomeLoading = false,
+                        isHomeRefreshing = false
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Nạp thêm sản phẩm gợi ý khi người dùng cuộn xuống dưới cùng (Infinite Scroll)
+     */
+    fun loadMoreSuggestedProducts() {
+        val state = _uiState.value
+        if (state.isLoadingMoreSuggested || state.isLastSuggestedPage) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingMoreSuggested = true) }
+
+            val currentPage = _uiState.value.homeSuggestedPage
+            val (newItems, isLast) = homeRepository.loadMoreSuggested(page = currentPage, size = 10)
+
+            _uiState.update { current ->
+                val combined = if (newItems.isNotEmpty()) {
+                    current.homeSuggestedProducts + newItems
+                } else {
+                    current.homeSuggestedProducts
+                }
+                current.copy(
+                    homeSuggestedProducts = combined,
+                    homeSuggestedPage = currentPage + 1,
+                    isLastSuggestedPage = isLast,
+                    isLoadingMoreSuggested = false
+                )
+            }
+        }
+    }
+
+    /**
+     * Cập nhật badge giỏ hàng từ API Backend
+     */
+    fun refreshCartBadgeCount() {
+        viewModelScope.launch {
+            try {
+                if (_uiState.value.isLoggedIn) {
+                    val count = homeRepository.getCartItemCount()
+                    _uiState.update { it.copy(serverCartCount = count) }
+                } else {
+                    _uiState.update { it.copy(serverCartCount = null) }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Kiểm tra phiên đăng nhập khi người dùng vừa mở app:
+     * - Nếu chưa từng đăng nhập hoặc không có token: Đẩy ra trang đăng nhập (showSignInScreen = true).
+     * - Nếu có token: Gọi API GET /api/v1/users/me để xác thực người dùng.
+     *   + Nếu Access Token hết hạn, TokenAuthenticator sẽ tự động kích hoạt POST /api/v1/auth/refresh-token.
+     *   + Nếu lấy được token mới thành công: phiên tiếp tục hợp lệ, cập nhật thông tin user.
+     *   + Nếu Token hết hạn mà KHÔNG lấy được token mới (refresh token hết hạn/lỗi) hoặc User không tồn tại (401, 404):
+     *     Xóa auth và đẩy ra trang đăng nhập ngay lập tức. Không để người dùng có token hết hạn hoặc user không tồn tại được ở trong app!
+     */
+    fun validateSessionOnAppStart() {
+        val tokenManager = try {
+            TokenManager.getInstance()
+        } catch (_: Exception) {
+            return
+        }
+
+        if (!tokenManager.isLoggedIn()) {
+            _uiState.update {
+                it.copy(
+                    isLoggedIn = false,
+                    showSignInScreen = true,
+                    isCheckingAuth = false
+                )
+            }
+            return
+        }
+
+        _uiState.update { it.copy(isCheckingAuth = true) }
+
+        viewModelScope.launch {
+            val result = authRepository.validateCurrentUser()
+            result.onSuccess { profileDto ->
+                val mappedProfile = profileDto.toDomain()
+                tokenManager.saveUserProfile(mappedProfile)
+                _uiState.update {
+                    it.copy(
+                        isLoggedIn = true,
+                        showSignInScreen = false,
+                        isCheckingAuth = false,
+                        userProfile = mappedProfile
+                    )
+                }
+                refreshCartBadgeCount()
+                loadCartItems()
+                loadOrders()
+                loadAddresses()
+                refreshWishlistCount()
+                loadWishlist()
+            }.onFailure { error ->
+                val errorMsg = error.message ?: ""
+                val isAuthOrUserNotFound = errorMsg.contains("401") ||
+                        errorMsg.contains("404") ||
+                        errorMsg.contains("403") ||
+                        !tokenManager.isLoggedIn() ||
+                        tokenManager.isTokenExpired()
+
+                if (isAuthOrUserNotFound) {
+                    tokenManager.clearAuth()
+                    _uiState.update {
+                        it.copy(
+                            isLoggedIn = false,
+                            showSignInScreen = true,
+                            isCheckingAuth = false,
+                            serverCartItems = emptyList(),
+                            serverCartCount = null,
+                            currentToast = createToastData(
+                                "Phiên đăng nhập đã hết hạn hoặc tài khoản không tồn tại. Vui lòng đăng nhập lại.",
+                                ToastType.WARNING
+                            )
+                        )
+                    }
+                } else {
+                    // Nếu lỗi mạng thuần túy nhưng access token chưa hết hạn theo JWT
+                    if (!tokenManager.isTokenExpired()) {
+                        _uiState.update {
+                            it.copy(
+                                isLoggedIn = true,
+                                showSignInScreen = false,
+                                isCheckingAuth = false,
+                                userProfile = tokenManager.getUserProfile()
+                            )
+                        }
+                        refreshCartBadgeCount()
+                    } else {
+                        tokenManager.clearAuth()
+                        _uiState.update {
+                            it.copy(
+                                isLoggedIn = false,
+                                showSignInScreen = true,
+                                isCheckingAuth = false,
+                                serverCartItems = emptyList(),
+                                serverCartCount = null,
+                                currentToast = createToastData(
+                                    "Token hết hạn và không thể kết nối máy chủ. Vui lòng đăng nhập lại.",
+                                    ToastType.WARNING
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Nạp danh sách giỏ hàng của người dùng hiện tại từ API (GET /api/v1/cart)
+     */
+    fun loadCartItems(isRefresh: Boolean = false) {
+        if (!_uiState.value.isLoggedIn) {
+            _uiState.update { it.copy(serverCartItems = emptyList(), isCartLoading = false) }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isCartLoading = !isRefresh && it.serverCartItems.isEmpty(),
+                    isCartRefreshing = isRefresh,
+                    cartErrorMessage = null
+                )
+            }
+
+            val result = cartRepository.getCartItems()
+            result.onSuccess { items ->
+                val selectedShops = items.filter { it.isSelected }.map { it.shopDisplayName }.distinct()
+                val sanitizedItems = if (selectedShops.size > 1) {
+                    val keepShop = selectedShops.first()
+                    items.map { item ->
+                        if (item.isSelected && item.shopDisplayName != keepShop) {
+                            item.copy(isSelected = false)
+                        } else {
+                            item
+                        }
+                    }
+                } else {
+                    items
+                }
+
+                _uiState.update {
+                    it.copy(
+                        serverCartItems = sanitizedItems,
+                        serverCartCount = sanitizedItems.sumOf { item -> item.quantity },
+                        isCartLoading = false,
+                        isCartRefreshing = false,
+                        cartErrorMessage = null
+                    )
+                }
+
+                if (selectedShops.size > 1) {
+                    val keepShop = selectedShops.first()
+                    items.filter { it.isSelected && it.shopDisplayName != keepShop }.forEach { item ->
+                        cartRepository.updateCartItem(id = item.id, isSelected = false)
+                    }
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isCartLoading = false,
+                        isCartRefreshing = false,
+                        cartErrorMessage = error.localizedMessage
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Chọn hoặc bỏ chọn một sản phẩm trong giỏ hàng (PATCH /api/v1/cart/items/{id})
+     * Nếu tích chọn sản phẩm này, tự động bỏ chọn các sản phẩm thuộc các shop khác.
+     */
+    fun toggleCartItemSelection(itemId: Long, isSelected: Boolean) {
+        val targetItem = _uiState.value.serverCartItems.firstOrNull { it.id == itemId }
+        val targetShop = targetItem?.shopDisplayName
+
+        val otherShopSelectedItems = if (isSelected && targetShop != null) {
+            _uiState.value.serverCartItems.filter { other ->
+                other.isSelected && other.id != itemId && other.shopDisplayName != targetShop
+            }
+        } else {
+            emptyList()
+        }
+
+        _uiState.update { state ->
+            val updated = state.serverCartItems.map {
+                when {
+                    it.id == itemId -> it.copy(isSelected = isSelected)
+                    isSelected && otherShopSelectedItems.any { other -> other.id == it.id } -> it.copy(isSelected = false)
+                    else -> it
+                }
+            }
+            state.copy(serverCartItems = updated)
+        }
+
+        viewModelScope.launch {
+            otherShopSelectedItems.forEach { other ->
+                cartRepository.updateCartItem(id = other.id, isSelected = false)
+            }
+            val result = cartRepository.updateCartItem(id = itemId, isSelected = isSelected)
+            result.onFailure { error ->
+                showErrorToast("Không thể cập nhật chọn sản phẩm: ${error.message}")
+                loadCartItems()
+            }
+        }
+    }
+
+    /**
+     * Đổi sang chọn một sản phẩm của shop mới, đồng thời bỏ chọn tất cả các sản phẩm đã chọn của shop cũ
+     */
+    fun switchSelectedCartItem(newItemId: Long) {
+        val currentSelected = _uiState.value.serverCartItems.filter { it.isSelected && it.id != newItemId }
+
+        _uiState.update { state ->
+            val updated = state.serverCartItems.map { item ->
+                when {
+                    item.id == newItemId -> item.copy(isSelected = true)
+                    item.isSelected -> item.copy(isSelected = false)
+                    else -> item
+                }
+            }
+            state.copy(serverCartItems = updated)
+        }
+
+        viewModelScope.launch {
+            currentSelected.forEach { oldItem ->
+                cartRepository.updateCartItem(id = oldItem.id, isSelected = false)
+            }
+            val result = cartRepository.updateCartItem(id = newItemId, isSelected = true)
+            result.onFailure { error ->
+                showErrorToast("Không thể cập nhật chọn sản phẩm: ${error.message}")
+                loadCartItems()
+            }
+        }
+    }
+
+    /**
+     * Chọn hoặc bỏ chọn tất cả sản phẩm của một Shop trong giỏ hàng.
+     * Khi selectAll = true, tự động bỏ chọn toàn bộ sản phẩm của các shop khác.
+     */
+    fun toggleShopItemsSelection(sellerId: Long?, shopName: String?, selectAll: Boolean) {
+        val isTargetShop: (CartItemDto) -> Boolean = { item ->
+            (sellerId != null && item.sellerId == sellerId) || (shopName != null && item.shopName == shopName) || (shopName != null && item.shopDisplayName == shopName)
+        }
+        val itemsToUpdate = _uiState.value.serverCartItems.filter { isTargetShop(it) }
+        val otherSelectedItems = if (selectAll) {
+            _uiState.value.serverCartItems.filter { it.isSelected && !isTargetShop(it) }
+        } else {
+            emptyList()
+        }
+
+        _uiState.update { state ->
+            val updated = state.serverCartItems.map {
+                if (isTargetShop(it)) {
+                    it.copy(isSelected = selectAll)
+                } else if (selectAll && it.isSelected) {
+                    it.copy(isSelected = false)
+                } else it
+            }
+            state.copy(serverCartItems = updated)
+        }
+
+        viewModelScope.launch {
+            otherSelectedItems.forEach { item ->
+                cartRepository.updateCartItem(id = item.id, isSelected = false)
+            }
+            itemsToUpdate.forEach { item ->
+                if (item.isSelected != selectAll) {
+                    cartRepository.updateCartItem(id = item.id, isSelected = selectAll)
+                }
+            }
+        }
+    }
+
+    /**
+     * Đổi sang chọn tất cả sản phẩm của shop mới, đồng thời bỏ chọn tất cả sản phẩm của shop cũ
+     */
+    fun switchSelectedShop(sellerId: Long?, shopName: String?) {
+        toggleShopItemsSelection(sellerId = sellerId, shopName = shopName, selectAll = true)
+    }
+
+    /**
+     * Chọn hoặc bỏ chọn toàn bộ sản phẩm trong giỏ hàng
+     * Vì chỉ cho phép chọn sản phẩm trong cùng 1 shop:
+     * - Khi bỏ chọn (selectAll = false): Bỏ chọn toàn bộ sản phẩm
+     * - Khi chọn tất cả (selectAll = true): Chọn toàn bộ sản phẩm của shop hiện tại (hoặc shop đầu tiên)
+     */
+    fun toggleAllCartItemsSelection(selectAll: Boolean) {
+        if (!selectAll) {
+            val selectedItems = _uiState.value.serverCartItems.filter { it.isSelected }
+            _uiState.update { state ->
+                val updated = state.serverCartItems.map { it.copy(isSelected = false) }
+                state.copy(serverCartItems = updated)
+            }
+            viewModelScope.launch {
+                selectedItems.forEach { item ->
+                    cartRepository.updateCartItem(id = item.id, isSelected = false)
+                }
+            }
+            return
+        }
+
+        val allItems = _uiState.value.serverCartItems
+        if (allItems.isEmpty()) return
+
+        // Tìm shop đang có sản phẩm được chọn (nếu có), hoặc chọn shop đầu tiên
+        val currentSelectedShopItem = allItems.firstOrNull { it.isSelected } ?: allItems.first()
+        switchSelectedShop(
+            sellerId = currentSelectedShopItem.sellerId,
+            shopName = currentSelectedShopItem.shopDisplayName
+        )
+    }
+
+    /**
+     * Cập nhật số lượng của sản phẩm trong giỏ hàng (PATCH /api/v1/cart/items/{id})
+     */
+    fun updateCartItemQuantity(itemId: Long, newQuantity: Int) {
+        if (newQuantity < 1) {
+            removeCartItem(itemId)
+            return
+        }
+
+        _uiState.update { state ->
+            val updated = state.serverCartItems.map {
+                if (it.id == itemId) {
+                    val unitPrice = it.priceSnapshot ?: 0.0
+                    it.copy(quantity = newQuantity, lineTotal = unitPrice * newQuantity)
+                } else it
+            }
+            state.copy(
+                serverCartItems = updated,
+                serverCartCount = updated.sumOf { it.quantity }
+            )
+        }
+
+        viewModelScope.launch {
+            val result = cartRepository.updateCartItem(id = itemId, quantity = newQuantity)
+            result.onSuccess { updatedItem ->
+                _uiState.update { state ->
+                    val list = state.serverCartItems.map { if (it.id == itemId) updatedItem else it }
+                    state.copy(serverCartItems = list, serverCartCount = list.sumOf { it.quantity })
+                }
+            }.onFailure { error ->
+                showErrorToast("Không thể cập nhật số lượng: ${error.message}")
+                loadCartItems()
+            }
+        }
+    }
+
+    /**
+     * Xóa một sản phẩm khỏi giỏ hàng (DELETE /api/v1/cart/items/{id})
+     */
+    fun removeCartItem(itemId: Long) {
+        _uiState.update { state ->
+            val updated = state.serverCartItems.filterNot { it.id == itemId }
+            state.copy(
+                serverCartItems = updated,
+                serverCartCount = updated.sumOf { it.quantity },
+                currentToast = createToastData("Đã xóa sản phẩm khỏi giỏ hàng", ToastType.INFO)
+            )
+        }
+
+        viewModelScope.launch {
+            val result = cartRepository.removeCartItem(itemId)
+            result.onFailure { error ->
+                showErrorToast("Không thể xóa sản phẩm: ${error.message}")
+                loadCartItems()
+            }
+        }
+    }
+
+    /**
+     * Xóa toàn bộ các sản phẩm đang được chọn khỏi giỏ hàng (DELETE /api/v1/cart/items)
+     */
+    fun deleteSelectedCartItems() {
+        val selectedIds = _uiState.value.serverCartItems.filter { it.isSelected }.map { it.id }
+        if (selectedIds.isEmpty()) {
+            showErrorToast("Vui lòng chọn sản phẩm cần xóa")
+            return
+        }
+
+        _uiState.update { state ->
+            val updated = state.serverCartItems.filterNot { it.isSelected }
+            state.copy(
+                serverCartItems = updated,
+                serverCartCount = updated.sumOf { it.quantity },
+                currentToast = createToastData("Đã xóa ${selectedIds.size} sản phẩm khỏi giỏ hàng", ToastType.INFO)
+            )
+        }
+
+        viewModelScope.launch {
+            val result = cartRepository.bulkRemoveCartItems(selectedIds)
+            result.onFailure { error ->
+                showErrorToast("Lỗi xóa sản phẩm: ${error.message}")
+                loadCartItems()
+            }
+        }
+    }
+
     fun selectTab(tabIndex: Int) {
         _uiState.update { it.copy(currentTab = tabIndex) }
+        if (tabIndex == 1) {
+            loadBrowserCategories()
+        } else if (tabIndex == 2) {
+            loadCartItems()
+        } else if (tabIndex == 3) {
+            loadOrders()
+        } else if (tabIndex == 4) {
+            loadUserProfile()
+            loadAddresses()
+        }
     }
 
     fun setPageState(state: PageState) {
@@ -117,35 +751,262 @@ class B2CViewModel : ViewModel() {
 
     fun selectCategory(category: String) {
         _uiState.update { it.copy(selectedCategory = category) }
+        val match = _uiState.value.browserCategories.find {
+            it.name.equals(category, ignoreCase = true) ||
+            it.slug.contains(category, ignoreCase = true)
+        }
+        if (match != null) {
+            selectBrowserCategory(match)
+        }
+    }
+
+    /**
+     * Nạp danh sách danh mục từ Database qua API cho Màn hình Duyệt danh mục (Cột trái)
+     */
+    fun loadBrowserCategories(autoSelectFirst: Boolean = true) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBrowserCategoriesLoading = true, browserCategoryErrorMessage = null) }
+            val categories = homeRepository.getCategoriesForBrowser()
+            val currentSelected = _uiState.value.selectedBrowserCategory
+            val toSelect = when {
+                currentSelected != null && categories.any { it.id == currentSelected.id } ->
+                    categories.first { it.id == currentSelected.id }
+                autoSelectFirst && categories.isNotEmpty() ->
+                    categories.first()
+                else -> currentSelected
+            }
+
+            _uiState.update {
+                it.copy(
+                    browserCategories = categories,
+                    selectedBrowserCategory = toSelect,
+                    selectedBrowserSubCategoryId = null,
+                    isBrowserCategoriesLoading = false
+                )
+            }
+
+            if (toSelect != null && _uiState.value.browserProducts.isEmpty()) {
+                loadBrowserProducts(toSelect.id)
+            }
+        }
+    }
+
+    /**
+     * Người dùng click chọn một danh mục bên cột trái -> nạp sản phẩm tương ứng bên cột phải
+     */
+    fun selectBrowserCategory(category: CategoryDto) {
+        if (_uiState.value.selectedBrowserCategory?.id == category.id && _uiState.value.browserProducts.isNotEmpty()) {
+            return
+        }
+        _uiState.update {
+            it.copy(
+                selectedBrowserCategory = category,
+                selectedBrowserSubCategoryId = null
+            )
+        }
+        loadBrowserProducts(category.id)
+    }
+
+    /**
+     * Người dùng click lọc theo danh mục con (hoặc "Tất cả")
+     */
+    fun selectBrowserSubCategory(subCategoryId: Long?) {
+        _uiState.update { it.copy(selectedBrowserSubCategoryId = subCategoryId) }
+        val targetCatId = subCategoryId ?: _uiState.value.selectedBrowserCategory?.id
+        loadBrowserProducts(targetCatId)
+    }
+
+    /**
+     * Nạp danh sách sản phẩm thuộc danh mục đang chọn từ Database qua API (Cột phải)
+     */
+    fun loadBrowserProducts(categoryId: Long?) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBrowserProductsLoading = true, browserCategoryErrorMessage = null) }
+            val products = homeRepository.getProductsByCategory(categoryId)
+            _uiState.update {
+                it.copy(
+                    browserProducts = products,
+                    isBrowserProductsLoading = false
+                )
+            }
+        }
+    }
+
+    fun refreshBrowserCategories() {
+        val selectedId = _uiState.value.selectedBrowserSubCategoryId ?: _uiState.value.selectedBrowserCategory?.id
+        loadBrowserCategories(autoSelectFirst = false)
+        if (selectedId != null) {
+            loadBrowserProducts(selectedId)
+        }
     }
 
     fun updateSearchQuery(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
     }
 
-    fun openSearchResults(query: String) {
-        _uiState.update { it.copy(searchResultQuery = query.ifBlank { "áo thun nam" }) }
+    fun openSearchResults(
+        query: String,
+        sortBy: String = "created",
+        sortDir: String = "desc",
+        categoryId: Long? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        brand: String? = null,
+        minRating: Float? = null
+    ) {
+        val effectiveQuery = query.trim()
+        _uiState.update {
+            it.copy(
+                searchResultQuery = effectiveQuery,
+                searchSortBy = sortBy,
+                searchSortDir = sortDir,
+                searchCategoryId = categoryId,
+                searchMinPrice = minPrice,
+                searchMaxPrice = maxPrice,
+                searchBrand = brand,
+                searchMinRating = minRating,
+                isSearching = true
+            )
+        }
+        performSearch(
+            query = effectiveQuery,
+            sortBy = sortBy,
+            sortDir = sortDir,
+            categoryId = categoryId,
+            minPrice = minPrice,
+            maxPrice = maxPrice,
+            brand = brand,
+            minRating = minRating
+        )
+    }
+
+    fun performSearch(
+        query: String? = _uiState.value.searchResultQuery,
+        sortBy: String = _uiState.value.searchSortBy,
+        sortDir: String = _uiState.value.searchSortDir,
+        categoryId: Long? = _uiState.value.searchCategoryId,
+        minPrice: Long? = _uiState.value.searchMinPrice,
+        maxPrice: Long? = _uiState.value.searchMaxPrice,
+        brand: String? = _uiState.value.searchBrand,
+        minRating: Float? = _uiState.value.searchMinRating,
+        page: Int = 0
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSearching = true) }
+            val (products, total) = homeRepository.searchProducts(
+                query = query,
+                page = page,
+                size = 30,
+                sortBy = sortBy,
+                sortDir = sortDir,
+                categoryId = categoryId,
+                minPrice = minPrice,
+                maxPrice = maxPrice,
+                brand = brand,
+                minRating = minRating
+            )
+            _uiState.update {
+                it.copy(
+                    searchResults = products,
+                    searchTotalElements = total,
+                    searchSortBy = sortBy,
+                    searchSortDir = sortDir,
+                    searchCategoryId = categoryId,
+                    searchMinPrice = minPrice,
+                    searchMaxPrice = maxPrice,
+                    searchBrand = brand,
+                    searchMinRating = minRating,
+                    isSearching = false
+                )
+            }
+        }
     }
 
     fun closeSearchResults() {
-        _uiState.update { it.copy(searchResultQuery = null) }
+        _uiState.update {
+            it.copy(
+                searchResultQuery = null,
+                searchResults = emptyList(),
+                searchTotalElements = 0L,
+                isSearching = false
+            )
+        }
     }
 
     fun openShopMessages() {
         _uiState.update { it.copy(showShopMessages = true) }
+        loadShopConversations()
     }
 
     fun closeShopMessages() {
         _uiState.update { it.copy(showShopMessages = false) }
     }
 
-    fun openShopChat(shopName: String = "Coolmate Official Store", product: ProductItem? = null) {
+    /**
+     * Tải danh sách hội thoại tin nhắn với các Shop từ Backend API
+     */
+    fun loadShopConversations(forceRefresh: Boolean = false) {
+        if (!forceRefresh && _uiState.value.shopConversations.isNotEmpty()) {
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isShopConversationsLoading = true, shopConversationsError = null) }
+            val result = chatRepository.getConversations()
+            result.fold(
+                onSuccess = { dtoList ->
+                    val mapped = if (dtoList.isNotEmpty()) {
+                        dtoList.map { chatRepository.mapDtoToShopConversation(it) }
+                    } else {
+                        // Nếu backend trả về rỗng, dùng danh sách mặc định có sẵn các Shop uy tín
+                        ChatRepository.getDefaultConversations()
+                    }
+                    _uiState.update {
+                        it.copy(
+                            shopConversations = mapped,
+                            isShopConversationsLoading = false,
+                            shopConversationsError = null
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    val currentList = _uiState.value.shopConversations
+                    val fallbackList = if (currentList.isNotEmpty()) currentList else ChatRepository.getDefaultConversations()
+                    _uiState.update {
+                        it.copy(
+                            shopConversations = fallbackList,
+                            isShopConversationsLoading = false,
+                            shopConversationsError = error.message
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun openShopChat(
+        shopName: String = "Coolmate Official Store",
+        product: ProductItem? = null,
+        conversationId: Long? = null,
+        sellerId: Long? = null,
+        avatarLetter: String? = null,
+        avatarBg: androidx.compose.ui.graphics.Color? = null,
+        avatarUrl: String? = null,
+        isMall: Boolean = true
+    ) {
+        val letter = avatarLetter ?: chatRepository.extractInitials(shopName)
+        val bg = avatarBg ?: chatRepository.generateAvatarColor(shopName)
         _uiState.update { state ->
             val p = product ?: state.detailedProductScreen ?: SampleData.products[0]
+            val resolvedSellerId = sellerId ?: p.sellerId
             state.copy(
                 activeShopChat = ShopChatInfo(
+                    conversationId = conversationId,
+                    sellerId = resolvedSellerId,
                     shopName = shopName,
-                    isMall = true,
+                    avatarLetter = letter,
+                    avatarBg = bg,
+                    avatarUrl = avatarUrl,
+                    isMall = isMall,
                     isOnline = true,
                     product = p
                 )
@@ -153,16 +1014,182 @@ class B2CViewModel : ViewModel() {
         }
     }
 
+    suspend fun startOrGetConversation(sellerId: Long): Long? {
+        return chatRepository.startConversation(sellerId).getOrNull()?.id
+    }
+
+    suspend fun loadMessagesForConversation(
+        conversationId: Long,
+        shopName: String,
+        avatarLetter: String? = null,
+        avatarBg: androidx.compose.ui.graphics.Color? = null
+    ): List<DetailedChatMessage> {
+        val result = chatRepository.getMessages(conversationId)
+        return result.fold(
+            onSuccess = { dtos ->
+                val currentUserId = _uiState.value.userProfile?.id
+                dtos.map { dto ->
+                    chatRepository.mapDtoToDetailedChatMessage(
+                        dto = dto,
+                        currentUserId = currentUserId,
+                        shopName = shopName,
+                        avatarLetter = avatarLetter,
+                        avatarBg = avatarBg
+                    )
+                }
+            },
+            onFailure = { emptyList() }
+        )
+    }
+
+    fun sendChatMessage(
+        conversationId: Long?,
+        sellerId: Long?,
+        content: String,
+        messageType: String = "TEXT",
+        attachmentUrl: String? = null,
+        refProductId: Long? = null,
+        refOrderId: Long? = null,
+        onMessageSent: ((com.example.b2capp.data.remote.dto.ChatMessageDto) -> Unit)? = null
+    ) {
+        if (content.isBlank() && attachmentUrl.isNullOrBlank()) return
+        viewModelScope.launch {
+            val result = chatRepository.sendMessage(
+                conversationId = conversationId,
+                sellerId = sellerId,
+                content = content,
+                messageType = messageType,
+                attachmentUrl = attachmentUrl,
+                refProductId = refProductId,
+                refOrderId = refOrderId
+            )
+            result.onSuccess { msgDto ->
+                onMessageSent?.invoke(msgDto)
+            }
+            _uiState.update { state ->
+                val displayMsg = content.ifBlank { if (messageType == "IMAGE") "[Hình ảnh]" else "Đã gửi tệp đính kèm" }
+                val updatedConversations = state.shopConversations.map { conv ->
+                    if ((conversationId != null && conv.numericId == conversationId) ||
+                        (sellerId != null && conv.sellerId == sellerId)) {
+                        conv.copy(
+                            lastMessage = displayMsg,
+                            time = "Vừa xong",
+                            isTimeRed = false,
+                            isLastMessageBold = false
+                        )
+                    } else {
+                        conv
+                    }
+                }
+                state.copy(shopConversations = updatedConversations)
+            }
+        }
+    }
+
     fun closeShopChat() {
         _uiState.update { it.copy(activeShopChat = null) }
+        loadShopConversations(forceRefresh = true)
     }
 
     fun openProductDetailsScreen(product: ProductItem) {
-        _uiState.update { it.copy(detailedProductScreen = product) }
+        val numericId = product.id.toLongOrNull()
+        val isRealProduct = numericId != null
+        val needsFetch = isRealProduct && product.options.isEmpty()
+        _uiState.update {
+            it.copy(
+                detailedProductScreen = product,
+                isProductDetailLoading = needsFetch
+            )
+        }
+
+        // Nếu ID là dạng số hợp lệ từ Backend, gọi API để cập nhật chi tiết đầy đủ nhất
+        if (numericId != null) {
+            viewModelScope.launch {
+                try {
+                    val detail = homeRepository.getProductDetailById(numericId)
+                    if (detail != null) {
+                        _uiState.update { state ->
+                            if (state.detailedProductScreen?.id == product.id) {
+                                val priceLong = (detail.minPrice ?: product.price.toDouble()).toLong()
+                                val origPriceLong = (detail.maxPrice ?: product.originalPrice?.toDouble() ?: priceLong.toDouble()).toLong()
+
+                                val parsedImages = if (detail.images.isNotEmpty()) {
+                                    detail.images.sortedBy { it.sortOrder ?: 0 }.map { it.imageUrl }
+                                } else {
+                                    listOfNotNull(detail.thumbnailUrl?.ifBlank { null } ?: product.imageUrl)
+                                }
+
+                                val parsedOptions = detail.options.sortedBy { it.sortOrder ?: 0 }.map { opt ->
+                                    ProductOptionItem(
+                                        id = opt.id,
+                                        name = opt.name,
+                                        sortOrder = opt.sortOrder ?: 0,
+                                        values = opt.values.sortedBy { it.sortOrder ?: 0 }.map { v ->
+                                            ProductOptionValueItem(
+                                                id = v.id,
+                                                value = v.value,
+                                                imageUrl = v.imageUrl,
+                                                sortOrder = v.sortOrder ?: 0
+                                            )
+                                        }
+                                    )
+                                }
+
+                                val parsedVariants = detail.variants.map { v ->
+                                    val vPrice = (v.price ?: origPriceLong.toDouble()).toLong()
+                                    val vSalePrice = (v.salePrice ?: v.price ?: priceLong.toDouble()).toLong()
+                                    ProductVariantItem(
+                                        id = v.id,
+                                        sku = v.sku,
+                                        variantName = v.variantName,
+                                        price = vPrice,
+                                        salePrice = vSalePrice,
+                                        stockQuantity = v.stockQuantity ?: 0,
+                                        soldCount = v.soldCount ?: 0,
+                                        imageUrl = v.imageUrl,
+                                        optionValueIds = v.optionValueIds ?: emptyList(),
+                                        attributes = v.attributes ?: emptyMap()
+                                    )
+                                }
+
+                                val totalStock = if (parsedVariants.isNotEmpty()) {
+                                    parsedVariants.sumOf { it.stockQuantity }
+                                } else {
+                                    product.stock
+                                }
+
+                                val enriched = state.detailedProductScreen!!.copy(
+                                    name = detail.name.ifBlank { product.name },
+                                    description = detail.description?.ifBlank { product.description } ?: product.description,
+                                    imageUrl = detail.thumbnailUrl?.ifBlank { product.imageUrl } ?: product.imageUrl,
+                                    price = priceLong,
+                                    originalPrice = if (origPriceLong > priceLong) origPriceLong else product.originalPrice,
+                                    shopName = detail.shopName?.ifBlank { product.shopName } ?: product.shopName,
+                                    rating = (detail.ratingAvg ?: product.rating.toDouble()).toFloat(),
+                                    soldCount = detail.soldCount ?: product.soldCount,
+                                    stock = totalStock,
+                                    images = parsedImages,
+                                    options = parsedOptions,
+                                    variants = parsedVariants,
+                                    sellerId = detail.sellerId ?: product.sellerId
+                                )
+                                state.copy(detailedProductScreen = enriched, isProductDetailLoading = false)
+                            } else {
+                                state.copy(isProductDetailLoading = false)
+                            }
+                        }
+                    } else {
+                        _uiState.update { it.copy(isProductDetailLoading = false) }
+                    }
+                } catch (_: Exception) {
+                    _uiState.update { it.copy(isProductDetailLoading = false) }
+                }
+            }
+        }
     }
 
     fun closeProductDetailsScreen() {
-        _uiState.update { it.copy(detailedProductScreen = null) }
+        _uiState.update { it.copy(detailedProductScreen = null, isProductDetailLoading = false) }
     }
 
     fun openCheckoutScreen() {
@@ -182,42 +1209,102 @@ class B2CViewModel : ViewModel() {
     }
 
     fun completeVnpayPayment() {
+        val randomOrderCode = (100000..999999).random()
         _uiState.update { state ->
             state.copy(
                 showVnpayPaymentScreen = false,
                 showCheckoutScreen = false,
                 completedOrderSuccess = OrderSuccessInfo(
-                    orderId = "ORD-20261105-0088",
+                    orderId = "ORD-20261105-0$randomOrderCode",
                     paymentMethodName = "Cổng VNPAY",
                     isOnlinePaid = true,
                     orderTime = "05/11/2026 14:20",
                     expectedDelivery = "14 Th04 – 16 Th04",
-                    totalAmount = 388200L,
-                    recipientName = "Nguyễn Văn A",
+                    totalAmount = state.totalCartPrice.takeIf { it > 0 } ?: 388200L,
+                    recipientName = state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
                     recipientPhoneMasked = "090****123",
-                    deliveryAddress = "Số 45 Lê Duẩn, Phường Bến Nghé, Q.1, TP. HCM"
+                    deliveryAddress = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
                 )
             )
         }
+        refreshCartBadgeCount()
+        loadCartItems()
+        loadOrders()
     }
 
-    fun completeOrderPlacement() {
+    fun completeOrderPlacement(paymentMethod: String = "COD", sellerNote: String = "") {
         val randomOrderCode = (100000..999999).random()
-        _uiState.update { state ->
-            state.copy(
-                showCheckoutScreen = false,
-                completedOrderSuccess = OrderSuccessInfo(
-                    orderId = "ORD-20261105-0$randomOrderCode",
-                    paymentMethodName = "Thanh toán khi nhận hàng (COD)",
-                    isOnlinePaid = false,
-                    orderTime = "05/11/2026 14:20",
-                    expectedDelivery = "14 Th04 – 16 Th04",
-                    totalAmount = 388200L,
-                    recipientName = "Nguyễn Văn A",
-                    recipientPhoneMasked = "090****123",
-                    deliveryAddress = "Số 45 Lê Duẩn, Phường Bến Nghé, Q.1, TP. HCM"
+        val cartItemIds = _uiState.value.serverCartItems.filter { it.isSelected }.map { it.id }
+
+        if (cartItemIds.isNotEmpty() && _uiState.value.isLoggedIn) {
+            val defaultAddress = _uiState.value.addresses.firstOrNull { it.isDefault } ?: _uiState.value.addresses.firstOrNull()
+            val targetAddressId = defaultAddress?.id?.toLongOrNull() ?: 1L
+            viewModelScope.launch {
+                val req = CreateOrderRequestDto(
+                    cartItemIds = cartItemIds,
+                    addressId = targetAddressId,
+                    paymentMethod = paymentMethod,
+                    note = sellerNote.ifBlank { null }
                 )
-            )
+                val result = orderRepository.createOrder(req)
+                result.onSuccess { created ->
+                    _uiState.update { state ->
+                        state.copy(
+                            showCheckoutScreen = false,
+                            completedOrderSuccess = OrderSuccessInfo(
+                                orderId = created.orderCode ?: "ORD-20261105-0${created.id}",
+                                paymentMethodName = if (paymentMethod == "VNPAY") "Cổng VNPAY" else "Thanh toán khi nhận hàng (COD)",
+                                isOnlinePaid = paymentMethod == "VNPAY",
+                                orderTime = created.createdAt ?: "05/11/2026 14:20",
+                                expectedDelivery = "14 Th04 – 16 Th04",
+                                totalAmount = created.totalAmount?.toLong() ?: 388200L,
+                                recipientName = created.receiverName ?: state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
+                                recipientPhoneMasked = created.receiverPhone ?: "090****123",
+                                deliveryAddress = created.shippingAddress ?: defaultAddress?.fullAddress ?: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
+                            )
+                        )
+                    }
+                    refreshCartBadgeCount()
+                    loadCartItems()
+                    loadOrders()
+                }.onFailure {
+                    _uiState.update { state ->
+                        state.copy(
+                            showCheckoutScreen = false,
+                            completedOrderSuccess = OrderSuccessInfo(
+                                orderId = "ORD-20261105-0$randomOrderCode",
+                                paymentMethodName = "Thanh toán khi nhận hàng (COD)",
+                                isOnlinePaid = false,
+                                orderTime = "05/11/2026 14:20",
+                                expectedDelivery = "14 Th04 – 16 Th04",
+                                totalAmount = state.totalCartPrice.takeIf { it > 0 } ?: 388200L,
+                                recipientName = state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
+                                recipientPhoneMasked = "090****123",
+                                deliveryAddress = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
+                            )
+                        )
+                    }
+                    loadOrders()
+                }
+            }
+        } else {
+            _uiState.update { state ->
+                state.copy(
+                    showCheckoutScreen = false,
+                    completedOrderSuccess = OrderSuccessInfo(
+                        orderId = "ORD-20261105-0$randomOrderCode",
+                        paymentMethodName = "Thanh toán khi nhận hàng (COD)",
+                        isOnlinePaid = false,
+                        orderTime = "05/11/2026 14:20",
+                        expectedDelivery = "14 Th04 – 16 Th04",
+                        totalAmount = state.totalCartPrice.takeIf { it > 0 } ?: 388200L,
+                        recipientName = state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
+                        recipientPhoneMasked = "090****123",
+                        deliveryAddress = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
+                    )
+                )
+            }
+            loadOrders()
         }
     }
 
@@ -229,16 +1316,312 @@ class B2CViewModel : ViewModel() {
                 currentTab = if (navigateToOrdersTab) 3 else 0
             )
         }
+        if (navigateToOrdersTab) {
+            loadOrders()
+        }
     }
 
     fun openOrderDetailsTrackingScreen(orderId: String = "ORD-20261105-0088") {
-        _uiState.update { it.copy(detailedOrderTrackingScreen = orderId) }
+        _uiState.update { it.copy(detailedOrderTrackingScreen = orderId, activeOrderDetail = null) }
+        val numericId = orderId.toLongOrNull()
+            ?: _uiState.value.orders.firstOrNull { it.orderCode == orderId || "#${it.orderCode}" == orderId }?.id
+            ?: orderId.replace(Regex("[^0-9]"), "").toLongOrNull()
+        if (numericId != null) {
+            loadOrderDetail(numericId)
+        }
     }
 
     fun closeOrderDetailsTrackingScreen() {
-        _uiState.update { it.copy(detailedOrderTrackingScreen = null) }
+        _uiState.update { it.copy(detailedOrderTrackingScreen = null, activeOrderDetail = null) }
     }
 
+    /**
+     * Tải danh sách đơn hàng của người mua từ API Backend (GET /api/v1/buyer/orders)
+     * Hỗ trợ lọc theo tab trạng thái và làm mới dữ liệu
+     */
+    fun loadOrders(tab: String = _uiState.value.selectedOrdersTab, isRefresh: Boolean = false) {
+        if (isRefresh) {
+            _uiState.update { it.copy(isOrdersRefreshing = true, ordersErrorMessage = null, selectedOrdersTab = tab) }
+        } else {
+            _uiState.update { it.copy(isOrdersLoading = true, ordersErrorMessage = null, selectedOrdersTab = tab) }
+        }
+
+        viewModelScope.launch {
+            val backendStatus = mapTabToBackendStatus(tab)
+            val result = orderRepository.getOrders(status = backendStatus, page = 0, size = 50)
+            result.onSuccess { pageResponse ->
+                _uiState.update { state ->
+                    state.copy(
+                        orders = pageResponse.content,
+                        isOrdersLoading = false,
+                        isOrdersRefreshing = false,
+                        ordersErrorMessage = null
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update { state ->
+                    state.copy(
+                        isOrdersLoading = false,
+                        isOrdersRefreshing = false,
+                        ordersErrorMessage = err.message ?: "Không tải được danh sách đơn hàng"
+                    )
+                }
+            }
+        }
+    }
+
+    fun selectOrdersTab(tab: String) {
+        loadOrders(tab = tab, isRefresh = false)
+    }
+
+    private fun mapTabToBackendStatus(tab: String): String? {
+        return when (tab) {
+            "Chờ thanh toán" -> "PENDING"
+            "Đang chuẩn bị" -> "CONFIRMED"
+            "Đang giao" -> "SHIPPING"
+            "Đánh giá", "Đã giao" -> "DELIVERED"
+            "Đã hủy" -> "CANCELLED"
+            else -> null // "Tất cả"
+        }
+    }
+
+    /**
+     * Lấy chi tiết đơn hàng theo ID (GET /api/v1/buyer/orders/{id})
+     */
+    fun loadOrderDetail(orderId: Long) {
+        _uiState.update { it.copy(isOrderDetailLoading = true, orderDetailErrorMessage = null) }
+        viewModelScope.launch {
+            val result = orderRepository.getOrderDetail(orderId)
+            result.onSuccess { detail ->
+                _uiState.update { state ->
+                    state.copy(
+                        activeOrderDetail = detail,
+                        isOrderDetailLoading = false,
+                        orderDetailErrorMessage = null
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update { state ->
+                    state.copy(
+                        isOrderDetailLoading = false,
+                        orderDetailErrorMessage = err.message ?: "Không thể tải chi tiết đơn hàng"
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Hủy đơn hàng (PATCH /api/v1/buyer/orders/{id}/cancel)
+     */
+    fun cancelOrder(orderId: Long, reason: String = "Người mua yêu cầu hủy đơn") {
+        _uiState.update { it.copy(cancellingOrderId = orderId) }
+        viewModelScope.launch {
+            val result = orderRepository.cancelOrder(orderId, reason)
+            result.onSuccess { cancelledDto ->
+                showSuccessToast("Hủy đơn hàng #${cancelledDto.orderCode ?: orderId} thành công")
+                loadOrders(_uiState.value.selectedOrdersTab)
+                if (_uiState.value.activeOrderDetail?.id == orderId) {
+                    _uiState.update { it.copy(activeOrderDetail = cancelledDto) }
+                }
+            }.onFailure { err ->
+                showErrorToast(err.message ?: "Hủy đơn hàng thất bại")
+            }
+            _uiState.update { it.copy(cancellingOrderId = null) }
+        }
+    }
+
+    /**
+     * Lấy lại URL thanh toán VNPay cho đơn hàng PENDING chưa thanh toán (POST /api/v1/buyer/orders/{id}/pay)
+     */
+    fun retryOrderPayment(orderId: Long, onPaymentUrlReady: ((String) -> Unit)? = null) {
+        _uiState.update { it.copy(retryingOrderId = orderId) }
+        viewModelScope.launch {
+            val result = orderRepository.retryPayment(orderId)
+            result.onSuccess { paymentUrl ->
+                showToast("Đang mở cổng thanh toán VNPay...", ToastType.INFO)
+                if (onPaymentUrlReady != null) {
+                    onPaymentUrlReady(paymentUrl)
+                } else {
+                    openVnpayPayment()
+                }
+            }.onFailure { err ->
+                showErrorToast(err.message ?: "Không tạo được liên kết thanh toán")
+            }
+            _uiState.update { it.copy(retryingOrderId = null) }
+        }
+    }
+
+    /**
+     * Đăng nhập qua API Backend với cơ chế Access/Refresh Token
+     */
+    fun loginWithApi(
+        email: String,
+        password: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val trimmedEmail = email.trim()
+        val trimmedPassword = password.trim()
+
+        if (trimmedEmail.isBlank()) {
+            showErrorToast("Vui lòng nhập email hoặc số điện thoại")
+            return
+        }
+        if (trimmedPassword.isBlank()) {
+            showErrorToast("Vui lòng nhập mật khẩu")
+            return
+        }
+
+        _uiState.update { it.copy(isAuthLoading = true, authErrorMessage = null) }
+
+        viewModelScope.launch {
+            val result = authRepository.login(trimmedEmail, trimmedPassword)
+            result.fold(
+                onSuccess = { auth ->
+                    val displayName = auth.fullName?.ifBlank { null } ?: trimmedEmail
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = true,
+                            isAuthLoading = false,
+                            authErrorMessage = null,
+                            showSignInScreen = false,
+                            showSignUpScreen = false,
+                            showForgotPasswordScreen = false,
+                            userProfile = state.userProfile.copy(
+                                fullName = auth.fullName ?: state.userProfile.fullName,
+                                email = auth.email ?: trimmedEmail
+                            ),
+                            toastMessage = "Đăng nhập thành công! Chào mừng $displayName.",
+                            currentToast = createToastData(
+                                "Đăng nhập thành công! Chào mừng $displayName.",
+                                ToastType.SUCCESS
+                            )
+                        )
+                    }
+                    refreshCartBadgeCount()
+                    loadCartItems()
+                    loadOrders()
+                    loadUserProfile()
+                    loadAddresses()
+                    refreshWishlistCount()
+                    loadWishlist()
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    val errorMsg = error.message ?: "Đăng nhập thất bại"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAuthLoading = false,
+                            authErrorMessage = errorMsg,
+                            toastMessage = errorMsg,
+                            currentToast = createToastData(errorMsg, ToastType.ERROR)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Đăng ký tài khoản người mua mới qua API Backend
+     */
+    fun registerWithApi(
+        fullName: String,
+        email: String,
+        password: String,
+        phone: String? = null,
+        onSuccess: () -> Unit = {}
+    ) {
+        val trimmedName = fullName.trim()
+        val trimmedEmail = email.trim()
+
+        if (trimmedName.isBlank()) {
+            showErrorToast("Vui lòng nhập họ và tên")
+            return
+        }
+        if (trimmedEmail.isBlank()) {
+            showErrorToast("Vui lòng nhập email")
+            return
+        }
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+            showErrorToast("Định dạng email không hợp lệ")
+            return
+        }
+        if (password.length < 8) {
+            showErrorToast("Mật khẩu phải có tối thiểu 8 ký tự")
+            return
+        }
+
+        _uiState.update { it.copy(isAuthLoading = true, authErrorMessage = null) }
+
+        viewModelScope.launch {
+            val result = authRepository.register(
+                email = trimmedEmail,
+                password = password,
+                fullName = trimmedName,
+                phone = phone
+            )
+            result.fold(
+                onSuccess = { auth ->
+                    val displayName = auth.fullName ?: trimmedName
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = true,
+                            isAuthLoading = false,
+                            authErrorMessage = null,
+                            showSignInScreen = false,
+                            showSignUpScreen = false,
+                            showForgotPasswordScreen = false,
+                            userProfile = state.userProfile.copy(
+                                fullName = displayName,
+                                email = auth.email ?: trimmedEmail
+                            ),
+                            toastMessage = "Đăng ký tài khoản thành công! Chào mừng $displayName.",
+                            currentToast = createToastData(
+                                "Đăng ký tài khoản thành công! Chào mừng $displayName.",
+                                ToastType.SUCCESS
+                            )
+                        )
+                    }
+                    refreshCartBadgeCount()
+                    loadCartItems()
+                    loadOrders()
+                    loadUserProfile()
+                    loadAddresses()
+                    refreshWishlistCount()
+                    loadWishlist()
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    val errorMsg = error.message ?: "Đăng ký thất bại"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAuthLoading = false,
+                            authErrorMessage = errorMsg,
+                            toastMessage = errorMsg,
+                            currentToast = createToastData(errorMsg, ToastType.ERROR)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Cập nhật Base URL của API Backend tại runtime
+     */
+    fun setApiBaseUrl(newUrl: String) {
+        try {
+            TokenManager.getInstance().saveCustomBaseUrl(newUrl)
+            showSuccessToast("Đã chuyển API Base URL: $newUrl")
+        } catch (_: Exception) {
+            com.example.b2capp.core.network.NetworkConfig.setBaseUrl(newUrl)
+        }
+    }
+
+    /**
+     * Giữ lại hàm login mock cũ cho backward-compatibility
+     */
     fun login(email: String = "nguyenvana@gmail.com") {
         _uiState.update { state ->
             state.copy(
@@ -255,9 +1638,16 @@ class B2CViewModel : ViewModel() {
     }
 
     fun logout() {
+        viewModelScope.launch {
+            try {
+                authRepository.logout()
+            } catch (_: Exception) {}
+        }
         _uiState.update { state ->
             state.copy(
                 isLoggedIn = false,
+                serverCartCount = null,
+                serverCartItems = emptyList(),
                 showSignInScreen = true,
                 showSignUpScreen = false,
                 showForgotPasswordScreen = false,
@@ -272,7 +1662,9 @@ class B2CViewModel : ViewModel() {
     }
 
     fun closeSignIn() {
-        _uiState.update { it.copy(showSignInScreen = false) }
+        if (_uiState.value.isLoggedIn) {
+            _uiState.update { it.copy(showSignInScreen = false) }
+        }
     }
 
     fun openSignUp() {
@@ -311,14 +1703,171 @@ class B2CViewModel : ViewModel() {
 
     fun openWishlist() {
         _uiState.update { it.copy(showWishlistScreen = true) }
+        loadWishlist(isRefresh = true)
     }
 
     fun closeWishlist() {
         _uiState.update { it.copy(showWishlistScreen = false) }
     }
 
+    // ==========================================
+    // WISHLIST (SẢN PHẨM YÊU THÍCH)
+    // ==========================================
+
+    fun loadWishlist(isRefresh: Boolean = false) {
+        if (!_uiState.value.isLoggedIn) {
+            _uiState.update {
+                it.copy(
+                    wishlistItems = emptyList(),
+                    wishlistProductIds = emptySet(),
+                    isWishlistLoading = false,
+                    isWishlistRefreshing = false,
+                    wishlistCount = 0
+                )
+            }
+            return
+        }
+
+        _uiState.update {
+            if (isRefresh) it.copy(isWishlistRefreshing = true, wishlistErrorMessage = null)
+            else it.copy(isWishlistLoading = true, wishlistErrorMessage = null)
+        }
+
+        viewModelScope.launch {
+            val result = wishlistRepository.getWishlist(page = 0, size = 50)
+            result.onSuccess { pageResponse ->
+                val items = pageResponse.content
+                _uiState.update { state ->
+                    state.copy(
+                        wishlistItems = items,
+                        wishlistProductIds = items.map { it.productId }.toSet(),
+                        wishlistCount = pageResponse.totalElements.toInt(),
+                        isWishlistLoading = false,
+                        isWishlistRefreshing = false,
+                        wishlistErrorMessage = null
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update { state ->
+                    state.copy(
+                        isWishlistLoading = false,
+                        isWishlistRefreshing = false,
+                        wishlistErrorMessage = error.message ?: "Không thể tải danh sách yêu thích"
+                    )
+                }
+            }
+        }
+    }
+
+    fun refreshWishlistCount() {
+        if (!_uiState.value.isLoggedIn) return
+        viewModelScope.launch {
+            wishlistRepository.getWishlistCount().onSuccess { count ->
+                _uiState.update { it.copy(wishlistCount = count.toInt()) }
+            }
+        }
+    }
+
+    fun removeFromWishlist(productId: Long) {
+        val previousItems = _uiState.value.wishlistItems
+        _uiState.update { state ->
+            val updated = state.wishlistItems.filterNot { it.productId == productId }
+            state.copy(
+                wishlistItems = updated,
+                wishlistProductIds = updated.map { it.productId }.toSet(),
+                wishlistCount = updated.size
+            )
+        }
+
+        viewModelScope.launch {
+            val result = wishlistRepository.removeFromWishlist(productId)
+            result.onSuccess {
+                showToast("Đã xóa khỏi danh sách yêu thích")
+            }.onFailure { error ->
+                showErrorToast("Không thể xóa sản phẩm: ${error.message}")
+                _uiState.update { state ->
+                    state.copy(
+                        wishlistItems = previousItems,
+                        wishlistProductIds = previousItems.map { it.productId }.toSet(),
+                        wishlistCount = previousItems.size
+                    )
+                }
+            }
+        }
+    }
+
+    fun removeMultipleFromWishlist(productIds: List<Long>) {
+        if (productIds.isEmpty()) return
+        val previousItems = _uiState.value.wishlistItems
+        _uiState.update { state ->
+            val updated = state.wishlistItems.filterNot { productIds.contains(it.productId) }
+            state.copy(
+                wishlistItems = updated,
+                wishlistProductIds = updated.map { it.productId }.toSet(),
+                wishlistCount = updated.size
+            )
+        }
+
+        viewModelScope.launch {
+            var anyError = false
+            for (id in productIds) {
+                wishlistRepository.removeFromWishlist(id).onFailure { anyError = true }
+            }
+            if (anyError) {
+                showErrorToast("Một số sản phẩm chưa được xóa, đang làm mới danh sách...")
+                loadWishlist(true)
+            } else {
+                showToast("Đã xóa ${productIds.size} sản phẩm khỏi danh sách yêu thích")
+            }
+        }
+    }
+
+    fun toggleWishlist(productId: Long, productName: String? = null) {
+        if (!_uiState.value.isLoggedIn) {
+            showErrorToast("Vui lòng đăng nhập để lưu sản phẩm yêu thích")
+            _uiState.update { it.copy(showSignInScreen = true) }
+            return
+        }
+
+        val wasWishlisted = _uiState.value.wishlistProductIds.contains(productId)
+        _uiState.update { state ->
+            val newSet = state.wishlistProductIds.toMutableSet()
+            if (wasWishlisted) {
+                newSet.remove(productId)
+                state.copy(
+                    wishlistProductIds = newSet,
+                    wishlistItems = state.wishlistItems.filterNot { it.productId == productId },
+                    wishlistCount = (state.wishlistCount - 1).coerceAtLeast(0)
+                )
+            } else {
+                newSet.add(productId)
+                state.copy(
+                    wishlistProductIds = newSet,
+                    wishlistCount = state.wishlistCount + 1
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            val result = wishlistRepository.toggleWishlist(productId)
+            result.onSuccess { response ->
+                val nameDisplay = if (!productName.isNullOrBlank()) " \"$productName\"" else ""
+                if (response.wishlisted) {
+                    showToast("Đã thêm$nameDisplay vào danh sách yêu thích")
+                } else {
+                    showToast("Đã xóa$nameDisplay khỏi danh sách yêu thích")
+                }
+                loadWishlist(isRefresh = true)
+            }.onFailure { error ->
+                showErrorToast("Không thể cập nhật danh sách yêu thích: ${error.message}")
+                loadWishlist(isRefresh = true)
+            }
+        }
+    }
+
     fun openAddressBook() {
         _uiState.update { it.copy(showAddressBookScreen = true) }
+        loadAddresses(isRefresh = true)
     }
 
     fun closeAddressBook() {
@@ -344,6 +1893,7 @@ class B2CViewModel : ViewModel() {
     }
 
     fun openEditProfile() {
+        loadUserProfile()
         _uiState.update { it.copy(showEditProfileScreen = true) }
     }
 
@@ -351,15 +1901,217 @@ class B2CViewModel : ViewModel() {
         _uiState.update { it.copy(showEditProfileScreen = false) }
     }
 
-    fun updateUserProfile(profile: UserProfile) {
-        _uiState.update {
-            val msg = "Cập nhật hồ sơ cá nhân thành công!"
-            it.copy(
-                userProfile = profile,
-                showEditProfileScreen = false,
-                toastMessage = msg,
-                currentToast = createToastData(msg, ToastType.SUCCESS)
+    /**
+     * Nạp thông tin hồ sơ người dùng từ API Backend (GET /api/v1/users/me)
+     */
+    fun loadUserProfile(isRefresh: Boolean = false) {
+        if (!_uiState.value.isLoggedIn) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProfileLoading = !isRefresh) }
+            val result = userRepository.getMyProfile()
+            result.onSuccess { profileDto ->
+                val domainProfile = profileDto.toDomain()
+                tokenManager.saveUserProfile(domainProfile)
+                _uiState.update {
+                    it.copy(
+                        userProfile = domainProfile,
+                        isProfileLoading = false
+                    )
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isProfileLoading = false) }
+            }
+        }
+    }
+
+    /**
+     * Cập nhật thông tin hồ sơ người dùng qua API Backend (PUT /api/v1/users/me)
+     */
+    fun updateUserProfile(profile: UserProfile, onComplete: ((Boolean) -> Unit)? = null) {
+        if (!_uiState.value.isLoggedIn) {
+            showErrorToast("Vui lòng đăng nhập để thực hiện chức năng này")
+            onComplete?.invoke(false)
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUpdatingProfile = true) }
+            val requestDto = profile.toUpdateRequest()
+            val result = userRepository.updateProfile(requestDto)
+            result.onSuccess { updatedDto ->
+                val updatedProfile = updatedDto.toDomain()
+                tokenManager.saveUserProfile(updatedProfile)
+                val msg = "Cập nhật hồ sơ cá nhân thành công!"
+                _uiState.update {
+                    it.copy(
+                        userProfile = updatedProfile,
+                        isUpdatingProfile = false,
+                        showEditProfileScreen = false,
+                        toastMessage = msg,
+                        currentToast = createToastData(msg, ToastType.SUCCESS)
+                    )
+                }
+                onComplete?.invoke(true)
+            }.onFailure { error ->
+                val errorMsg = error.message ?: "Cập nhật hồ sơ thất bại"
+                _uiState.update {
+                    it.copy(
+                        isUpdatingProfile = false,
+                        toastMessage = errorMsg,
+                        currentToast = createToastData(errorMsg, ToastType.ERROR)
+                    )
+                }
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
+    /**
+     * Tải lên ảnh đại diện mới qua API Backend (POST /api/v1/users/me/avatar)
+     */
+    fun uploadAvatar(
+        bytes: ByteArray,
+        mimeType: String = "image/jpeg",
+        fileName: String = "avatar.jpg",
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        if (!_uiState.value.isLoggedIn) {
+            showErrorToast("Vui lòng đăng nhập để đổi ảnh đại diện")
+            onComplete?.invoke(false)
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUploadingAvatar = true) }
+            val result = userRepository.uploadAvatar(bytes, mimeType, fileName)
+            result.onSuccess { responseDto ->
+                val newAvatarUrl = responseDto.avatarUrl
+                val updated = _uiState.value.userProfile.copy(avatarUrl = newAvatarUrl)
+                tokenManager.saveUserProfile(updated)
+                val msg = "Cập nhật ảnh đại diện thành công!"
+                _uiState.update {
+                    it.copy(
+                        userProfile = updated,
+                        isUploadingAvatar = false,
+                        toastMessage = msg,
+                        currentToast = createToastData(msg, ToastType.SUCCESS)
+                    )
+                }
+                onComplete?.invoke(true)
+            }.onFailure { error ->
+                val errorMsg = error.message ?: "Tải lên ảnh đại diện thất bại"
+                _uiState.update {
+                    it.copy(
+                        isUploadingAvatar = false,
+                        toastMessage = errorMsg,
+                        currentToast = createToastData(errorMsg, ToastType.ERROR)
+                    )
+                }
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
+    /**
+     * Tải lên hình ảnh lên Cloudinary qua API generic POST /api/v1/upload
+     */
+    fun uploadImage(
+        bytes: ByteArray,
+        mimeType: String = "image/jpeg",
+        fileName: String = "image.jpg",
+        purpose: String = "uploads",
+        onSuccess: (String) -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val result = userRepository.uploadImage(bytes, mimeType, fileName, purpose)
+            result.onSuccess { responseDto ->
+                val url = responseDto.secureUrl ?: responseDto.url ?: ""
+                onSuccess(url)
+            }.onFailure { error ->
+                val errorMsg = error.message ?: "Tải ảnh lên thất bại"
+                showErrorToast(errorMsg)
+                onError(errorMsg)
+            }
+        }
+    }
+
+    /**
+     * Đổi mật khẩu tài khoản qua API Backend (POST /api/v1/users/change-password)
+     */
+    fun changePassword(
+        oldPass: String,
+        newPass: String,
+        confirmPass: String,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        if (!_uiState.value.isLoggedIn) {
+            showErrorToast("Vui lòng đăng nhập để đổi mật khẩu")
+            onComplete?.invoke(false)
+            return
+        }
+
+        if (oldPass.isBlank()) {
+            showErrorToast("Vui lòng nhập mật khẩu hiện tại")
+            onComplete?.invoke(false)
+            return
+        }
+
+        if (newPass.length < 8) {
+            showErrorToast("Mật khẩu mới phải có tối thiểu 8 ký tự")
+            onComplete?.invoke(false)
+            return
+        }
+
+        if (newPass == oldPass) {
+            showErrorToast("Mật khẩu mới không được trùng với mật khẩu hiện tại")
+            onComplete?.invoke(false)
+            return
+        }
+
+        if (newPass != confirmPass) {
+            showErrorToast("Mật khẩu xác nhận không khớp")
+            onComplete?.invoke(false)
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isChangingPassword = true) }
+            val request = ChangePasswordRequestDto(
+                currentPassword = oldPass,
+                newPassword = newPass,
+                confirmPassword = confirmPass
             )
+            val result = userRepository.changePassword(request)
+            result.onSuccess {
+                val msg = "Đổi mật khẩu thành công!"
+                _uiState.update {
+                    it.copy(
+                        isChangingPassword = false,
+                        showChangePasswordScreen = false,
+                        toastMessage = msg,
+                        currentToast = createToastData(msg, ToastType.SUCCESS)
+                    )
+                }
+                onComplete?.invoke(true)
+            }.onFailure { error ->
+                val rawMsg = error.message ?: "Đổi mật khẩu thất bại"
+                val errorMsg = when {
+                    rawMsg.contains("Current password is incorrect", ignoreCase = true) -> "Mật khẩu hiện tại không chính xác"
+                    rawMsg.contains("New password must be different", ignoreCase = true) -> "Mật khẩu mới không được trùng với mật khẩu hiện tại"
+                    rawMsg.contains("do not match", ignoreCase = true) -> "Mật khẩu xác nhận không khớp"
+                    else -> rawMsg
+                }
+                _uiState.update {
+                    it.copy(
+                        isChangingPassword = false,
+                        toastMessage = errorMsg,
+                        currentToast = createToastData(errorMsg, ToastType.ERROR)
+                    )
+                }
+                onComplete?.invoke(false)
+            }
         }
     }
 
@@ -379,49 +2131,189 @@ class B2CViewModel : ViewModel() {
         _uiState.update { it.copy(showChangePasswordScreen = false) }
     }
 
-    fun setDefaultAddress(addressId: String) {
-        _uiState.update { state ->
-            val updated = state.addresses.map { addr ->
-                addr.copy(isDefault = (addr.id == addressId))
+    /**
+     * Nạp danh sách địa chỉ nhận hàng từ API Backend (GET /api/v1/users/addresses)
+     */
+    fun loadAddresses(isRefresh: Boolean = false) {
+        if (!_uiState.value.isLoggedIn) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isAddressLoading = !isRefresh, addressErrorMessage = null) }
+            val result = userRepository.getMyAddresses()
+            result.onSuccess { dtoList ->
+                val domainList = dtoList.map { it.toDomain() }
+                _uiState.update {
+                    it.copy(
+                        addresses = domainList,
+                        isAddressLoading = false,
+                        addressErrorMessage = null
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isAddressLoading = false,
+                        addressErrorMessage = error.message
+                    )
+                }
             }
-            val msg = "Đã cập nhật địa chỉ mặc định!"
-            state.copy(addresses = updated, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
+        }
+    }
+
+    fun setDefaultAddress(addressId: String) {
+        val idLong = addressId.toLongOrNull()
+        if (_uiState.value.isLoggedIn && idLong != null) {
+            viewModelScope.launch {
+                // Optimistic UI update
+                _uiState.update { state ->
+                    val updated = state.addresses.map { addr ->
+                        addr.copy(isDefault = (addr.id == addressId))
+                    }
+                    state.copy(addresses = updated)
+                }
+
+                val result = userRepository.setDefaultAddress(idLong)
+                result.onSuccess {
+                    val msg = "Đã cập nhật địa chỉ mặc định!"
+                    _uiState.update { state ->
+                        state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
+                    }
+                    loadAddresses(isRefresh = true)
+                }.onFailure { error ->
+                    val msg = error.message ?: "Không thể đặt địa chỉ mặc định"
+                    _uiState.update { state ->
+                        state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.ERROR))
+                    }
+                    loadAddresses(isRefresh = true)
+                }
+            }
+        } else {
+            _uiState.update { state ->
+                val updated = state.addresses.map { addr ->
+                    addr.copy(isDefault = (addr.id == addressId))
+                }
+                val msg = "Đã cập nhật địa chỉ mặc định!"
+                state.copy(addresses = updated, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
+            }
         }
     }
 
     fun deleteAddress(addressId: String) {
-        _uiState.update { state ->
-            val updated = state.addresses.filterNot { it.id == addressId }
-            val msg = "Đã xóa địa chỉ khỏi sổ địa chỉ"
-            state.copy(addresses = updated, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
-        }
-    }
+        val idLong = addressId.toLongOrNull()
+        if (_uiState.value.isLoggedIn && idLong != null) {
+            viewModelScope.launch {
+                // Optimistic UI update
+                _uiState.update { state ->
+                    val updated = state.addresses.filterNot { it.id == addressId }
+                    state.copy(addresses = updated)
+                }
 
-    fun addOrUpdateAddress(address: UserAddress) {
-        _uiState.update { state ->
-            val list = state.addresses.toMutableList()
-            val existingIndex = list.indexOfFirst { it.id == address.id }
-
-            var newAddress = address
-            if (address.isDefault || list.isEmpty()) {
-                newAddress = address.copy(isDefault = true)
-                for (i in list.indices) {
-                    list[i] = list[i].copy(isDefault = false)
+                val result = userRepository.deleteAddress(idLong)
+                result.onSuccess {
+                    val msg = "Đã xóa địa chỉ thành công!"
+                    _uiState.update { state ->
+                        state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
+                    }
+                    loadAddresses(isRefresh = true)
+                }.onFailure { error ->
+                    val msg = error.message ?: "Không thể xóa địa chỉ"
+                    _uiState.update { state ->
+                        state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.ERROR))
+                    }
+                    loadAddresses(isRefresh = true)
                 }
             }
-
-            if (existingIndex >= 0) {
-                list[existingIndex] = newAddress
-            } else {
-                list.add(newAddress)
+        } else {
+            _uiState.update { state ->
+                val updated = state.addresses.filterNot { it.id == addressId }
+                val msg = "Đã xóa địa chỉ khỏi sổ địa chỉ"
+                state.copy(addresses = updated, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
             }
-
-            val msg = "Đã lưu địa chỉ thành công!"
-            state.copy(addresses = list, toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
         }
     }
 
-    fun addProductToCart(product: ProductItem, color: String = "Trắng Tinh Khôi", size: String = "L", quantity: Int = 1) {
+    fun addOrUpdateAddress(address: UserAddress, onDone: (() -> Unit)? = null) {
+        val idLong = address.id.toLongOrNull()
+        if (_uiState.value.isLoggedIn) {
+            viewModelScope.launch {
+                _uiState.update { it.copy(isAddressSaving = true) }
+                val requestDto = address.toRequestDto()
+
+                val result = if (idLong != null) {
+                    userRepository.updateAddress(idLong, requestDto)
+                } else {
+                    userRepository.createAddress(requestDto)
+                }
+
+                result.onSuccess {
+                    val msg = if (idLong != null) "Cập nhật địa chỉ thành công!" else "Thêm địa chỉ mới thành công!"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAddressSaving = false,
+                            showAddressEditorScreen = false,
+                            editingAddressForScreen = null,
+                            toastMessage = msg,
+                            currentToast = createToastData(msg, ToastType.SUCCESS)
+                        )
+                    }
+                    loadAddresses(isRefresh = true)
+                    onDone?.invoke()
+                }.onFailure { error ->
+                    val msg = error.message ?: "Không thể lưu địa chỉ. Vui lòng thử lại!"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAddressSaving = false,
+                            toastMessage = msg,
+                            currentToast = createToastData(msg, ToastType.ERROR)
+                        )
+                    }
+                }
+            }
+        } else {
+            _uiState.update { state ->
+                val list = state.addresses.toMutableList()
+                val existingIndex = list.indexOfFirst { it.id == address.id }
+
+                var newAddress = address
+                if (address.isDefault || list.isEmpty()) {
+                    newAddress = address.copy(isDefault = true)
+                    for (i in list.indices) {
+                        list[i] = list[i].copy(isDefault = false)
+                    }
+                }
+
+                if (existingIndex >= 0) {
+                    list[existingIndex] = newAddress
+                } else {
+                    list.add(newAddress)
+                }
+
+                val msg = "Đã lưu địa chỉ thành công!"
+                state.copy(
+                    addresses = list,
+                    showAddressEditorScreen = false,
+                    editingAddressForScreen = null,
+                    toastMessage = msg,
+                    currentToast = createToastData(msg, ToastType.SUCCESS)
+                )
+            }
+            onDone?.invoke()
+        }
+    }
+
+    fun addProductToCart(
+        product: ProductItem,
+        color: String = "",
+        size: String = "",
+        quantity: Int = 1,
+        variant: ProductVariantItem? = null
+    ) {
+        val targetVariant = variant ?: product.variants.firstOrNull()
+        val variantNameDisplay = targetVariant?.variantName
+            ?: if (color.isNotBlank() && size.isNotBlank()) "$color, Size $size"
+            else color.ifBlank { size }.ifBlank { "Tiêu chuẩn" }
+
+        // Cập nhật giỏ hàng cục bộ để phản hồi ngay lập tức trên UI
         _uiState.update { state ->
             val existingIndex = state.cartItems.indexOfFirst { it.product.id == product.id }
             val updatedList = state.cartItems.toMutableList()
@@ -431,12 +2323,26 @@ class B2CViewModel : ViewModel() {
             } else {
                 updatedList.add(CartItem(product, quantity))
             }
-            val msg = "Đã thêm $quantity x ${product.name} ($color, Size $size) vào giỏ hàng!"
+            val msg = "Đã thêm $quantity x ${product.name} ($variantNameDisplay) vào giỏ hàng!"
             state.copy(
                 cartItems = updatedList,
                 toastMessage = msg,
                 currentToast = createToastData(msg, ToastType.SUCCESS)
             )
+        }
+
+        // Nếu đã đăng nhập và có variantId từ Backend, gọi API đồng bộ giỏ hàng
+        val targetVariantId = targetVariant?.id
+        if (_uiState.value.isLoggedIn && targetVariantId != null) {
+            viewModelScope.launch {
+                val result = cartRepository.addCartItem(variantId = targetVariantId, quantity = quantity)
+                result.onSuccess {
+                    loadCartItems()
+                    refreshCartBadgeCount()
+                }.onFailure { err ->
+                    showErrorToast(err.message ?: "Không thể đồng bộ giỏ hàng với máy chủ")
+                }
+            }
         }
     }
 

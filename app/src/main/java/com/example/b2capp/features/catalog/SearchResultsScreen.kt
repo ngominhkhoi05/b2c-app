@@ -155,6 +155,26 @@ fun SearchResultsScreen(
 
     val focusManager = LocalFocusManager.current
 
+    androidx.compose.runtime.LaunchedEffect(query) {
+        searchInput = query
+        val (sortBy, sortDir) = when (selectedSortTab) {
+            "Mới nhất" -> Pair("created", "desc")
+            "Bán chạy" -> Pair("sold", "desc")
+            "Giá ↑" -> Pair("price", "asc")
+            "Giá ↓" -> Pair("price", "desc")
+            else -> Pair("created", "desc")
+        }
+        viewModel.openSearchResults(
+            query = query,
+            sortBy = sortBy,
+            sortDir = sortDir,
+            minPrice = activeFilterCriteria.minPrice,
+            maxPrice = activeFilterCriteria.maxPrice,
+            minRating = activeFilterCriteria.starRatingMin.toFloat(),
+            brand = activeFilterCriteria.selectedBrands.firstOrNull()
+        )
+    }
+
     // Danh sách 6 sản phẩm chính xác theo ảnh
     val productsList = remember {
         listOf(
@@ -353,7 +373,22 @@ fun SearchResultsScreen(
                                     keyboardActions = KeyboardActions(
                                         onSearch = {
                                             focusManager.clearFocus()
-                                            viewModel.openSearchResults(searchInput)
+                                            val (sortBy, sortDir) = when (selectedSortTab) {
+                                                "Mới nhất" -> Pair("created", "desc")
+                                                "Bán chạy" -> Pair("sold", "desc")
+                                                "Giá ↑" -> Pair("price", "asc")
+                                                "Giá ↓" -> Pair("price", "desc")
+                                                else -> Pair("created", "desc")
+                                            }
+                                            viewModel.openSearchResults(
+                                                query = searchInput,
+                                                sortBy = sortBy,
+                                                sortDir = sortDir,
+                                                minPrice = activeFilterCriteria.minPrice,
+                                                maxPrice = activeFilterCriteria.maxPrice,
+                                                minRating = activeFilterCriteria.starRatingMin.toFloat(),
+                                                brand = activeFilterCriteria.selectedBrands.firstOrNull()
+                                            )
                                         }
                                     )
                                 )
@@ -441,7 +476,25 @@ fun SearchResultsScreen(
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
-                                    .clickable { selectedSortTab = tabName }
+                                    .clickable {
+                                        selectedSortTab = tabName
+                                        val (sortBy, sortDir) = when (tabName) {
+                                            "Mới nhất" -> Pair("created", "desc")
+                                            "Bán chạy" -> Pair("sold", "desc")
+                                            "Giá ↑" -> Pair("price", "asc")
+                                            "Giá ↓" -> Pair("price", "desc")
+                                            else -> Pair("created", "desc")
+                                        }
+                                        viewModel.performSearch(
+                                            query = searchInput,
+                                            sortBy = sortBy,
+                                            sortDir = sortDir,
+                                            minPrice = activeFilterCriteria.minPrice,
+                                            maxPrice = activeFilterCriteria.maxPrice,
+                                            minRating = activeFilterCriteria.starRatingMin.toFloat(),
+                                            brand = activeFilterCriteria.selectedBrands.firstOrNull()
+                                        )
+                                    }
                                     .padding(vertical = 10.dp)
                             ) {
                                 Text(
@@ -605,13 +658,14 @@ fun SearchResultsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            val countText = if (uiState.isSearching) "..." else if (uiState.searchResults.isNotEmpty()) uiState.searchTotalElements.toString() else if (uiState.searchResultQuery != null && uiState.searchTotalElements == 0L) "0" else sortedProducts.size.toString()
                             Text(
                                 text = "Tìm thấy ",
                                 fontSize = 12.sp,
                                 color = TextSecondary
                             )
                             Text(
-                                text = "1.240",
+                                text = countText,
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -638,73 +692,136 @@ fun SearchResultsScreen(
                     }
                 }
 
-                // 5. Lưới 2 cột các sản phẩm kết quả tìm kiếm
-                val productRows = sortedProducts.chunked(2)
-                items(productRows.size) { rowIndex ->
-                    val rowItems = productRows[rowIndex]
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        rowItems.forEach { product ->
-                            val productItem = remember(product.id) {
-                                ProductItem(
-                                    id = product.id,
-                                    name = product.name,
-                                    imageUrl = "",
-                                    price = product.price,
-                                    originalPrice = product.originalPrice,
-                                    rating = product.rating,
-                                    soldCount = 3400,
-                                    isFreeShipping = product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA,
-                                    shopName = if (product.topBadgeText == "MALL") "Coolmate Official Store" else "Thời Trang Unisex",
-                                    shopLocation = product.location
-                                )
-                            }
-                            ProductCard(
-                                product = productItem,
-                                onClick = { onProductClick(productItem) },
-                                badgeText = product.topBadgeText,
-                                badgeColor = product.topBadgeBg,
-                                imageRes = product.imageRes,
-                                locationText = product.location,
-                                modifier = Modifier.weight(1f)
+                // 5. Lưới 2 cột các sản phẩm kết quả tìm kiếm (từ API backend hoặc fallback)
+                val hasServerResults = uiState.searchResults.isNotEmpty()
+                val effectiveProducts: List<ProductItem> = if (hasServerResults) {
+                    uiState.searchResults
+                } else if (!uiState.isSearching && uiState.searchTotalElements == 0L && uiState.searchResultQuery != null) {
+                    emptyList()
+                } else {
+                    sortedProducts.map { product ->
+                        ProductItem(
+                            id = product.id,
+                            name = product.name,
+                            imageUrl = "",
+                            price = product.price,
+                            originalPrice = product.originalPrice,
+                            rating = product.rating,
+                            soldCount = 3400,
+                            isFreeShipping = product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA,
+                            shopName = if (product.topBadgeText == "MALL") "Coolmate Official Store" else "Thời Trang Unisex",
+                            shopLocation = product.location
+                        )
+                    }
+                }
+
+                if (uiState.isSearching) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                color = CoralPrimary
                             )
                         }
+                    }
+                } else if (effectiveProducts.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 50.dp, horizontal = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Search,
+                                    contentDescription = null,
+                                    tint = Color(0xFF9CA3AF),
+                                    modifier = Modifier.size(56.dp)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Không tìm thấy sản phẩm phù hợp",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Hãy thử tìm kiếm với từ khóa khác hoặc điều chỉnh bộ lọc",
+                                    fontSize = 13.sp,
+                                    color = TextSecondary,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    val productRows = effectiveProducts.chunked(2)
+                    items(productRows.size) { rowIndex ->
+                        val rowItems = productRows[rowIndex]
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            rowItems.forEach { productItem ->
+                                ProductCard(
+                                    product = productItem,
+                                    onClick = { onProductClick(productItem) },
+                                    badgeText = if (productItem.rating >= 4.9f) "MALL" else if (productItem.soldCount > 100) "Yêu thích" else null,
+                                    badgeColor = if (productItem.rating >= 4.9f) Color(0xFFB82414) else if (productItem.soldCount > 100) CoralPrimary else null,
+                                    locationText = productItem.shopLocation ?: "TP. HCM",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
 
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
+                            if (rowItems.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }
 
-                // 6. Nút "Xem thêm 1.234 sản phẩm ˇ"
-                item {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SurfaceCard)
-                            .border(1.dp, BorderDivider, RoundedCornerShape(8.dp))
-                            .clickable { /* Tải thêm */ },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Xem thêm 1.234 sản phẩm",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFBA2211)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "ˇ",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFBA2211)
-                            )
+                // 6. Nút "Xem thêm sản phẩm" khi có nhiều kết quả
+                if (!uiState.isSearching && uiState.searchTotalElements > effectiveProducts.size && effectiveProducts.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SurfaceCard)
+                                .border(1.dp, BorderDivider, RoundedCornerShape(8.dp))
+                                .clickable {
+                                    // Tải thêm trang tiếp theo
+                                    viewModel.performSearch(
+                                        query = searchInput,
+                                        page = 1
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Xem thêm ${uiState.searchTotalElements - effectiveProducts.size} sản phẩm",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFBA2211)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "ˇ",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFBA2211)
+                                )
+                            }
                         }
                     }
                 }
@@ -746,6 +863,22 @@ fun SearchResultsScreen(
                 activeFilterCriteria = criteria
                 showAdvancedFilterSheet = false
                 viewModel.showToast("Đã áp dụng bộ lọc nâng cao!")
+                val (sortBy, sortDir) = when (selectedSortTab) {
+                    "Mới nhất" -> Pair("created", "desc")
+                    "Bán chạy" -> Pair("sold", "desc")
+                    "Giá ↑" -> Pair("price", "asc")
+                    "Giá ↓" -> Pair("price", "desc")
+                    else -> Pair("created", "desc")
+                }
+                viewModel.performSearch(
+                    query = searchInput,
+                    sortBy = sortBy,
+                    sortDir = sortDir,
+                    minPrice = criteria.minPrice,
+                    maxPrice = criteria.maxPrice,
+                    minRating = criteria.starRatingMin.toFloat(),
+                    brand = criteria.selectedBrands.firstOrNull()
+                )
             }
         )
     }

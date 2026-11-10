@@ -35,10 +35,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.core.model.ProductItem
 import com.example.b2capp.features.chat.ChatMessage
 import com.example.b2capp.features.chat.DetailedChatMessage
 
@@ -46,7 +48,10 @@ import com.example.b2capp.features.chat.DetailedChatMessage
  * Bong bóng tin nhắn từ phía Người mua (Màu cam đỏ bên phải)
  */
 @Composable
-fun UserChatBubble(message: DetailedChatMessage) {
+fun UserChatBubble(
+    message: DetailedChatMessage,
+    onProductClick: ((ProductItem) -> Unit)? = null
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End
@@ -65,17 +70,29 @@ fun UserChatBubble(message: DetailedChatMessage) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFD33618))
+                        .clickable(enabled = onProductClick != null) { onProductClick?.invoke(product) }
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.folded_black_tshirt_1793956682242),
-                        contentDescription = product.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                    )
+                    if (product.imageUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = product.imageUrl,
+                            contentDescription = product.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.folded_black_tshirt_1793956682242),
+                            contentDescription = product.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -100,8 +117,22 @@ fun UserChatBubble(message: DetailedChatMessage) {
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            // Nếu có đính kèm hình ảnh
+            message.attachmentUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Ảnh đính kèm",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
             // Văn bản tin nhắn
-            if (message.text.isNotBlank()) {
+            if (message.text.isNotBlank() && (message.attachmentUrl == null || message.text != "[Hình ảnh]")) {
                 Text(
                     text = message.text,
                     fontSize = 13.5.sp,
@@ -148,16 +179,34 @@ fun ShopChatBubble(
         verticalAlignment = Alignment.Top
     ) {
         // Avatar Shop hoặc Nhân viên CSKH
-        val avatarRes = message.senderAvatarRes ?: R.drawable.coolmate_shop_avatar_1793960155632
-        Image(
-            painter = painterResource(id = avatarRes),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .border(0.8.dp, Color(0xFFE2E8F0), CircleShape)
-        )
+        if (message.avatarLetter != null) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(message.avatarBg ?: Color(0xFFF0FDF4))
+                    .border(0.8.dp, Color(0xFFE2E8F0), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (message.avatarLetter.length > 3) message.avatarLetter.take(3) else message.avatarLetter,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = com.example.b2capp.core.designsystem.theme.NavySecondary
+                )
+            }
+        } else {
+            val avatarRes = message.senderAvatarRes ?: R.drawable.coolmate_shop_avatar_1793960155632
+            Image(
+                painter = painterResource(id = avatarRes),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .border(0.8.dp, Color(0xFFE2E8F0), CircleShape)
+            )
+        }
 
         Spacer(modifier = Modifier.width(8.dp))
 
@@ -169,13 +218,29 @@ fun ShopChatBubble(
                 .border(0.8.dp, Color(0xFFE2E8F0), RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
+            // Nếu Shop gửi hình ảnh
+            message.attachmentUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Ảnh đính kèm từ Shop",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
             // Văn bản tin nhắn
-            Text(
-                text = message.text,
-                fontSize = 13.5.sp,
-                color = Color(0xFF1F2937),
-                lineHeight = 19.5.sp
-            )
+            if (message.text.isNotBlank() && (message.attachmentUrl == null || message.text != "[Hình ảnh]")) {
+                Text(
+                    text = message.text,
+                    fontSize = 13.5.sp,
+                    color = Color(0xFF1F2937),
+                    lineHeight = 19.5.sp
+                )
+            }
 
             // Thẻ Voucher quà tặng nếu có
             if (message.isVoucher) {

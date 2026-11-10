@@ -1,5 +1,8 @@
 package com.example.b2capp.features.profile
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,6 +46,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +58,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -73,6 +79,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.b2capp.viewmodel.B2CUiState
 import com.example.b2capp.viewmodel.B2CViewModel
@@ -113,14 +120,56 @@ fun EditProfileScreen(
     modifier: Modifier = Modifier
 ) {
     val currentProfile = uiState.userProfile
+    val context = LocalContext.current
 
     var fullName by remember { mutableStateOf(currentProfile.fullName) }
-    var phoneNumber by remember { mutableStateOf(currentProfile.phoneNumber.replace("+84 ", "")) }
+    var phoneNumber by remember {
+        mutableStateOf(
+            currentProfile.phoneNumber.removePrefix("+84 ").removePrefix("+84").trim()
+        )
+    }
     var email by remember { mutableStateOf(currentProfile.email) }
     var selectedGender by remember { mutableStateOf(currentProfile.gender) }
     var birthDate by remember { mutableStateOf(currentProfile.birthDate) }
 
     var showDatePicker by remember { mutableStateOf(false) }
+
+    // Tự động đồng bộ các trường trên form khi dữ liệu Profile được nạp hoặc cập nhật từ API
+    LaunchedEffect(currentProfile) {
+        fullName = currentProfile.fullName
+        phoneNumber = currentProfile.phoneNumber.removePrefix("+84 ").removePrefix("+84").trim()
+        email = currentProfile.email
+        selectedGender = currentProfile.gender
+        birthDate = currentProfile.birthDate
+    }
+
+    // Khi mở màn hình, đảm bảo nạp thông tin mới nhất từ API backend GET /api/v1/users/me
+    LaunchedEffect(Unit) {
+        viewModel.loadUserProfile()
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { selectedUri ->
+            try {
+                val inputStream = context.contentResolver.openInputStream(selectedUri)
+                val bytes = inputStream?.use { it.readBytes() }
+                val mimeType = context.contentResolver.getType(selectedUri) ?: "image/jpeg"
+                if (bytes != null && bytes.isNotEmpty()) {
+                    viewModel.uploadAvatar(
+                        bytes = bytes,
+                        mimeType = mimeType,
+                        fileName = "avatar_${System.currentTimeMillis()}.jpg"
+                    )
+                } else {
+                    viewModel.showErrorToast("Không thể đọc tệp ảnh đã chọn")
+                }
+            } catch (e: Exception) {
+                viewModel.showErrorToast("Lỗi khi đọc tệp ảnh: ${e.localizedMessage}")
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -178,18 +227,50 @@ fun EditProfileScreen(
                     Box(
                         contentAlignment = Alignment.BottomEnd,
                         modifier = Modifier.clickable {
-                            viewModel.showToast("Mở thư viện chọn ảnh đại diện mới...")
+                            if (!uiState.isUploadingAvatar) {
+                                imagePickerLauncher.launch("image/*")
+                            }
                         }
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
-                            contentDescription = "Ảnh đại diện",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(96.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .border(1.5.dp, Color(0xFFE5E7EB), RoundedCornerShape(18.dp))
-                        )
+                        if (!currentProfile.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = currentProfile.avatarUrl,
+                                contentDescription = "Ảnh đại diện",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .border(1.5.dp, Color(0xFFE5E7EB), RoundedCornerShape(18.dp)),
+                                placeholder = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
+                                error = painterResource(id = R.drawable.user_profile_avatar_1793954281058)
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
+                                contentDescription = "Ảnh đại diện",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .border(1.5.dp, Color(0xFFE5E7EB), RoundedCornerShape(18.dp))
+                            )
+                        }
+
+                        if (uiState.isUploadingAvatar) {
+                            Box(
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(Color.Black.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(28.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.5.dp
+                                )
+                            }
+                        }
 
                         Box(
                             modifier = Modifier
@@ -211,12 +292,14 @@ fun EditProfileScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "Chạm để đổi ảnh đại diện",
+                        text = if (uiState.isUploadingAvatar) "Đang tải ảnh đại diện lên..." else "Chạm để đổi ảnh đại diện",
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFBA2211),
                         modifier = Modifier.clickable {
-                            viewModel.showToast("Mở thư viện chọn ảnh đại diện mới...")
+                            if (!uiState.isUploadingAvatar) {
+                                imagePickerLauncher.launch("image/*")
+                            }
                         }
                     )
 
@@ -626,39 +709,75 @@ fun EditProfileScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Button(
+                        enabled = !uiState.isUpdatingProfile,
                         onClick = {
+                            if (fullName.isBlank()) {
+                                viewModel.showErrorToast("Vui lòng nhập họ và tên")
+                                return@Button
+                            }
+                            val cleanPhone = phoneNumber.replace("\\s+".toRegex(), "")
+                            if (cleanPhone.isNotBlank() && (!cleanPhone.all { it.isDigit() } || cleanPhone.length !in 9..11)) {
+                                viewModel.showErrorToast("Số điện thoại không hợp lệ (cần từ 9 đến 11 chữ số)")
+                                return@Button
+                            }
+                            val formattedPhone = if (cleanPhone.isNotBlank()) {
+                                if (cleanPhone.startsWith("0")) cleanPhone else "0$cleanPhone"
+                            } else ""
+
                             viewModel.updateUserProfile(
-                                UserProfile(
-                                    fullName = fullName,
-                                    phoneNumber = "+84 $phoneNumber",
+                                currentProfile.copy(
+                                    fullName = fullName.trim(),
+                                    phoneNumber = formattedPhone,
                                     email = email,
                                     gender = selectedGender,
                                     birthDate = birthDate
                                 )
-                            )
-                            onBackClick()
+                            ) { success ->
+                                if (success) {
+                                    onBackClick()
+                                }
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA2211))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFBA2211),
+                            disabledContainerColor = Color(0xFFBA2211).copy(alpha = 0.6f)
+                        )
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                        if (uiState.isUpdatingProfile) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "LƯU THAY ĐỔI",
+                                text = "ĐANG LƯU...",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 letterSpacing = 0.5.sp
                             )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "LƯU THAY ĐỔI",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
                         }
                     }
 

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -33,6 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
+import com.example.R
+import com.example.b2capp.core.designsystem.theme.CoralPrimary
 import com.example.b2capp.core.designsystem.theme.NavySecondary
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
@@ -43,12 +47,14 @@ import com.example.b2capp.core.designsystem.theme.TextSecondary
  */
 data class OrderItemCardData(
     val orderId: String,
+    val rawOrderId: Long? = null,
     val shopName: String,
     val isMall: Boolean = true,
     val statusText: String,
     val statusColor: Color = Color(0xFF1E8275),
     val statusBgColor: Color = Color(0xFFE6F7F5),
-    val imageRes: Int,
+    val imageRes: Int = R.drawable.folded_black_tshirt_1793956682242,
+    val imageUrl: String? = null,
     val productName: String,
     val variantText: String,
     val quantityText: String,
@@ -127,15 +133,51 @@ fun OrderItemCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                Image(
-                    painter = painterResource(id = data.imageRes),
-                    contentDescription = data.productName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(68.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(8.dp))
-                )
+                if (!data.imageUrl.isNullOrBlank()) {
+                    SubcomposeAsyncImage(
+                        model = data.imageUrl,
+                        contentDescription = data.productName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(8.dp)),
+                        loading = {
+                            Box(
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .background(Color(0xFFF3F4F6)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = CoralPrimary
+                                )
+                            }
+                        },
+                        error = {
+                            Image(
+                                painter = painterResource(id = data.imageRes),
+                                contentDescription = data.productName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                        }
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = data.imageRes),
+                        contentDescription = data.productName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(8.dp))
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(10.dp))
 
