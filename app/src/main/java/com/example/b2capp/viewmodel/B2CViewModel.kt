@@ -1071,12 +1071,7 @@ class B2CViewModel : ViewModel() {
             val result = chatRepository.getConversations()
             result.fold(
                 onSuccess = { dtoList ->
-                    val mapped = if (dtoList.isNotEmpty()) {
-                        dtoList.map { chatRepository.mapDtoToShopConversation(it) }
-                    } else {
-                        // Nếu backend trả về rỗng, dùng danh sách mặc định có sẵn các Shop uy tín
-                        ChatRepository.getDefaultConversations()
-                    }
+                    val mapped = dtoList.map { chatRepository.mapDtoToShopConversation(it) }
                     _uiState.update {
                         it.copy(
                             shopConversations = mapped,
@@ -1086,11 +1081,9 @@ class B2CViewModel : ViewModel() {
                     }
                 },
                 onFailure = { error ->
-                    val currentList = _uiState.value.shopConversations
-                    val fallbackList = if (currentList.isNotEmpty()) currentList else ChatRepository.getDefaultConversations()
                     _uiState.update {
                         it.copy(
-                            shopConversations = fallbackList,
+                            shopConversations = emptyList(),
                             isShopConversationsLoading = false,
                             shopConversationsError = error.message
                         )
@@ -1101,20 +1094,20 @@ class B2CViewModel : ViewModel() {
     }
 
     fun openShopChat(
-        shopName: String = "Coolmate Official Store",
+        shopName: String = "Shop",
         product: ProductItem? = null,
         conversationId: Long? = null,
         sellerId: Long? = null,
         avatarLetter: String? = null,
         avatarBg: androidx.compose.ui.graphics.Color? = null,
         avatarUrl: String? = null,
-        isMall: Boolean = true
+        isMall: Boolean = false
     ) {
         val letter = avatarLetter ?: chatRepository.extractInitials(shopName)
         val bg = avatarBg ?: chatRepository.generateAvatarColor(shopName)
         _uiState.update { state ->
-            val p = product ?: state.detailedProductScreen ?: SampleData.products[0]
-            val resolvedSellerId = sellerId ?: p.sellerId
+            val p = product
+            val resolvedSellerId = sellerId ?: p?.sellerId
             state.copy(
                 activeShopChat = ShopChatInfo(
                     conversationId = conversationId,

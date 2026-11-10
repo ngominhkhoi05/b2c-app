@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Card
@@ -94,7 +95,6 @@ import kotlinx.coroutines.launch
 
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
-import com.example.b2capp.data.repository.ChatRepository
 
 /**
  * Model cho từng hội thoại tin nhắn với Shop
@@ -186,13 +186,7 @@ fun ShopMessagesScreen(
         viewModel.loadShopConversations()
     }
 
-    val conversations = remember(uiState.shopConversations) {
-        if (uiState.shopConversations.isNotEmpty()) {
-            uiState.shopConversations
-        } else {
-            ChatRepository.getDefaultConversations()
-        }
-    }
+    val conversations = uiState.shopConversations
 
     val unreadCount = remember(conversations) { conversations.count { it.unreadCount > 0 } }
     val readCount = remember(conversations) { conversations.count { it.unreadCount == 0 } }
@@ -571,7 +565,7 @@ fun ShopMessagesScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Ngoại tuyến: Đang hiển thị tin nhắn có sẵn",
+                                text = "Không thể tải danh sách tin nhắn từ máy chủ",
                                 fontSize = 12.sp,
                                 color = Color(0xFF991B1B)
                             )
@@ -587,24 +581,97 @@ fun ShopMessagesScreen(
                 }
             }
 
-            // 6. Danh sách cuộc trò chuyện dạng Card trắng có Divider mảnh
-            item {
-                if (filteredConversations.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 36.dp),
-                        contentAlignment = Alignment.Center
+            // 6. Danh sách cuộc trò chuyện
+            if (uiState.isShopConversationsLoading && conversations.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.8.dp)
                     ) {
-                        Text(
-                            text = if (selectedFilterPill.startsWith("Chưa đọc")) "Không có tin nhắn chưa đọc"
-                            else if (selectedFilterPill.startsWith("Đã đọc")) "Không có tin nhắn đã đọc"
-                            else "Không tìm thấy tin nhắn nào",
-                            fontSize = 13.5.sp,
-                            color = TextSecondary
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = CoralPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Đang tải tin nhắn...",
+                                    fontSize = 12.5.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
                     }
-                } else {
+                }
+            } else if (filteredConversations.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 36.dp, horizontal = 20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Text(
+                                text = if (searchQuery.isNotBlank() || selectedFilterPill != "Tất cả") {
+                                    if (selectedFilterPill.startsWith("Chưa đọc")) "Không có tin nhắn chưa đọc"
+                                    else if (selectedFilterPill.startsWith("Đã đọc")) "Không có tin nhắn đã đọc"
+                                    else "Không tìm thấy tin nhắn phù hợp"
+                                } else {
+                                    "Không có dữ liệu tin nhắn"
+                                },
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF334155),
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = if (searchQuery.isNotBlank() || selectedFilterPill != "Tất cả") {
+                                    "Hãy thử tìm kiếm với từ khóa khác hoặc chuyển bộ lọc."
+                                } else {
+                                    "Bạn chưa có cuộc trò chuyện nào với các Shop. Khi nhắn tin với Shop, lịch sử trò chuyện sẽ được hiển thị tại đây."
+                                },
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 17.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -668,11 +735,7 @@ private fun ConversationChatModal(
     val listState = rememberLazyListState()
 
     val chatMessages = remember {
-        mutableStateListOf(
-            ChatMessage("m1", conversation.shopName, "Xin chào bạn! Shop có thể hỗ trợ gì cho bạn ạ?", "10:25", false),
-            ChatMessage("m2", "Tôi", "Sản phẩm áo thun compact này mình 1m72 nặng 68kg mặc size L vừa không shop?", "10:28", true),
-            ChatMessage("m3", conversation.shopName, conversation.lastMessage, conversation.time, false)
-        )
+        mutableStateListOf<ChatMessage>()
     }
 
     ModalBottomSheet(

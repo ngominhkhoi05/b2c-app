@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Share
@@ -56,7 +57,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import com.example.b2capp.data.repository.ChatRepository
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,6 +76,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -151,7 +152,8 @@ fun ShopChatScreen(
             }
         }
 
-        // Tải danh sách tin nhắn qua API
+        // Tải danh sách tin nhắn qua API (không dùng mock)
+        messages.clear()
         if (targetConvId != null) {
             val apiMessages = viewModel.loadMessagesForConversation(
                 conversationId = targetConvId,
@@ -160,22 +162,9 @@ fun ShopChatScreen(
                 avatarBg = chatInfo.avatarBg
             )
             if (apiMessages.isNotEmpty()) {
-                messages.clear()
                 messages.addAll(apiMessages)
-                isLoadingMessages = false
-                return@LaunchedEffect
             }
         }
-
-        // Dữ liệu ban đầu tùy biến theo từng Shop nếu offline hoặc cuộc trò chuyện mới
-        messages.clear()
-        messages.addAll(
-            ChatRepository.getDefaultMessagesForShop(
-                shopName = chatInfo.shopName,
-                avatarLetter = chatInfo.avatarLetter,
-                avatarBg = chatInfo.avatarBg
-            )
-        )
         isLoadingMessages = false
     }
 
@@ -216,42 +205,27 @@ fun ShopChatScreen(
             }
         }
 
-        // Phản hồi tự động thông minh từ Shop sau 1.2s
-        coroutineScope.launch {
-            delay(100)
-            if (messages.isNotEmpty()) {
+        // Phản hồi tự động chỉ dành cho Trợ lý AI Bot (nếu đang chat với AI Bot)
+        val isAiBot = chatInfo.shopName.contains("AI Bot", ignoreCase = true) || chatInfo.shopName.contains("Trợ lý", ignoreCase = true)
+        if (isAiBot) {
+            coroutineScope.launch {
+                delay(100)
+                if (messages.isNotEmpty()) {
+                    listState.animateScrollToItem(messages.size - 1)
+                }
+                delay(800)
+                messages.add(
+                    DetailedChatMessage(
+                        id = "bot_${System.currentTimeMillis()}",
+                        text = "Dạ B2C Bot xin chào bạn! Hệ thống đã ghi nhận yêu cầu của bạn. Bạn cần hỗ trợ thêm thông tin gì về đơn hàng hay sản phẩm không ạ?",
+                        time = "Vừa xong",
+                        isFromUser = false,
+                        avatarLetter = "BOT",
+                        avatarBg = Color(0xFF2A527A)
+                    )
+                )
                 listState.animateScrollToItem(messages.size - 1)
             }
-            delay(1200)
-
-            val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
-            val replyText = when {
-                content.contains("size", ignoreCase = true) || content.contains("chiều cao", ignoreCase = true) ->
-                    "Dạ sản phẩm may theo bảng size chuẩn. Bạn thích mặc rộng thoải mái có thể tăng lên 1 size nhé ạ!"
-                content.contains("màu", ignoreCase = true) ->
-                    "Dạ kho bên mình hiện đang còn đủ màu và size ạ. Bạn có thể nhấn đặt ngay nhé!"
-                content.contains("giao hàng", ignoreCase = true) || content.contains("bao lâu", ignoreCase = true) ->
-                    "Dạ đơn hàng nội thành Hà Nội & TP.HCM giao hỏa tốc 2-4h hoặc 1-2 ngày, các tỉnh thành khác 2-3 ngày bạn nha!"
-                content.contains("kiểm tra", ignoreCase = true) ->
-                    "Dạ chính sách của shop là khách được đồng kiểm trước khi nhận hàng và đổi trả miễn phí trong 60 ngày ạ!"
-                productAttachment != null ->
-                    "Dạ mẫu sản phẩm ${productAttachment.name} này đang là dòng bán chạy nhất của shop đó ạ, chất lượng cực tốt!"
-                else ->
-                    "Cảm ơn bạn! Chuyên viên tư vấn ${chatInfo.shopName} đã ghi nhận tin nhắn và sẽ phản hồi chi tiết ngay cho bạn nhé ạ! ❤️"
-            }
-
-            messages.add(
-                DetailedChatMessage(
-                    id = "shop_${System.currentTimeMillis()}",
-                    text = replyText,
-                    time = "Vừa xong",
-                    isFromUser = false,
-                    avatarLetter = chatInfo.avatarLetter,
-                    avatarBg = chatInfo.avatarBg,
-                    senderAvatarRes = if (isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null
-                )
-            )
-            listState.animateScrollToItem(messages.size - 1)
         }
     }
 
@@ -278,26 +252,26 @@ fun ShopChatScreen(
             }
         }
 
-        coroutineScope.launch {
-            delay(100)
-            if (messages.isNotEmpty()) {
+        val isAiBot = chatInfo.shopName.contains("AI Bot", ignoreCase = true) || chatInfo.shopName.contains("Trợ lý", ignoreCase = true)
+        if (isAiBot) {
+            coroutineScope.launch {
+                delay(100)
+                if (messages.isNotEmpty()) {
+                    listState.animateScrollToItem(messages.size - 1)
+                }
+                delay(800)
+                messages.add(
+                    DetailedChatMessage(
+                        id = "bot_${System.currentTimeMillis()}",
+                        text = "Dạ hình ảnh rất rõ nét ạ, trợ lý AI đã tiếp nhận và đang hỗ trợ bạn!",
+                        time = "Vừa xong",
+                        isFromUser = false,
+                        avatarLetter = "BOT",
+                        avatarBg = Color(0xFF2A527A)
+                    )
+                )
                 listState.animateScrollToItem(messages.size - 1)
             }
-            delay(1200)
-
-            val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
-            messages.add(
-                DetailedChatMessage(
-                    id = "shop_${System.currentTimeMillis()}",
-                    text = "Dạ hình ảnh rất rõ nét ạ, shop đã tiếp nhận yêu cầu của bạn và đang kiểm tra ngay nhé!",
-                    time = "Vừa xong",
-                    isFromUser = false,
-                    avatarLetter = chatInfo.avatarLetter,
-                    avatarBg = chatInfo.avatarBg,
-                    senderAvatarRes = if (isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null
-                )
-            )
-            listState.animateScrollToItem(messages.size - 1)
         }
     }
 
@@ -690,63 +664,119 @@ fun ShopChatScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Mốc ngày "Hôm nay, 14:15"
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE2E8F0))
-                            .padding(horizontal = 12.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = "Hôm nay, 14:15",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF64748B)
-                        )
-                    }
-                }
-            }
-
             if (isLoadingMessages && messages.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 32.dp),
+                            .padding(vertical = 48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = CoralPrimary,
-                            strokeWidth = 2.dp
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(26.dp),
+                                color = CoralPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = "Đang tải tin nhắn...",
+                                fontSize = 12.5.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
-            }
-
-            // Các bong bóng tin nhắn
-            items(messages, key = { it.id }) { msg ->
-                if (msg.isFromUser) {
-                    // Tin nhắn từ phía Người mua (Màu cam đỏ bên phải)
-                    UserChatBubble(
-                        message = msg,
-                        onProductClick = { p -> viewModel.openProductDetailsScreen(p) }
-                    )
-                } else {
-                    // Tin nhắn từ phía Shop (Bong bóng trắng bên trái kèm Avatar)
-                    ShopChatBubble(
-                        message = msg,
-                        onClaimVoucher = {
-                            viewModel.showToast("Đã lưu Voucher ₫20k vào Ví Voucher của bạn!")
+            } else if (messages.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 56.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Text(
+                                text = "Không có dữ liệu tin nhắn",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF334155),
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Bạn chưa có tin nhắn nào với ${chatInfo.shopName}. Hãy gửi tin nhắn hoặc chọn gợi ý bên trên để bắt đầu trò chuyện!",
+                                fontSize = 12.5.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
                         }
-                    )
+                    }
+                }
+            } else {
+                // Mốc ngày "Hôm nay"
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFE2E8F0))
+                                .padding(horizontal = 12.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "Hôm nay",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+
+                // Các bong bóng tin nhắn
+                items(messages, key = { it.id }) { msg ->
+                    if (msg.isFromUser) {
+                        // Tin nhắn từ phía Người mua (Màu cam đỏ bên phải)
+                        UserChatBubble(
+                            message = msg,
+                            onProductClick = { p -> viewModel.openProductDetailsScreen(p) }
+                        )
+                    } else {
+                        // Tin nhắn từ phía Shop (Bong bóng trắng bên trái kèm Avatar)
+                        ShopChatBubble(
+                            message = msg,
+                            onClaimVoucher = {
+                                viewModel.showToast("Đã lưu Voucher ₫20k vào Ví Voucher của bạn!")
+                            }
+                        )
+                    }
                 }
             }
         }
