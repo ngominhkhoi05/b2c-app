@@ -27,8 +27,16 @@ interface OrderApiService {
     @GET("api/v1/buyer/orders")
     suspend fun getOrders(
         @Query("status") status: String? = null,
+        @Query("search") search: String? = null,
+        @Query("paymentMethod") paymentMethod: String? = null,
+        @Query("fromDate") fromDate: String? = null,
+        @Query("toDate") toDate: String? = null,
+        @Query("minAmount") minAmount: Double? = null,
+        @Query("maxAmount") maxAmount: Double? = null,
+        @Query("sortBy") sortBy: String? = null,
+        @Query("sortDir") sortDir: String? = null,
         @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20
+        @Query("size") size: Int = 50
     ): Response<ApiResponse<PageResponse<OrderSummaryDto>>>
 
     @GET("api/v1/buyer/orders/{id}")

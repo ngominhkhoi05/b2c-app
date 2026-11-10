@@ -42,7 +42,6 @@ import androidx.compose.material.icons.outlined.ChildCare
 import androidx.compose.material.icons.outlined.DirectionsRun
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingBag
@@ -221,26 +220,15 @@ private fun CategoryTopBar(
 
             Spacer(modifier = Modifier.width(4.dp))
 
-            // Ô tìm kiếm bo góc kèm icon kính lúp và máy ảnh
+            // Ô tìm kiếm bo góc kèm icon kính lúp bên phải
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp)
                     .background(color = Color(0xFFF0F2F5), shape = RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp),
+                    .padding(start = 12.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Tìm kiếm",
-                    tint = TextSecondary,
-                    modifier = Modifier
-                        .size(19.dp)
-                        .clickable { onSearchSubmit(searchQuery) }
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
                 Box(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.CenterStart
@@ -270,13 +258,15 @@ private fun CategoryTopBar(
                     )
                 }
 
+                Spacer(modifier = Modifier.width(6.dp))
+
                 Icon(
-                    imageVector = Icons.Outlined.PhotoCamera,
-                    contentDescription = "Tìm kiếm bằng hình ảnh",
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = "Tìm kiếm",
                     tint = TextSecondary,
                     modifier = Modifier
                         .size(20.dp)
-                        .clickable { /* Mở camera */ }
+                        .clickable { onSearchSubmit(searchQuery) }
                 )
             }
 

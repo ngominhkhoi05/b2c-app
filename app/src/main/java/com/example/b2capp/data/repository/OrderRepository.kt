@@ -29,11 +29,31 @@ class OrderRepository(
      */
     suspend fun getOrders(
         status: String? = null,
+        search: String? = null,
+        paymentMethod: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        minAmount: Double? = null,
+        maxAmount: Double? = null,
+        sortBy: String? = null,
+        sortDir: String? = null,
         page: Int = 0,
-        size: Int = 20
+        size: Int = 50
     ): Result<PageResponse<OrderSummaryDto>> = withContext(Dispatchers.IO) {
         try {
-            val response = apiServiceHolder().getOrders(status = status, page = page, size = size)
+            val response = apiServiceHolder().getOrders(
+                status = status,
+                search = search,
+                paymentMethod = paymentMethod,
+                fromDate = fromDate,
+                toDate = toDate,
+                minAmount = minAmount,
+                maxAmount = maxAmount,
+                sortBy = sortBy,
+                sortDir = sortDir,
+                page = page,
+                size = size
+            )
             if (response.isSuccessful) {
                 val data = response.body()?.data ?: PageResponse()
                 Result.success(data)

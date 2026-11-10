@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.HelpOutline
@@ -59,11 +61,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.example.R
 import com.example.b2capp.core.model.UserProfile
 import com.example.b2capp.viewmodel.B2CUiState
@@ -99,6 +105,13 @@ fun AccountScreen(
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
             viewModel.loadUserProfile()
+            viewModel.loadAccountOrderSummary()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (uiState.isLoggedIn) {
+            viewModel.loadAccountOrderSummary()
         }
     }
 
@@ -174,7 +187,10 @@ fun AccountScreen(
                         .offset(y = (-14).dp)
                 ) {
                     MyOrdersCard(
-                        pendingCount = uiState.pendingOrdersCount,
+                        pendingCount = uiState.orderStatusCounts.pendingCount,
+                        processingCount = uiState.orderStatusCounts.processingCount,
+                        shippingCount = uiState.orderStatusCounts.shippingCount,
+                        toReviewCount = uiState.orderStatusCounts.toReviewCount,
                         onViewHistoryClick = onNavigateToOrders,
                         onOrderStatusClick = { statusName ->
                             val mappedTab = when (statusName) {
@@ -330,6 +346,31 @@ fun AccountScreen(
 }
 
 /**
+ * Avatar mặc định màu xám hiển thị khi người dùng chưa cập nhật ảnh hoặc ảnh tải bị lỗi
+ */
+@Composable
+fun DefaultGrayAvatar(
+    modifier: Modifier = Modifier,
+    iconSize: androidx.compose.ui.unit.Dp = 38.dp,
+    backgroundColor: Color = Color(0xFFD1D5DB),
+    iconTint: Color = Color(0xFF6B7280)
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(backgroundColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Person,
+            contentDescription = "Ảnh đại diện mặc định",
+            tint = iconTint,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+/**
  * Thẻ Profile nền Xanh Navy gradient với các chi tiết cá nhân & Ví Xu
  */
 @Composable
@@ -365,25 +406,24 @@ private fun NavyHeroProfileCard(
                         .size(72.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .border(2.dp, Color.White, RoundedCornerShape(14.dp))
-                        .background(Color(0xFF2C4A6F))
+                        .background(Color(0xFFD1D5DB))
                         .clickable(onClick = onAvatarClick)
                 ) {
                     if (!profile.avatarUrl.isNullOrBlank()) {
-                        AsyncImage(
+                        SubcomposeAsyncImage(
                             model = profile.avatarUrl,
                             contentDescription = "Ảnh đại diện",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize(),
-                            placeholder = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
-                            error = painterResource(id = R.drawable.user_profile_avatar_1793954281058)
+                            loading = {
+                                DefaultGrayAvatar(iconSize = 38.dp)
+                            },
+                            error = {
+                                DefaultGrayAvatar(iconSize = 38.dp)
+                            }
                         )
                     } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
-                            contentDescription = "Ảnh đại diện",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        DefaultGrayAvatar(iconSize = 38.dp)
                     }
                 }
 
@@ -459,6 +499,9 @@ private fun NavyHeroProfileCard(
 @Composable
 private fun MyOrdersCard(
     pendingCount: Int = 0,
+    processingCount: Int = 0,
+    shippingCount: Int = 0,
+    toReviewCount: Int = 0,
     onViewHistoryClick: () -> Unit,
     onOrderStatusClick: (String) -> Unit
 ) {
@@ -538,7 +581,8 @@ private fun MyOrdersCard(
                     iconTint = NavySecondary,
                     boxBg = Color(0xFFE8F1FA),
                     label = "Đang chuẩn\nbị",
-                    badgeCount = 0,
+                    badgeCount = processingCount,
+                    badgeColor = NavySecondary,
                     onClick = { onOrderStatusClick("Đang chuẩn bị") }
                 )
 
@@ -547,7 +591,7 @@ private fun MyOrdersCard(
                     iconTint = Color(0xFF1E75C4),
                     boxBg = Color(0xFFE1EEF9),
                     label = "Đang giao",
-                    badgeCount = 1,
+                    badgeCount = shippingCount,
                     badgeColor = Color(0xFF1E75C4),
                     onClick = { onOrderStatusClick("Đang giao") }
                 )
@@ -557,7 +601,7 @@ private fun MyOrdersCard(
                     iconTint = FreeShippingAccent,
                     boxBg = Color(0xFFE3F7F4),
                     label = "Đánh giá",
-                    badgeCount = 2,
+                    badgeCount = toReviewCount,
                     badgeColor = Color(0xFF26AA99),
                     onClick = { onOrderStatusClick("Đánh giá") }
                 )
@@ -601,21 +645,44 @@ private fun OrderStatusButton(
             }
 
             if (badgeCount > 0) {
+                val badgeText = if (badgeCount > 99) "99+" else badgeCount.toString()
+                val isSingleDigit = badgeText.length == 1
+
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = 2.dp, y = (-2).dp)
-                        .size(17.dp)
+                        .offset(x = 1.dp, y = (-1).dp)
+                        .then(
+                            if (isSingleDigit) {
+                                Modifier.size(18.dp)
+                            } else {
+                                Modifier
+                                    .height(18.dp)
+                                    .defaultMinSize(minWidth = 18.dp)
+                                    .padding(horizontal = 4.5.dp)
+                            }
+                        )
                         .background(badgeColor, CircleShape)
-                        .border(1.dp, Color.White, CircleShape),
+                        .border(1.2.dp, Color.White, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = badgeCount.toString(),
+                        text = badgeText,
                         color = Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        lineHeight = 10.sp,
+                        style = TextStyle(
+                            platformStyle = PlatformTextStyle(includeFontPadding = false),
+                            lineHeightStyle = LineHeightStyle(
+                                alignment = LineHeightStyle.Alignment.Center,
+                                trim = LineHeightStyle.Trim.Both
+                            )
+                        ),
+                        modifier = Modifier.offset(
+                            x = if (badgeCount == 1) (-0.5).dp else 0.dp
+                        )
                     )
                 }
             }
@@ -628,7 +695,8 @@ private fun OrderStatusButton(
             fontSize = 11.5.sp,
             color = TextPrimary,
             textAlign = TextAlign.Center,
-            lineHeight = 14.sp
+            lineHeight = 14.sp,
+            minLines = 2
         )
     }
 }

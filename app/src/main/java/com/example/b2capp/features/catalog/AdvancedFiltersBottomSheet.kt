@@ -78,19 +78,29 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 /**
- * Dữ liệu trạng thái bộ lọc nâng cao
+ * Dữ liệu trạng thái bộ lọc nâng cao (với các giá trị mặc định an toàn, không lọc cứng)
  */
 data class AdvancedFilterCriteria(
-    val selectedCategories: Set<String> = setOf("Áo thun"),
-    val minPrice: Long = 100000L,
-    val maxPrice: Long = 500000L,
-    val selectedPricePreset: String? = "100k – 300k",
-    val selectedBrands: Set<String> = setOf("Coolmate"),
-    val starRatingMin: Int = 4, // 5: Từ 5 sao, 4: Từ 4 sao trở lên, 3: Từ 3 sao
-    val isFreeShipping: Boolean = true,
-    val isDiscountSale: Boolean = true,
+    val selectedCategories: Set<String> = emptySet(),
+    val minPrice: Long? = null,
+    val maxPrice: Long? = null,
+    val selectedPricePreset: String? = null,
+    val selectedBrands: Set<String> = emptySet(),
+    val starRatingMin: Int? = null, // 5: Từ 5 sao, 4: Từ 4 sao trở lên, 3: Từ 3 sao, null: Không lọc
+    val isFreeShipping: Boolean = false,
+    val isDiscountSale: Boolean = false,
     val isShopeeMall: Boolean = false
-)
+) {
+    val isActive: Boolean
+        get() = selectedCategories.isNotEmpty() ||
+                minPrice != null ||
+                maxPrice != null ||
+                selectedBrands.isNotEmpty() ||
+                starRatingMin != null ||
+                isFreeShipping ||
+                isDiscountSale ||
+                isShopeeMall
+}
 
 /**
  * Màn hình / BottomSheet Bộ Lọc Tìm Kiếm Nâng Cao
@@ -133,13 +143,13 @@ fun AdvancedFiltersBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
 
-    // State các tiêu chí lọc
+    // State các tiêu chí lọc với fallback an toàn
     var selectedCategories by remember { mutableStateOf(initialCriteria.selectedCategories) }
-    var minPrice by remember { mutableFloatStateOf(initialCriteria.minPrice.toFloat()) }
-    var maxPrice by remember { mutableFloatStateOf(initialCriteria.maxPrice.toFloat()) }
+    var minPrice by remember { mutableFloatStateOf(initialCriteria.minPrice?.toFloat() ?: 0f) }
+    var maxPrice by remember { mutableFloatStateOf(initialCriteria.maxPrice?.toFloat() ?: 1000000f) }
     var selectedPricePreset by remember { mutableStateOf(initialCriteria.selectedPricePreset) }
     var selectedBrands by remember { mutableStateOf(initialCriteria.selectedBrands) }
-    var selectedStarRating by remember { mutableIntStateOf(initialCriteria.starRatingMin) }
+    var selectedStarRating by remember { mutableStateOf<Int?>(initialCriteria.starRatingMin) }
     var isFreeShipping by remember { mutableStateOf(initialCriteria.isFreeShipping) }
     var isDiscountSale by remember { mutableStateOf(initialCriteria.isDiscountSale) }
     var isShopeeMall by remember { mutableStateOf(initialCriteria.isShopeeMall) }
@@ -630,16 +640,16 @@ fun AdvancedFiltersBottomSheet(
                                 filledStars = 5,
                                 countText = "(3.2k)",
                                 isSelected = selectedStarRating == 5,
-                                onClick = { selectedStarRating = 5 }
+                                onClick = { selectedStarRating = if (selectedStarRating == 5) null else 5 }
                             )
 
-                            // Từ 4 sao trở lên (Đang được chọn)
+                            // Từ 4 sao trở lên
                             StarRatingRowItem(
                                 title = "Từ 4 sao trở lên",
                                 filledStars = 4,
                                 countText = "(8.9k)",
                                 isSelected = selectedStarRating == 4,
-                                onClick = { selectedStarRating = 4 }
+                                onClick = { selectedStarRating = if (selectedStarRating == 4) null else 4 }
                             )
 
                             // Từ 3 sao
@@ -648,7 +658,7 @@ fun AdvancedFiltersBottomSheet(
                                 filledStars = 3,
                                 countText = "(12k)",
                                 isSelected = selectedStarRating == 3,
-                                onClick = { selectedStarRating = 3 }
+                                onClick = { selectedStarRating = if (selectedStarRating == 3) null else 3 }
                             )
                         }
                     }
@@ -768,14 +778,14 @@ fun AdvancedFiltersBottomSheet(
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFF3F4F6))
                             .clickable {
-                                selectedCategories = setOf("Áo thun")
-                                minPrice = 100000f
-                                maxPrice = 500000f
-                                selectedPricePreset = "100k – 300k"
-                                selectedBrands = setOf("Coolmate")
-                                selectedStarRating = 4
-                                isFreeShipping = true
-                                isDiscountSale = true
+                                selectedCategories = emptySet()
+                                minPrice = 0f
+                                maxPrice = 1000000f
+                                selectedPricePreset = null
+                                selectedBrands = emptySet()
+                                selectedStarRating = null
+                                isFreeShipping = false
+                                isDiscountSale = false
                                 isShopeeMall = false
                             }
                             .padding(horizontal = 16.dp),
@@ -798,7 +808,7 @@ fun AdvancedFiltersBottomSheet(
                         }
                     }
 
-                    // Nút "ÁP DỤNG (124 sản phẩm)"
+                    // Nút "ÁP DỤNG"
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -806,10 +816,12 @@ fun AdvancedFiltersBottomSheet(
                             .clip(RoundedCornerShape(8.dp))
                             .background(CoralPrimary)
                             .clickable {
+                                val effectiveMin = if (minPrice > 0f || selectedPricePreset != null) minPrice.toLong() else null
+                                val effectiveMax = if (maxPrice < 1000000f || selectedPricePreset != null) maxPrice.toLong() else null
                                 val criteria = AdvancedFilterCriteria(
                                     selectedCategories = selectedCategories,
-                                    minPrice = minPrice.toLong(),
-                                    maxPrice = maxPrice.toLong(),
+                                    minPrice = effectiveMin,
+                                    maxPrice = effectiveMax,
                                     selectedPricePreset = selectedPricePreset,
                                     selectedBrands = selectedBrands,
                                     starRatingMin = selectedStarRating,

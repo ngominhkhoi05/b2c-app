@@ -2,8 +2,8 @@ package com.example.b2capp.features.cart.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,29 +19,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.b2capp.core.designsystem.theme.BorderDivider
+import com.example.b2capp.core.designsystem.theme.CoralPrimary
+import com.example.b2capp.core.designsystem.theme.ErrorRed
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
 
 /**
  * Thanh tổng kết thanh toán cố định ở đáy giỏ hàng (Sticky Bottom Checkout Bar)
- * Thiết kế cân đối chuẩn xác theo tỷ lệ, căn giữa hoàn hảo theo trục dọc.
+ * Đã bỏ nút chọn "Tất cả", phần tổng tiền được tinh chỉnh trực quan, nổi bật và đẹp mắt.
  */
 @Composable
 fun CartBottomSummaryBar(
-    currentShopLabel: String,
+    currentShopLabel: String = "",
     formattedTotalPrice: String,
-    formattedSavings: String,
+    formattedSavings: String = "",
     totalItemsCount: Int,
     isEditMode: Boolean,
     onCheckoutClick: () -> Unit,
+    modifier: Modifier = Modifier,
     isAllSelected: Boolean = true,
     onSelectAllClick: () -> Unit = {}
 ) {
@@ -49,86 +51,89 @@ fun CartBottomSummaryBar(
         color = SurfaceCard,
         shadowElevation = 8.dp,
         border = BorderStroke(0.8.dp, BorderDivider),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Checkbox Tất cả
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable(onClick = onSelectAllClick)
+            // Phần hiển thị Tổng tiền tinh chỉnh đẹp mắt
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
             ) {
-                RoundCheckbox(
-                    isChecked = isAllSelected,
-                    onClick = onSelectAllClick
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "Tất cả",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = currentShopLabel,
-                        fontSize = 10.5.sp,
+                        text = "Tổng thanh toán",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
                         color = TextSecondary
                     )
+                    if (totalItemsCount > 0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "($totalItemsCount)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(2.dp))
 
-            // Cụm Tổng tiền & Tiết kiệm
-            Column(
-                horizontalAlignment = Alignment.End,
-                modifier = Modifier.padding(end = 10.dp)
-            ) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = "Tổng: ",
-                        fontSize = 11.5.sp,
-                        color = TextSecondary,
-                        modifier = Modifier.padding(bottom = 1.dp)
-                    )
+                Row(
+                    verticalAlignment = Alignment.Bottom
+                ) {
                     Text(
                         text = formattedTotalPrice,
-                        fontSize = 16.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFBA2211)
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CoralPrimary
                     )
+                    if (formattedSavings.isNotBlank() && formattedSavings != "₫0") {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Tiết kiệm $formattedSavings",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF00897B),
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
                 }
-                Text(
-                    text = "Tiết kiệm $formattedSavings",
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1E8275)
-                )
             }
 
-            // Nút MUA HÀNG (X)
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Nút MUA HÀNG / XÓA
             Box(
                 modifier = Modifier
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFFBA2211))
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (isEditMode) ErrorRed else CoralPrimary
+                    )
                     .clickable(onClick = onCheckoutClick)
-                    .padding(horizontal = 14.dp)
+                    .padding(horizontal = 22.dp)
                     .testTag("btn_cart_checkout"),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (isEditMode) "XÓA ($totalItemsCount)" else "MUA HÀNG ($totalItemsCount)",
-                    fontSize = 13.sp,
+                    text = if (isEditMode) {
+                        "XÓA ($totalItemsCount)"
+                    } else {
+                        if (totalItemsCount > 0) "MUA HÀNG ($totalItemsCount)" else "MUA HÀNG"
+                    },
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    letterSpacing = 0.3.sp
+                    letterSpacing = 0.4.sp
                 )
             }
         }

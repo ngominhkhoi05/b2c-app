@@ -76,7 +76,8 @@ data class ProductItem(
     val images: List<String> = emptyList(),
     val options: List<ProductOptionItem> = emptyList(),
     val variants: List<ProductVariantItem> = emptyList(),
-    val sellerId: Long? = null
+    val sellerId: Long? = null,
+    val ratingCount: Int = 0
 ) {
     val formattedPrice: String
         get() {

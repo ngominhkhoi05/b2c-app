@@ -176,53 +176,6 @@ private fun B2CMainScreens(
         return
     }
 
-    // Khi người dùng mở màn hình Tin nhắn với Shop
-    if (uiState.showShopMessages) {
-        BackHandler {
-            viewModel.closeShopMessages()
-        }
-        ShopMessagesScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeShopMessages() }
-        )
-        return
-    }
-
-    // Khi người dùng tìm kiếm sản phẩm -> Hiển thị Màn hình Kết quả tìm kiếm (SearchResultsScreen)
-    if (uiState.searchResultQuery != null) {
-        BackHandler {
-            viewModel.closeSearchResults()
-        }
-        SearchResultsScreen(
-            query = uiState.searchResultQuery!!,
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeSearchResults() },
-            onNavigateToCart = {
-                viewModel.closeSearchResults()
-                viewModel.selectTab(2)
-            },
-            onProductClick = { product ->
-                viewModel.openProductDetailsScreen(product)
-            }
-        )
-        return
-    }
-
-    // Khi người dùng mở màn hình Danh Sách Yêu Thích (WishlistScreen)
-    if (uiState.showWishlistScreen) {
-        BackHandler {
-            viewModel.closeWishlist()
-        }
-        WishlistScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeWishlist() }
-        )
-        return
-    }
-
     // Khi người dùng mở màn hình Cổng thanh toán VNPAY-QR (VnpaySandboxPaymentScreen)
     if (uiState.showVnpayPaymentScreen) {
         BackHandler {
@@ -249,19 +202,6 @@ private fun B2CMainScreens(
         return
     }
 
-    // Khi người dùng mở màn hình Đánh Giá Sản Phẩm (ProductReviewsScreen)
-    if (uiState.showProductReviewsScreen) {
-        BackHandler {
-            viewModel.closeProductReviewsScreen()
-        }
-        ProductReviewsScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeProductReviewsScreen() }
-        )
-        return
-    }
-
     // Khi người dùng mở màn hình Viết Đánh Giá Sản Phẩm (WriteProductReviewScreen)
     if (uiState.showWriteReviewScreen) {
         BackHandler {
@@ -275,7 +215,21 @@ private fun B2CMainScreens(
         return
     }
 
+    // Khi người dùng mở màn hình Đánh Giá Sản Phẩm (ProductReviewsScreen)
+    if (uiState.showProductReviewsScreen) {
+        BackHandler {
+            viewModel.closeProductReviewsScreen()
+        }
+        ProductReviewsScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeProductReviewsScreen() }
+        )
+        return
+    }
+
     // Khi người dùng bấm vào 1 sản phẩm -> Mở toàn màn hình Chi tiết sản phẩm
+    // (Ưu tiên hiển thị đè lên SearchResultsScreen và WishlistScreen; khi bấm Trở về sẽ quay lại đúng danh sách kết quả đang xem)
     if (uiState.detailedProductScreen != null) {
         BackHandler {
             viewModel.closeProductDetailsScreen()
@@ -288,6 +242,56 @@ private fun B2CMainScreens(
             onNavigateToCart = {
                 viewModel.closeProductDetailsScreen()
                 viewModel.selectTab(2)
+            }
+        )
+        return
+    }
+
+    // Khi người dùng tìm kiếm sản phẩm -> Hiển thị Màn hình Kết quả tìm kiếm (SearchResultsScreen)
+    if (uiState.searchResultQuery != null) {
+        BackHandler {
+            viewModel.closeSearchResults()
+        }
+        SearchResultsScreen(
+            query = uiState.searchResultQuery!!,
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeSearchResults() },
+            onNavigateToCart = {
+                viewModel.closeSearchResults()
+                viewModel.selectTab(2)
+            },
+            onProductClick = { product ->
+                viewModel.openProductDetailsScreen(product)
+            }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Tin nhắn với Shop
+    if (uiState.showShopMessages) {
+        BackHandler {
+            viewModel.closeShopMessages()
+        }
+        ShopMessagesScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeShopMessages() }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Danh Sách Yêu Thích (WishlistScreen)
+    if (uiState.showWishlistScreen) {
+        BackHandler {
+            viewModel.closeWishlist()
+        }
+        WishlistScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeWishlist() },
+            onProductClick = { product ->
+                viewModel.openProductDetailsScreen(product)
             }
         )
         return

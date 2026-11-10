@@ -726,6 +726,10 @@ fun ProductDetailsScreen(
 
             // 8. Đánh giá sản phẩm
             item {
+                val totalReviews = if (uiState.productReviewsTotalCount > 0) uiState.productReviewsTotalCount else product.ratingCount
+                val ratingScore = if (product.rating > 0f) String.format(java.util.Locale.US, "★ %.1f/5", product.rating) else "Chưa có sao"
+                val reviewSummaryText = if (totalReviews > 0) "($totalReviews nhận xét)" else "(Chưa có nhận xét)"
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -748,124 +752,226 @@ fun ProductDetailsScreen(
                             Spacer(modifier = Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "★ 4.9/5",
+                                    text = ratingScore,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFD97706)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "(342 nhận xét có hình ảnh)",
+                                    text = reviewSummaryText,
                                     fontSize = 12.sp,
                                     color = TextSecondary
                                 )
                             }
                         }
 
-                        Text(
-                            text = "Xem tất cả >",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = NavySecondary,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { viewModel.openProductReviewsScreen() }
-                                .padding(vertical = 4.dp, horizontal = 2.dp)
-                        )
+                        if (totalReviews > 0 || uiState.productReviews.isNotEmpty()) {
+                            Text(
+                                text = "Xem tất cả >",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = NavySecondary,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { viewModel.openProductReviewsScreen() }
+                                    .padding(vertical = 4.dp, horizontal = 2.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Thẻ đánh giá mẫu
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.openProductReviewsScreen() },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
-                        border = BorderStroke(0.8.dp, BorderDivider)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    // Trạng thái tải hoặc nội dung đánh giá thật từ API
+                    if (uiState.isProductReviewsLoading) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                            border = BorderStroke(0.8.dp, BorderDivider)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .background(Color(0xFFE0E7FF), CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "H",
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF4338CA),
-                                            fontSize = 13.sp
-                                        )
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                    color = CoralPrimary
+                                )
+                            }
+                        }
+                    } else if (uiState.productReviews.isEmpty()) {
+                        // Hiển thị thông báo không có đánh giá khi API trả về rỗng
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                            border = BorderStroke(0.8.dp, BorderDivider)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD1D5DB),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Chưa có đánh giá nào cho sản phẩm này",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Hãy là người đầu tiên mua và chia sẻ cảm nhận nhé!",
+                                    fontSize = 11.5.sp,
+                                    color = TextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        // Hiển thị review thật đầu tiên lấy từ API
+                        val latestReview = uiState.productReviews.first()
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.openProductReviewsScreen() },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                            border = BorderStroke(0.8.dp, BorderDivider)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (!latestReview.userAvatar.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = latestReview.userAvatar,
+                                                contentDescription = latestReview.username,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(latestReview.avatarBgColor, CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = latestReview.initial,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF4338CA),
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = latestReview.username,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary
+                                            )
+                                            Row {
+                                                val starCount = latestReview.rating.coerceIn(1, 5)
+                                                repeat(starCount) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Star,
+                                                        contentDescription = null,
+                                                        tint = StarRatingGold,
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "hoang_minh_92",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextPrimary
-                                        )
-                                        Row {
-                                            repeat(5) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Star,
-                                                    contentDescription = null,
-                                                    tint = StarRatingGold,
-                                                    modifier = Modifier.size(12.dp)
+
+                                    Text(
+                                        text = latestReview.date,
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+
+                                if (latestReview.comment.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = latestReview.comment,
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFF333333),
+                                        lineHeight = 17.sp,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                // Ảnh đánh giá thật từ API nếu có
+                                if (latestReview.imageUrls.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        latestReview.imageUrls.take(4).forEach { imgUrl ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .border(0.8.dp, BorderDivider, RoundedCornerShape(6.dp))
+                                            ) {
+                                                AsyncImage(
+                                                    model = imgUrl,
+                                                    contentDescription = "Review image",
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize()
                                                 )
                                             }
                                         }
                                     }
                                 }
 
-                                Text(
-                                    text = "2 ngày trước",
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
+                                if (latestReview.variantInfo.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = latestReview.variantInfo,
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+
+                                // Phản hồi của shop nếu có
+                                if (!latestReview.sellerResponse.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFFF3F4F6), RoundedCornerShape(6.dp))
+                                            .padding(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Phản hồi người bán: ${latestReview.sellerResponse}",
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFF4B5563),
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "Chất vải cotton compact mềm mát cực kỳ, form áo chuẩn regular mặc lên tôn dáng lắm. Giao hàng Hà Nội chỉ mất 1 ngày. Sẽ ủng hộ shop thêm màu xanh navy nữa!",
-                                fontSize = 12.5.sp,
-                                color = Color(0xFF333333),
-                                lineHeight = 17.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Ảnh feedback nhỏ kèm thẻ
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .border(1.dp, BorderDivider, RoundedCornerShape(6.dp))
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.product_white_tshirt_1793955938236),
-                                    contentDescription = "Feedback",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Text(
-                                text = "Phân loại: Trắng, Size L",
-                                fontSize = 11.sp,
-                                color = TextSecondary
-                            )
                         }
                     }
                 }

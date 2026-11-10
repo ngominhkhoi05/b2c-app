@@ -121,6 +121,18 @@ object ApiClient {
     }
 
     /**
+     * ReviewApiService công khai (xem đánh giá sản phẩm)
+     */
+    val reviewApiService: com.example.b2capp.data.remote.api.ReviewApiService
+        get() = createService(com.example.b2capp.data.remote.api.ReviewApiService::class.java)
+
+    /**
+     * ReviewApiService có xác thực (gửi đánh giá cho đơn hàng)
+     */
+    val authenticatedReviewApiService: com.example.b2capp.data.remote.api.ReviewApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.ReviewApiService::class.java)
+
+    /**
      * ChatApiService có bảo vệ token (quản lý tin nhắn và hội thoại)
      */
     val chatApiService: com.example.b2capp.data.remote.api.ChatApiService

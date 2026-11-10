@@ -41,6 +41,8 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.TableRows
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -147,32 +149,45 @@ fun SearchResultsScreen(
 ) {
     var searchInput by remember { mutableStateOf(query) }
     var selectedSortTab by remember { mutableStateOf("Bán chạy") }
-    var isFreeshipFilterActive by remember { mutableStateOf(true) }
+    var isFreeshipFilterActive by remember { mutableStateOf(false) }
     var isStarFilterActive by remember { mutableStateOf(false) }
+    var isMallFilterActive by remember { mutableStateOf(false) }
+    var isLocationFilterActive by remember { mutableStateOf(false) }
     var isQueryFilterActive by remember { mutableStateOf(true) }
     var showAdvancedFilterSheet by remember { mutableStateOf(false) }
     var activeFilterCriteria by remember { mutableStateOf(AdvancedFilterCriteria()) }
 
     val focusManager = LocalFocusManager.current
 
-    androidx.compose.runtime.LaunchedEffect(query) {
-        searchInput = query
-        val (sortBy, sortDir) = when (selectedSortTab) {
+    // Hàm tiện ích thực hiện tìm kiếm kết hợp toàn bộ tiêu chí lọc
+    fun triggerSearch(
+        targetQuery: String = searchInput,
+        sortTab: String = selectedSortTab,
+        criteria: AdvancedFilterCriteria = activeFilterCriteria,
+        starActive: Boolean = isStarFilterActive
+    ) {
+        val (sortBy, sortDir) = when (sortTab) {
             "Mới nhất" -> Pair("created", "desc")
             "Bán chạy" -> Pair("sold", "desc")
             "Giá ↑" -> Pair("price", "asc")
             "Giá ↓" -> Pair("price", "desc")
             else -> Pair("created", "desc")
         }
-        viewModel.openSearchResults(
-            query = query,
+        val effectiveRating = if (starActive) 4.0f else criteria.starRatingMin?.toFloat()
+        viewModel.performSearch(
+            query = targetQuery,
             sortBy = sortBy,
             sortDir = sortDir,
-            minPrice = activeFilterCriteria.minPrice,
-            maxPrice = activeFilterCriteria.maxPrice,
-            minRating = activeFilterCriteria.starRatingMin.toFloat(),
-            brand = activeFilterCriteria.selectedBrands.firstOrNull()
+            minPrice = criteria.minPrice,
+            maxPrice = criteria.maxPrice,
+            minRating = effectiveRating,
+            brand = criteria.selectedBrands.firstOrNull()
         )
+    }
+
+    androidx.compose.runtime.LaunchedEffect(query) {
+        searchInput = query
+        triggerSearch(targetQuery = query)
     }
 
     // Danh sách 6 sản phẩm chính xác theo ảnh
@@ -275,11 +290,12 @@ fun SearchResultsScreen(
 
     val sortedProducts = remember(selectedSortTab, productsList, activeFilterCriteria) {
         val filtered = productsList.filter { product ->
-            val matchPrice = product.price in activeFilterCriteria.minPrice..activeFilterCriteria.maxPrice
+            val matchMinPrice = activeFilterCriteria.minPrice == null || product.price >= activeFilterCriteria.minPrice!!
+            val matchMaxPrice = activeFilterCriteria.maxPrice == null || product.price <= activeFilterCriteria.maxPrice!!
             val matchMall = !activeFilterCriteria.isShopeeMall || product.topBadgeText == "MALL"
             val matchFreeship = !activeFilterCriteria.isFreeShipping || product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA
-            val matchStar = product.rating >= (activeFilterCriteria.starRatingMin.toFloat() - 0.5f)
-            matchPrice && matchMall && matchFreeship && matchStar
+            val matchStar = activeFilterCriteria.starRatingMin == null || product.rating >= (activeFilterCriteria.starRatingMin!!.toFloat() - 0.5f)
+            matchMinPrice && matchMaxPrice && matchMall && matchFreeship && matchStar
         }
         val listToSort = if (filtered.isEmpty()) productsList else filtered
         when (selectedSortTab) {
@@ -361,7 +377,10 @@ fun SearchResultsScreen(
                             ) {
                                 BasicTextField(
                                     value = searchInput,
-                                    onValueChange = { searchInput = it },
+                                    onValueChange = {
+                                        searchInput = it
+                                        viewModel.onSearchQueryInputChanged(it)
+                                    },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
                                     textStyle = TextStyle(
@@ -373,22 +392,7 @@ fun SearchResultsScreen(
                                     keyboardActions = KeyboardActions(
                                         onSearch = {
                                             focusManager.clearFocus()
-                                            val (sortBy, sortDir) = when (selectedSortTab) {
-                                                "Mới nhất" -> Pair("created", "desc")
-                                                "Bán chạy" -> Pair("sold", "desc")
-                                                "Giá ↑" -> Pair("price", "asc")
-                                                "Giá ↓" -> Pair("price", "desc")
-                                                else -> Pair("created", "desc")
-                                            }
-                                            viewModel.openSearchResults(
-                                                query = searchInput,
-                                                sortBy = sortBy,
-                                                sortDir = sortDir,
-                                                minPrice = activeFilterCriteria.minPrice,
-                                                maxPrice = activeFilterCriteria.maxPrice,
-                                                minRating = activeFilterCriteria.starRatingMin.toFloat(),
-                                                brand = activeFilterCriteria.selectedBrands.firstOrNull()
-                                            )
+                                            triggerSearch(targetQuery = searchInput)
                                         }
                                     )
                                 )
@@ -401,14 +405,19 @@ fun SearchResultsScreen(
                                     tint = Color(0xFF9CA3AF),
                                     modifier = Modifier
                                         .size(16.dp)
-                                        .clickable { searchInput = "" }
+                                        .clickable {
+                                            searchInput = ""
+                                            viewModel.onSearchQueryInputChanged("")
+                                            triggerSearch(targetQuery = "")
+                                        }
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.width(4.dp))
 
-                        // Nút lọc có chấm đỏ
+                        // Nút lọc có chấm đỏ chỉ thị bộ lọc đang hoạt động
+                        val hasActiveFilters = activeFilterCriteria.isActive || isFreeshipFilterActive || isStarFilterActive || isMallFilterActive || isLocationFilterActive
                         Box(contentAlignment = Alignment.TopEnd) {
                             IconButton(
                                 onClick = { showAdvancedFilterSheet = true },
@@ -417,17 +426,18 @@ fun SearchResultsScreen(
                                 Icon(
                                     imageVector = Icons.Outlined.Tune,
                                     contentDescription = "Bộ lọc",
-                                    tint = TextPrimary,
+                                    tint = if (hasActiveFilters) CoralPrimary else TextPrimary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                            // Chấm đỏ chỉ thị đang có bộ lọc hoạt động
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 8.dp, end = 8.dp)
-                                    .size(6.dp)
-                                    .background(Color(0xFFBA2211), CircleShape)
-                            )
+                            if (hasActiveFilters) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 8.dp, end = 8.dp)
+                                        .size(6.dp)
+                                        .background(Color(0xFFBA2211), CircleShape)
+                                )
+                            }
                         }
 
                         // Nút giỏ hàng có badge 3
@@ -478,22 +488,7 @@ fun SearchResultsScreen(
                                 modifier = Modifier
                                     .clickable {
                                         selectedSortTab = tabName
-                                        val (sortBy, sortDir) = when (tabName) {
-                                            "Mới nhất" -> Pair("created", "desc")
-                                            "Bán chạy" -> Pair("sold", "desc")
-                                            "Giá ↑" -> Pair("price", "asc")
-                                            "Giá ↓" -> Pair("price", "desc")
-                                            else -> Pair("created", "desc")
-                                        }
-                                        viewModel.performSearch(
-                                            query = searchInput,
-                                            sortBy = sortBy,
-                                            sortDir = sortDir,
-                                            minPrice = activeFilterCriteria.minPrice,
-                                            maxPrice = activeFilterCriteria.maxPrice,
-                                            minRating = activeFilterCriteria.starRatingMin.toFloat(),
-                                            brand = activeFilterCriteria.selectedBrands.firstOrNull()
-                                        )
+                                        triggerSearch(sortTab = tabName)
                                     }
                                     .padding(vertical = 10.dp)
                             ) {
@@ -530,8 +525,8 @@ fun SearchResultsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Chip 1: Đang lọc: Áo thun nam ✕
-                        if (isQueryFilterActive) {
+                        // Chip 1: Đang lọc: Từ khóa ✕
+                        if (searchInput.isNotBlank()) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
@@ -553,7 +548,11 @@ fun SearchResultsScreen(
                                         tint = Color(0xFFBA2211),
                                         modifier = Modifier
                                             .size(12.dp)
-                                            .clickable { isQueryFilterActive = false }
+                                            .clickable {
+                                                searchInput = ""
+                                                viewModel.onSearchQueryInputChanged("")
+                                                triggerSearch(targetQuery = "")
+                                            }
                                     )
                                 }
                             }
@@ -564,6 +563,11 @@ fun SearchResultsScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(if (isFreeshipFilterActive) Color(0xFFE6F7F5) else Color(0xFFF3F4F6))
+                                .border(
+                                    0.8.dp,
+                                    if (isFreeshipFilterActive) Color(0xFF1E8275) else Color.Transparent,
+                                    RoundedCornerShape(14.dp)
+                                )
                                 .clickable { isFreeshipFilterActive = !isFreeshipFilterActive }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
@@ -571,15 +575,15 @@ fun SearchResultsScreen(
                                 Icon(
                                     imageVector = Icons.Filled.FlashOn,
                                     contentDescription = null,
-                                    tint = Color(0xFF1E8275),
+                                    tint = if (isFreeshipFilterActive) Color(0xFF1E8275) else Color(0xFF6B7280),
                                     modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "Freeship Xtra",
                                     fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1E8275)
+                                    fontWeight = if (isFreeshipFilterActive) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isFreeshipFilterActive) Color(0xFF1E8275) else Color(0xFF4B5563)
                                 )
                             }
                         }
@@ -589,7 +593,15 @@ fun SearchResultsScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(if (isStarFilterActive) Color(0xFFFEF3C7) else Color(0xFFF3F4F6))
-                                .clickable { isStarFilterActive = !isStarFilterActive }
+                                .border(
+                                    0.8.dp,
+                                    if (isStarFilterActive) Color(0xFFF59E0B) else Color.Transparent,
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .clickable {
+                                    isStarFilterActive = !isStarFilterActive
+                                    triggerSearch(starActive = isStarFilterActive)
+                                }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -603,8 +615,8 @@ fun SearchResultsScreen(
                                 Text(
                                     text = "4★ trở lên",
                                     fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF4B5563)
+                                    fontWeight = if (isStarFilterActive) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isStarFilterActive) Color(0xFFB45309) else Color(0xFF4B5563)
                                 )
                             }
                         }
@@ -613,13 +625,20 @@ fun SearchResultsScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFFF3F4F6))
+                                .background(if (isMallFilterActive) Color(0xFFFEECE8) else Color(0xFFF3F4F6))
+                                .border(
+                                    0.8.dp,
+                                    if (isMallFilterActive) Color(0xFFBA2211) else Color.Transparent,
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .clickable { isMallFilterActive = !isMallFilterActive }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
                             Text(
                                 text = "Shopee Mall",
                                 fontSize = 11.5.sp,
-                                color = Color(0xFF4B5563)
+                                fontWeight = if (isMallFilterActive) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isMallFilterActive) Color(0xFFBA2211) else Color(0xFF4B5563)
                             )
                         }
 
@@ -627,16 +646,69 @@ fun SearchResultsScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFFF3F4F6))
+                                .background(if (isLocationFilterActive) Color(0xFFEFF6FF) else Color(0xFFF3F4F6))
+                                .border(
+                                    0.8.dp,
+                                    if (isLocationFilterActive) Color(0xFF3B82F6) else Color.Transparent,
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .clickable { isLocationFilterActive = !isLocationFilterActive }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
                             Text(
                                 text = "TP. HCM & Hà Nội",
                                 fontSize = 11.5.sp,
-                                color = Color(0xFF4B5563)
+                                fontWeight = if (isLocationFilterActive) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isLocationFilterActive) Color(0xFF1D4ED8) else Color(0xFF4B5563)
                             )
                         }
                     }
+                }
+            }
+
+            // 5. Tính toán danh sách sản phẩm kết quả tìm kiếm (từ API backend hoặc fallback)
+            val hasServerResults = uiState.searchResults.isNotEmpty()
+            val rawProducts: List<ProductItem> = if (hasServerResults) {
+                uiState.searchResults
+            } else if (!uiState.isSearching && uiState.searchTotalElements == 0L && uiState.searchResultQuery != null) {
+                emptyList()
+            } else {
+                sortedProducts.map { product ->
+                    ProductItem(
+                        id = product.id,
+                        name = product.name,
+                        imageUrl = "",
+                        price = product.price,
+                        originalPrice = product.originalPrice,
+                        rating = product.rating,
+                        soldCount = 3400,
+                        isFreeShipping = product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA,
+                        shopName = if (product.topBadgeText == "MALL") "Coolmate Official Store" else "Thời Trang Unisex",
+                        shopLocation = product.location
+                    )
+                }
+            }
+
+            // Lọc bổ sung theo các tiêu chí client-side
+            val effectiveProducts = remember(
+                rawProducts,
+                isFreeshipFilterActive,
+                isMallFilterActive,
+                isStarFilterActive,
+                isLocationFilterActive,
+                activeFilterCriteria
+            ) {
+                rawProducts.filter { product ->
+                    val matchFreeship = !isFreeshipFilterActive || product.isFreeShipping
+                    val matchMall = !isMallFilterActive || (product.rating >= 4.9f || product.shopName.contains("Mall", ignoreCase = true) || product.shopName.contains("Official", ignoreCase = true))
+                    val matchStar = !isStarFilterActive || product.rating >= 4.0f
+                    val matchLocation = !isLocationFilterActive || (product.shopLocation.contains("Hà Nội", ignoreCase = true) || product.shopLocation.contains("HCM", ignoreCase = true))
+                    val matchCategory = activeFilterCriteria.selectedCategories.isEmpty() ||
+                            activeFilterCriteria.selectedCategories.any { cat ->
+                                product.category.contains(cat, ignoreCase = true) ||
+                                product.name.contains(cat, ignoreCase = true)
+                            }
+                    matchFreeship && matchMall && matchStar && matchLocation && matchCategory
                 }
             }
 
@@ -692,29 +764,6 @@ fun SearchResultsScreen(
                     }
                 }
 
-                // 5. Lưới 2 cột các sản phẩm kết quả tìm kiếm (từ API backend hoặc fallback)
-                val hasServerResults = uiState.searchResults.isNotEmpty()
-                val effectiveProducts: List<ProductItem> = if (hasServerResults) {
-                    uiState.searchResults
-                } else if (!uiState.isSearching && uiState.searchTotalElements == 0L && uiState.searchResultQuery != null) {
-                    emptyList()
-                } else {
-                    sortedProducts.map { product ->
-                        ProductItem(
-                            id = product.id,
-                            name = product.name,
-                            imageUrl = "",
-                            price = product.price,
-                            originalPrice = product.originalPrice,
-                            rating = product.rating,
-                            soldCount = 3400,
-                            isFreeShipping = product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA,
-                            shopName = if (product.topBadgeText == "MALL") "Coolmate Official Store" else "Thời Trang Unisex",
-                            shopLocation = product.location
-                        )
-                    }
-                }
-
                 if (uiState.isSearching) {
                     item {
                         Box(
@@ -758,6 +807,26 @@ fun SearchResultsScreen(
                                     color = TextSecondary,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = {
+                                        isFreeshipFilterActive = false
+                                        isStarFilterActive = false
+                                        isMallFilterActive = false
+                                        isLocationFilterActive = false
+                                        activeFilterCriteria = AdvancedFilterCriteria()
+                                        triggerSearch(criteria = AdvancedFilterCriteria(), starActive = false)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = "Xóa tất cả bộ lọc",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp
+                                    )
+                                }
                             }
                         }
                     }
@@ -788,7 +857,8 @@ fun SearchResultsScreen(
                 }
 
                 // 6. Nút "Xem thêm sản phẩm" khi có nhiều kết quả
-                if (!uiState.isSearching && uiState.searchTotalElements > effectiveProducts.size && effectiveProducts.isNotEmpty()) {
+                val searchTotal = uiState.searchTotalElements.toInt()
+                if (!uiState.isSearching && searchTotal > effectiveProducts.size && effectiveProducts.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(6.dp))
                         Box(
@@ -799,7 +869,6 @@ fun SearchResultsScreen(
                                 .background(SurfaceCard)
                                 .border(1.dp, BorderDivider, RoundedCornerShape(8.dp))
                                 .clickable {
-                                    // Tải thêm trang tiếp theo
                                     viewModel.performSearch(
                                         query = searchInput,
                                         page = 1
@@ -809,7 +878,7 @@ fun SearchResultsScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Xem thêm ${uiState.searchTotalElements - effectiveProducts.size} sản phẩm",
+                                    text = "Xem thêm ${searchTotal - effectiveProducts.size} sản phẩm",
                                     fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFBA2211)
@@ -835,7 +904,6 @@ fun SearchResultsScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Vòng xoay đỏ nhỏ
                         CircularProgressIndicator(
                             modifier = Modifier.size(14.dp),
                             color = Color(0xFFBA2211),
@@ -862,23 +930,11 @@ fun SearchResultsScreen(
             onApplyFilter = { criteria ->
                 activeFilterCriteria = criteria
                 showAdvancedFilterSheet = false
+                if (criteria.isFreeShipping) isFreeshipFilterActive = true
+                if (criteria.isShopeeMall) isMallFilterActive = true
+                if (criteria.starRatingMin != null && criteria.starRatingMin >= 4) isStarFilterActive = true
                 viewModel.showToast("Đã áp dụng bộ lọc nâng cao!")
-                val (sortBy, sortDir) = when (selectedSortTab) {
-                    "Mới nhất" -> Pair("created", "desc")
-                    "Bán chạy" -> Pair("sold", "desc")
-                    "Giá ↑" -> Pair("price", "asc")
-                    "Giá ↓" -> Pair("price", "desc")
-                    else -> Pair("created", "desc")
-                }
-                viewModel.performSearch(
-                    query = searchInput,
-                    sortBy = sortBy,
-                    sortDir = sortDir,
-                    minPrice = criteria.minPrice,
-                    maxPrice = criteria.maxPrice,
-                    minRating = criteria.starRatingMin.toFloat(),
-                    brand = criteria.selectedBrands.firstOrNull()
-                )
+                triggerSearch(criteria = criteria, starActive = isStarFilterActive)
             }
         )
     }

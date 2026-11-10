@@ -2,6 +2,7 @@ package com.example.b2capp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.b2capp.B2CApplication
 import com.example.b2capp.core.model.CartItem
 import com.example.b2capp.core.model.OrderSuccessInfo
 import com.example.b2capp.core.model.PageState
@@ -9,6 +10,7 @@ import com.example.b2capp.core.model.ProductItem
 import com.example.b2capp.core.model.ProductOptionItem
 import com.example.b2capp.core.model.ProductOptionValueItem
 import com.example.b2capp.core.model.ProductVariantItem
+import com.example.b2capp.core.model.ReviewItem
 import com.example.b2capp.core.model.ShopChatInfo
 import com.example.b2capp.core.model.UserAddress
 import com.example.b2capp.core.model.UserProfile
@@ -29,12 +31,14 @@ import com.example.b2capp.data.remote.dto.OrderDetailDto
 import com.example.b2capp.data.remote.dto.OrderItemDto
 import com.example.b2capp.data.remote.dto.OrderSummaryDto
 import com.example.b2capp.data.remote.dto.WishlistItemDto
+import com.example.b2capp.features.order.components.OrderFilterCriteria
 import com.example.b2capp.data.repository.AuthRepository
 import com.example.b2capp.data.repository.CartRepository
 import com.example.b2capp.data.repository.ChatRepository
 import com.example.b2capp.data.repository.HomeBannerItem
 import com.example.b2capp.data.repository.HomeRepository
 import com.example.b2capp.data.repository.OrderRepository
+import com.example.b2capp.data.repository.ReviewRepository
 import com.example.b2capp.data.repository.UserRepository
 import com.example.b2capp.data.repository.WishlistRepository
 import com.example.b2capp.features.chat.DetailedChatMessage
@@ -50,6 +54,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+
+data class OrderStatusCounts(
+    val pendingCount: Int = 0,     // Chờ xác nhận (PENDING)
+    val processingCount: Int = 0,  // Đang chuẩn bị (CONFIRMED, PACKED)
+    val shippingCount: Int = 0,    // Đang giao (SHIPPING)
+    val toReviewCount: Int = 0     // Đánh giá (DELIVERED, COMPLETED)
+)
 
 data class B2CUiState(
     val currentTab: Int = 0, // 0: Home, 1: Cart, 2: Design System Showcase
@@ -75,6 +86,8 @@ data class B2CUiState(
     val searchMaxPrice: Long? = null,
     val searchBrand: String? = null,
     val searchMinRating: Float? = null,
+    val searchSuggestions: List<String> = emptyList(),
+    val recentSearches: List<String> = emptyList(),
     val showShopMessages: Boolean = false,
     val shopConversations: List<ShopConversation> = emptyList(),
     val isShopConversationsLoading: Boolean = false,
@@ -91,6 +104,11 @@ data class B2CUiState(
     val showSignUpScreen: Boolean = false,
     val showForgotPasswordScreen: Boolean = false,
     val showProductReviewsScreen: Boolean = false,
+    val productReviews: List<ReviewItem> = emptyList(),
+    val isProductReviewsLoading: Boolean = false,
+    val productReviewsTotalCount: Int = 0,
+    val productReviewsError: String? = null,
+    val selectedReviewFilter: String = "Tất cả",
     val showWishlistScreen: Boolean = false,
     val showAddressBookScreen: Boolean = false,
     val showAddressEditorScreen: Boolean = false,
@@ -157,6 +175,7 @@ data class B2CUiState(
     val isOrdersRefreshing: Boolean = false,
     val ordersErrorMessage: String? = null,
     val selectedOrdersTab: String = "Tất cả",
+    val orderFilterCriteria: OrderFilterCriteria = OrderFilterCriteria(),
     val activeOrderDetail: OrderDetailDto? = null,
     val isOrderDetailLoading: Boolean = false,
     val orderDetailErrorMessage: String? = null,
@@ -174,10 +193,21 @@ data class B2CUiState(
     val isWishlistLoading: Boolean = false,
     val isWishlistRefreshing: Boolean = false,
     val wishlistErrorMessage: String? = null,
-    val wishlistCount: Int = 0
+    val wishlistCount: Int = 0,
+    val wishlistPage: Int = 0,
+    val isLastWishlistPage: Boolean = false,
+    val isLoadingMoreWishlist: Boolean = false,
+    val orderStatusCounts: OrderStatusCounts = OrderStatusCounts(),
+    val isOrdersSummaryLoading: Boolean = false
 ) {
     val pendingOrdersCount: Int
-        get() = orders.count { it.status.equals("PENDING", ignoreCase = true) }
+        get() = if (orderStatusCounts.pendingCount > 0) orderStatusCounts.pendingCount else orders.count { it.status.equals("PENDING", ignoreCase = true) }
+    val processingOrdersCount: Int
+        get() = if (orderStatusCounts.processingCount > 0) orderStatusCounts.processingCount else orders.count { it.status.equals("CONFIRMED", ignoreCase = true) || it.status.equals("PACKED", ignoreCase = true) }
+    val shippingOrdersCount: Int
+        get() = if (orderStatusCounts.shippingCount > 0) orderStatusCounts.shippingCount else orders.count { it.status.equals("SHIPPING", ignoreCase = true) }
+    val toReviewOrdersCount: Int
+        get() = if (orderStatusCounts.toReviewCount > 0) orderStatusCounts.toReviewCount else orders.count { it.status.equals("DELIVERED", ignoreCase = true) || it.status.equals("COMPLETED", ignoreCase = true) }
     val totalCartPrice: Long
         get() = if (serverCartItems.isNotEmpty()) {
             serverCartItems.filter { it.isSelected }.sumOf { (it.lineTotal ?: ((it.priceSnapshot ?: 0.0) * it.quantity)).toLong() }
@@ -214,6 +244,7 @@ class B2CViewModel : ViewModel() {
     private val orderRepository: OrderRepository by lazy { OrderRepository() }
     private val chatRepository: ChatRepository by lazy { ChatRepository() }
     private val wishlistRepository: WishlistRepository by lazy { WishlistRepository() }
+    private val reviewRepository: ReviewRepository by lazy { ReviewRepository() }
     private val tokenManager: TokenManager by lazy { TokenManager.getInstance() }
     private val _uiState = MutableStateFlow(B2CUiState())
     val uiState: StateFlow<B2CUiState> = _uiState.asStateFlow()
@@ -221,6 +252,9 @@ class B2CViewModel : ViewModel() {
     init {
         // Tự động tải dữ liệu Trang chủ từ API Backend (có fallback dữ liệu mẫu)
         loadHomeData()
+
+        // Nạp lịch sử tìm kiếm từ Room FTS
+        loadRecentSearches()
 
         // Kiểm tra phiên đăng nhập và tính hợp lệ của token / user khi mở app
         validateSessionOnAppStart()
@@ -855,28 +889,43 @@ class B2CViewModel : ViewModel() {
         minRating: Float? = null
     ) {
         val effectiveQuery = query.trim()
+        val safeSortBy = when (sortBy.lowercase().trim()) {
+            "price", "sold", "rating", "created", "name" -> sortBy.lowercase().trim()
+            else -> "created"
+        }
+        val safeSortDir = if (sortDir.equals("asc", ignoreCase = true)) "asc" else "desc"
+        var cleanMinPrice = minPrice?.takeIf { it >= 0 }
+        var cleanMaxPrice = maxPrice?.takeIf { it >= 0 }
+        if (cleanMinPrice != null && cleanMaxPrice != null && cleanMinPrice > cleanMaxPrice) {
+            val temp = cleanMinPrice
+            cleanMinPrice = cleanMaxPrice
+            cleanMaxPrice = temp
+        }
+        val safeRating = minRating?.takeIf { it in 0.0f..5.0f }
+        val safeBrand = brand?.trim()?.ifBlank { null }
+
         _uiState.update {
             it.copy(
                 searchResultQuery = effectiveQuery,
-                searchSortBy = sortBy,
-                searchSortDir = sortDir,
+                searchSortBy = safeSortBy,
+                searchSortDir = safeSortDir,
                 searchCategoryId = categoryId,
-                searchMinPrice = minPrice,
-                searchMaxPrice = maxPrice,
-                searchBrand = brand,
-                searchMinRating = minRating,
+                searchMinPrice = cleanMinPrice,
+                searchMaxPrice = cleanMaxPrice,
+                searchBrand = safeBrand,
+                searchMinRating = safeRating,
                 isSearching = true
             )
         }
         performSearch(
             query = effectiveQuery,
-            sortBy = sortBy,
-            sortDir = sortDir,
+            sortBy = safeSortBy,
+            sortDir = safeSortDir,
             categoryId = categoryId,
-            minPrice = minPrice,
-            maxPrice = maxPrice,
-            brand = brand,
-            minRating = minRating
+            minPrice = cleanMinPrice,
+            maxPrice = cleanMaxPrice,
+            brand = safeBrand,
+            minRating = safeRating
         )
     }
 
@@ -891,31 +940,50 @@ class B2CViewModel : ViewModel() {
         minRating: Float? = _uiState.value.searchMinRating,
         page: Int = 0
     ) {
+        // Chuẩn hóa và đặt giá trị mặc định để tránh lỗi khi thiếu trường
+        val safeQuery = query?.trim()?.ifBlank { null }
+        val safeSortBy = when (sortBy.lowercase().trim()) {
+            "price", "sold", "rating", "created", "name" -> sortBy.lowercase().trim()
+            else -> "created"
+        }
+        val safeSortDir = if (sortDir.equals("asc", ignoreCase = true)) "asc" else "desc"
+        val safePage = maxOf(0, page)
+        val safeRating = minRating?.takeIf { it in 0.0f..5.0f }
+        val safeBrand = brand?.trim()?.ifBlank { null }
+
+        var cleanMinPrice = minPrice?.takeIf { it >= 0 }
+        var cleanMaxPrice = maxPrice?.takeIf { it >= 0 }
+        if (cleanMinPrice != null && cleanMaxPrice != null && cleanMinPrice > cleanMaxPrice) {
+            val temp = cleanMinPrice
+            cleanMinPrice = cleanMaxPrice
+            cleanMaxPrice = temp
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isSearching = true) }
             val (products, total) = homeRepository.searchProducts(
-                query = query,
-                page = page,
+                query = safeQuery,
+                page = safePage,
                 size = 30,
-                sortBy = sortBy,
-                sortDir = sortDir,
+                sortBy = safeSortBy,
+                sortDir = safeSortDir,
                 categoryId = categoryId,
-                minPrice = minPrice,
-                maxPrice = maxPrice,
-                brand = brand,
-                minRating = minRating
+                minPrice = cleanMinPrice,
+                maxPrice = cleanMaxPrice,
+                brand = safeBrand,
+                minRating = safeRating
             )
             _uiState.update {
                 it.copy(
                     searchResults = products,
                     searchTotalElements = total,
-                    searchSortBy = sortBy,
-                    searchSortDir = sortDir,
+                    searchSortBy = safeSortBy,
+                    searchSortDir = safeSortDir,
                     searchCategoryId = categoryId,
-                    searchMinPrice = minPrice,
-                    searchMaxPrice = maxPrice,
-                    searchBrand = brand,
-                    searchMinRating = minRating,
+                    searchMinPrice = cleanMinPrice,
+                    searchMaxPrice = cleanMaxPrice,
+                    searchBrand = safeBrand,
+                    searchMinRating = safeRating,
                     isSearching = false
                 )
             }
@@ -930,6 +998,55 @@ class B2CViewModel : ViewModel() {
                 searchTotalElements = 0L,
                 isSearching = false
             )
+        }
+    }
+
+    /**
+     * Tải danh sách lịch sử tìm kiếm từ Room Database (FTS).
+     */
+    fun loadRecentSearches() {
+        viewModelScope.launch {
+            val localRepo = B2CApplication.getLocalSearchRepo()
+            val recent = localRepo?.getRecentSearches() ?: emptyList()
+            _uiState.update { it.copy(recentSearches = recent) }
+        }
+    }
+
+    /**
+     * Lấy gợi ý từ khóa thông minh (Autocomplete / Typeahead) theo thời gian thực từ Room FTS.
+     */
+    fun onSearchQueryInputChanged(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        viewModelScope.launch {
+            val localRepo = B2CApplication.getLocalSearchRepo()
+            val suggestions = if (query.isNotBlank()) {
+                localRepo?.getSuggestions(query) ?: emptyList()
+            } else {
+                emptyList()
+            }
+            _uiState.update { it.copy(searchSuggestions = suggestions) }
+        }
+    }
+
+    /**
+     * Xóa một từ khóa khỏi lịch sử tìm kiếm.
+     */
+    fun deleteRecentSearch(keyword: String) {
+        viewModelScope.launch {
+            val localRepo = B2CApplication.getLocalSearchRepo()
+            localRepo?.deleteSearch(keyword)
+            loadRecentSearches()
+        }
+    }
+
+    /**
+     * Xóa sạch toàn bộ lịch sử tìm kiếm trên thiết bị.
+     */
+    fun clearRecentSearches() {
+        viewModelScope.launch {
+            val localRepo = B2CApplication.getLocalSearchRepo()
+            localRepo?.clearHistory()
+            _uiState.update { it.copy(recentSearches = emptyList()) }
         }
     }
 
@@ -1098,8 +1215,18 @@ class B2CViewModel : ViewModel() {
         _uiState.update {
             it.copy(
                 detailedProductScreen = product,
-                isProductDetailLoading = needsFetch
+                isProductDetailLoading = needsFetch,
+                productReviews = emptyList(),
+                isProductReviewsLoading = isRealProduct,
+                productReviewsTotalCount = product.ratingCount,
+                productReviewsError = null,
+                selectedReviewFilter = "Tất cả"
             )
+        }
+
+        // Tải reviews từ API
+        if (numericId != null) {
+            loadProductReviews(numericId)
         }
 
         // Nếu ID là dạng số hợp lệ từ Backend, gọi API để cập nhật chi tiết đầy đủ nhất
@@ -1166,6 +1293,7 @@ class B2CViewModel : ViewModel() {
                                     originalPrice = if (origPriceLong > priceLong) origPriceLong else product.originalPrice,
                                     shopName = detail.shopName?.ifBlank { product.shopName } ?: product.shopName,
                                     rating = (detail.ratingAvg ?: product.rating.toDouble()).toFloat(),
+                                    ratingCount = detail.ratingCount ?: product.ratingCount,
                                     soldCount = detail.soldCount ?: product.soldCount,
                                     stock = totalStock,
                                     images = parsedImages,
@@ -1188,8 +1316,55 @@ class B2CViewModel : ViewModel() {
         }
     }
 
+    fun loadProductReviews(productId: Long, ratingFilter: Int? = null) {
+        _uiState.update { it.copy(isProductReviewsLoading = true, productReviewsError = null) }
+        viewModelScope.launch {
+            val result = reviewRepository.getProductReviews(productId, ratingFilter)
+            result.onSuccess { (reviews, total) ->
+                _uiState.update { state ->
+                    state.copy(
+                        productReviews = reviews,
+                        productReviewsTotalCount = if (ratingFilter == null) total else state.productReviewsTotalCount,
+                        isProductReviewsLoading = false,
+                        productReviewsError = null
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update { state ->
+                    state.copy(
+                        isProductReviewsLoading = false,
+                        productReviewsError = err.message
+                    )
+                }
+            }
+        }
+    }
+
+    fun setReviewFilter(filterName: String) {
+        _uiState.update { it.copy(selectedReviewFilter = filterName) }
+        val product = _uiState.value.detailedProductScreen ?: return
+        val numericId = product.id.toLongOrNull() ?: return
+        val ratingInt = when {
+            filterName.contains("5") -> 5
+            filterName.contains("4") -> 4
+            filterName.contains("3") -> 3
+            filterName.contains("2") -> 2
+            filterName.contains("1") -> 1
+            else -> null
+        }
+        loadProductReviews(numericId, ratingInt)
+    }
+
     fun closeProductDetailsScreen() {
-        _uiState.update { it.copy(detailedProductScreen = null, isProductDetailLoading = false) }
+        _uiState.update {
+            it.copy(
+                detailedProductScreen = null,
+                isProductDetailLoading = false,
+                productReviews = emptyList(),
+                productReviewsTotalCount = 0,
+                isProductReviewsLoading = false
+            )
+        }
     }
 
     fun openCheckoutScreen() {
@@ -1267,6 +1442,7 @@ class B2CViewModel : ViewModel() {
                     refreshCartBadgeCount()
                     loadCartItems()
                     loadOrders()
+                    loadAccountOrderSummary()
                 }.onFailure {
                     _uiState.update { state ->
                         state.copy(
@@ -1337,22 +1513,72 @@ class B2CViewModel : ViewModel() {
 
     /**
      * Tải danh sách đơn hàng của người mua từ API Backend (GET /api/v1/buyer/orders)
-     * Hỗ trợ lọc theo tab trạng thái và làm mới dữ liệu
+     * Hỗ trợ lọc theo tab trạng thái, bộ lọc nâng cao và làm mới dữ liệu
      */
-    fun loadOrders(tab: String = _uiState.value.selectedOrdersTab, isRefresh: Boolean = false) {
+    fun loadOrders(
+        tab: String = _uiState.value.selectedOrdersTab,
+        filter: OrderFilterCriteria = _uiState.value.orderFilterCriteria,
+        isRefresh: Boolean = false
+    ) {
         if (isRefresh) {
-            _uiState.update { it.copy(isOrdersRefreshing = true, ordersErrorMessage = null, selectedOrdersTab = tab) }
+            _uiState.update { it.copy(isOrdersRefreshing = true, ordersErrorMessage = null, selectedOrdersTab = tab, orderFilterCriteria = filter) }
         } else {
-            _uiState.update { it.copy(isOrdersLoading = true, ordersErrorMessage = null, selectedOrdersTab = tab) }
+            _uiState.update { it.copy(isOrdersLoading = true, ordersErrorMessage = null, selectedOrdersTab = tab, orderFilterCriteria = filter) }
         }
 
         viewModelScope.launch {
-            val backendStatus = mapTabToBackendStatus(tab)
-            val result = orderRepository.getOrders(status = backendStatus, page = 0, size = 50)
+            val backendStatus = if (filter.orderStatus != "Tất cả") {
+                mapTabToBackendStatus(filter.orderStatus)
+            } else {
+                mapTabToBackendStatus(tab)
+            }
+
+            val paymentMethodParam = when (filter.paymentMethod) {
+                "COD" -> "COD"
+                "VNPay" -> "VNPAY"
+                else -> null
+            }
+
+            val fromDateParam = when (filter.dateRange) {
+                "30 ngày qua" -> java.time.LocalDateTime.now().minusDays(30).toString()
+                "3 tháng qua" -> java.time.LocalDateTime.now().minusDays(90).toString()
+                "6 tháng qua" -> java.time.LocalDateTime.now().minusDays(180).toString()
+                "Năm nay" -> java.time.LocalDateTime.of(java.time.LocalDate.now().year, 1, 1, 0, 0).toString()
+                else -> null
+            }
+
+            val sortByParam = when (filter.sortBy) {
+                "Giá: Cao → Thấp", "Giá: Thấp → Cao" -> "totalAmount"
+                else -> "createdAt"
+            }
+
+            val sortDirParam = when (filter.sortBy) {
+                "Cũ nhất", "Giá: Thấp → Cao" -> "asc"
+                else -> "desc"
+            }
+
+            val result = orderRepository.getOrders(
+                status = backendStatus,
+                paymentMethod = paymentMethodParam,
+                fromDate = fromDateParam,
+                minAmount = filter.effectiveMinPrice,
+                maxAmount = filter.effectiveMaxPrice,
+                sortBy = sortByParam,
+                sortDir = sortDirParam,
+                page = 0,
+                size = 50
+            )
             result.onSuccess { pageResponse ->
+                val list = pageResponse.content
                 _uiState.update { state ->
+                    val updatedCounts = if (backendStatus == null || tab == "Tất cả") {
+                        calculateOrderStatusCounts(list)
+                    } else {
+                        state.orderStatusCounts
+                    }
                     state.copy(
-                        orders = pageResponse.content,
+                        orders = list,
+                        orderStatusCounts = updatedCounts,
                         isOrdersLoading = false,
                         isOrdersRefreshing = false,
                         ordersErrorMessage = null
@@ -1370,7 +1596,55 @@ class B2CViewModel : ViewModel() {
         }
     }
 
+    fun applyOrderFilter(filter: OrderFilterCriteria) {
+        val newTab = if (filter.orderStatus != "Tất cả") filter.orderStatus else _uiState.value.selectedOrdersTab
+        _uiState.update { it.copy(orderFilterCriteria = filter, selectedOrdersTab = newTab) }
+        loadOrders(tab = newTab, filter = filter, isRefresh = true)
+        showToast("Đã áp dụng bộ lọc đơn hàng!")
+    }
+
+    fun resetOrderFilter() {
+        val emptyFilter = OrderFilterCriteria()
+        _uiState.update { it.copy(orderFilterCriteria = emptyFilter) }
+        loadOrders(tab = _uiState.value.selectedOrdersTab, filter = emptyFilter, isRefresh = true)
+        showToast("Đã đặt lại bộ lọc!")
+    }
+
+    /**
+     * Tải tổng hợp số lượng đơn hàng theo từng trạng thái cho màn hình Tài khoản (GET /api/v1/buyer/orders)
+     */
+    fun loadAccountOrderSummary() {
+        if (!_uiState.value.isLoggedIn) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isOrdersSummaryLoading = true) }
+            val result = orderRepository.getOrders(status = null, page = 0, size = 100)
+            result.onSuccess { pageResponse ->
+                val list = pageResponse.content
+                val counts = calculateOrderStatusCounts(list)
+                _uiState.update { state ->
+                    state.copy(
+                        orderStatusCounts = counts,
+                        isOrdersSummaryLoading = false,
+                        orders = if (state.orders.isEmpty() || state.selectedOrdersTab == "Tất cả") list else state.orders
+                    )
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isOrdersSummaryLoading = false) }
+            }
+        }
+    }
+
+    private fun calculateOrderStatusCounts(list: List<OrderSummaryDto>): OrderStatusCounts {
+        return OrderStatusCounts(
+            pendingCount = list.count { it.status.equals("PENDING", ignoreCase = true) },
+            processingCount = list.count { it.status.equals("CONFIRMED", ignoreCase = true) || it.status.equals("PACKED", ignoreCase = true) },
+            shippingCount = list.count { it.status.equals("SHIPPING", ignoreCase = true) },
+            toReviewCount = list.count { it.status.equals("DELIVERED", ignoreCase = true) || it.status.equals("COMPLETED", ignoreCase = true) }
+        )
+    }
+
     fun selectOrdersTab(tab: String) {
+        _uiState.update { it.copy(selectedOrdersTab = tab, orderFilterCriteria = it.orderFilterCriteria.copy(orderStatus = "Tất cả")) }
         loadOrders(tab = tab, isRefresh = false)
     }
 
@@ -1421,6 +1695,7 @@ class B2CViewModel : ViewModel() {
             result.onSuccess { cancelledDto ->
                 showSuccessToast("Hủy đơn hàng #${cancelledDto.orderCode ?: orderId} thành công")
                 loadOrders(_uiState.value.selectedOrdersTab)
+                loadAccountOrderSummary()
                 if (_uiState.value.activeOrderDetail?.id == orderId) {
                     _uiState.update { it.copy(activeOrderDetail = cancelledDto) }
                 }
@@ -1501,6 +1776,7 @@ class B2CViewModel : ViewModel() {
                     refreshCartBadgeCount()
                     loadCartItems()
                     loadOrders()
+                    loadAccountOrderSummary()
                     loadUserProfile()
                     loadAddresses()
                     refreshWishlistCount()
@@ -1586,6 +1862,7 @@ class B2CViewModel : ViewModel() {
                     refreshCartBadgeCount()
                     loadCartItems()
                     loadOrders()
+                    loadAccountOrderSummary()
                     loadUserProfile()
                     loadAddresses()
                     refreshWishlistCount()
@@ -1694,6 +1971,11 @@ class B2CViewModel : ViewModel() {
     }
 
     fun openProductReviewsScreen() {
+        val product = _uiState.value.detailedProductScreen
+        val numericId = product?.id?.toLongOrNull()
+        if (numericId != null && _uiState.value.productReviews.isEmpty()) {
+            loadProductReviews(numericId)
+        }
         _uiState.update { it.copy(showProductReviewsScreen = true) }
     }
 
@@ -1702,7 +1984,7 @@ class B2CViewModel : ViewModel() {
     }
 
     fun openWishlist() {
-        _uiState.update { it.copy(showWishlistScreen = true) }
+        _uiState.update { it.copy(showWishlistScreen = true, detailedProductScreen = null) }
         loadWishlist(isRefresh = true)
     }
 
@@ -1722,7 +2004,10 @@ class B2CViewModel : ViewModel() {
                     wishlistProductIds = emptySet(),
                     isWishlistLoading = false,
                     isWishlistRefreshing = false,
-                    wishlistCount = 0
+                    wishlistCount = 0,
+                    wishlistPage = 0,
+                    isLastWishlistPage = true,
+                    isLoadingMoreWishlist = false
                 )
             }
             return
@@ -1734,7 +2019,7 @@ class B2CViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            val result = wishlistRepository.getWishlist(page = 0, size = 50)
+            val result = wishlistRepository.getWishlist(page = 0, size = 20)
             result.onSuccess { pageResponse ->
                 val items = pageResponse.content
                 _uiState.update { state ->
@@ -1742,8 +2027,11 @@ class B2CViewModel : ViewModel() {
                         wishlistItems = items,
                         wishlistProductIds = items.map { it.productId }.toSet(),
                         wishlistCount = pageResponse.totalElements.toInt(),
+                        wishlistPage = 0,
+                        isLastWishlistPage = pageResponse.last || items.size >= pageResponse.totalElements,
                         isWishlistLoading = false,
                         isWishlistRefreshing = false,
+                        isLoadingMoreWishlist = false,
                         wishlistErrorMessage = null
                     )
                 }
@@ -1752,9 +2040,38 @@ class B2CViewModel : ViewModel() {
                     state.copy(
                         isWishlistLoading = false,
                         isWishlistRefreshing = false,
+                        isLoadingMoreWishlist = false,
                         wishlistErrorMessage = error.message ?: "Không thể tải danh sách yêu thích"
                     )
                 }
+            }
+        }
+    }
+
+    fun loadMoreWishlist() {
+        val state = _uiState.value
+        if (!state.isLoggedIn || state.isLoadingMoreWishlist || state.isLastWishlistPage) return
+
+        val nextPage = state.wishlistPage + 1
+        _uiState.update { it.copy(isLoadingMoreWishlist = true) }
+
+        viewModelScope.launch {
+            val result = wishlistRepository.getWishlist(page = nextPage, size = 20)
+            result.onSuccess { pageResponse ->
+                val newItems = pageResponse.content
+                _uiState.update { current ->
+                    val combined = (current.wishlistItems + newItems).distinctBy { it.productId }
+                    current.copy(
+                        wishlistItems = combined,
+                        wishlistProductIds = combined.map { it.productId }.toSet(),
+                        wishlistCount = pageResponse.totalElements.toInt(),
+                        wishlistPage = nextPage,
+                        isLastWishlistPage = pageResponse.last || newItems.isEmpty() || combined.size >= pageResponse.totalElements,
+                        isLoadingMoreWishlist = false
+                    )
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isLoadingMoreWishlist = false) }
             }
         }
     }
