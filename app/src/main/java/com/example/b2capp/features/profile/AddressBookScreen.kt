@@ -355,8 +355,16 @@ fun AddressBookScreen(
 
             // 3. Danh sách Địa chỉ (Loop qua uiState.addresses)
             items(uiState.addresses) { address ->
+                val isSelectedForCheckout = uiState.showCheckoutScreen && (address.id == uiState.activeCheckoutAddress?.id)
                 AddressCardItem(
                     address = address,
+                    isSelectedForCheckout = isSelectedForCheckout,
+                    onSelect = {
+                        if (uiState.showCheckoutScreen) {
+                            viewModel.selectCheckoutAddress(address.id)
+                            viewModel.closeAddressBook()
+                        }
+                    },
                     onSetDefault = {
                         viewModel.setDefaultAddress(address.id)
                     },
@@ -499,24 +507,31 @@ fun AddressBookScreen(
 @Composable
 fun AddressCardItem(
     address: UserAddress,
+    isSelectedForCheckout: Boolean = false,
+    onSelect: (() -> Unit)? = null,
     onSetDefault: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onSelect != null) Modifier.clickable { onSelect() } else Modifier
+            ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelectedForCheckout) 2.dp else 0.5.dp),
+        border = if (isSelectedForCheckout) androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFBA2211)) else null
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Thanh viền đỏ phía trên cho địa chỉ mặc định
-            if (address.isDefault) {
+            // Thanh viền đỏ phía trên cho địa chỉ mặc định hoặc đang chọn
+            if (address.isDefault || isSelectedForCheckout) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.5.dp)
-                        .background(Color(0xFFBA2211))
+                        .background(if (isSelectedForCheckout) Color(0xFFBA2211) else Color(0xFFE53935))
                 )
             }
 
@@ -552,7 +567,21 @@ fun AddressCardItem(
                         )
                     }
 
-                    if (address.isDefault) {
+                    if (isSelectedForCheckout) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFFFECE9))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Đang chọn thanh toán",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFBA2211)
+                            )
+                        }
+                    } else if (address.isDefault) {
                         Box(
                             modifier = Modifier
                                 .size(18.dp)
@@ -561,7 +590,7 @@ fun AddressCardItem(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.CheckCircle,
-                                contentDescription = "Đã chọn",
+                                contentDescription = "Mặc định",
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )

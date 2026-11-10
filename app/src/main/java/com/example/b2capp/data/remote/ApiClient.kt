@@ -145,6 +145,24 @@ object ApiClient {
         get() = createAuthenticatedService(com.example.b2capp.data.remote.api.WishlistApiService::class.java)
 
     /**
+     * PromotionApiService có bảo vệ token (quản lý và áp dụng mã giảm giá)
+     */
+    val promotionApiService: com.example.b2capp.data.remote.api.PromotionApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.PromotionApiService::class.java)
+
+    /**
+     * PromotionApiService không cần token (xem danh sách khuyến mãi công khai)
+     */
+    val publicPromotionApiService: com.example.b2capp.data.remote.api.PromotionApiService
+        get() = createService(com.example.b2capp.data.remote.api.PromotionApiService::class.java)
+
+    /**
+     * PaymentApiService (xử lý thanh toán VNPAY và callback giao dịch)
+     */
+    val paymentApiService: com.example.b2capp.data.remote.api.PaymentApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.PaymentApiService::class.java)
+
+    /**
      * Tạo Service cho bất kỳ endpoint nào cần xác thực (Cart, Order, User...)
      */
     fun <T> createAuthenticatedService(serviceClass: Class<T>): T {

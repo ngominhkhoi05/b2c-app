@@ -29,7 +29,9 @@ import com.example.b2capp.data.remote.dto.ChangePasswordRequestDto
 import com.example.b2capp.data.remote.dto.CreateOrderRequestDto
 import com.example.b2capp.data.remote.dto.OrderDetailDto
 import com.example.b2capp.data.remote.dto.OrderItemDto
+import com.example.b2capp.data.remote.dto.OrderPreviewResponseDto
 import com.example.b2capp.data.remote.dto.OrderSummaryDto
+import com.example.b2capp.data.remote.dto.PromotionDto
 import com.example.b2capp.data.remote.dto.WishlistItemDto
 import com.example.b2capp.features.order.components.OrderFilterCriteria
 import com.example.b2capp.data.repository.AuthRepository
@@ -38,6 +40,8 @@ import com.example.b2capp.data.repository.ChatRepository
 import com.example.b2capp.data.repository.HomeBannerItem
 import com.example.b2capp.data.repository.HomeRepository
 import com.example.b2capp.data.repository.OrderRepository
+import com.example.b2capp.data.repository.PaymentRepository
+import com.example.b2capp.data.repository.PromotionRepository
 import com.example.b2capp.data.repository.ReviewRepository
 import com.example.b2capp.data.repository.UserRepository
 import com.example.b2capp.data.repository.WishlistRepository
@@ -68,10 +72,7 @@ data class B2CUiState(
     val selectedCategory: String = "Tất cả",
     val searchQuery: String = "",
     val products: List<ProductItem> = SampleData.products,
-    val cartItems: List<CartItem> = listOf(
-        CartItem(SampleData.products[0], quantity = 1),
-        CartItem(SampleData.products[1], quantity = 2)
-    ),
+    val cartItems: List<CartItem> = emptyList(),
     val selectedProductForSheet: ProductItem? = null,
     val detailedProductScreen: ProductItem? = null,
     val isProductDetailLoading: Boolean = false,
@@ -95,6 +96,10 @@ data class B2CUiState(
     val activeShopChat: ShopChatInfo? = null,
     val showCheckoutScreen: Boolean = false,
     val showVnpayPaymentScreen: Boolean = false,
+    val pendingVnpayOrder: OrderDetailDto? = null,
+    val isConfirmingVnpayPayment: Boolean = false,
+    val isCompletingOrder: Boolean = false,
+    val isRequestingReturn: Boolean = false,
     val completedOrderSuccess: OrderSuccessInfo? = null,
     val detailedOrderTrackingScreen: String? = null,
     val isLoggedIn: Boolean = false,
@@ -118,35 +123,24 @@ data class B2CUiState(
     val addressErrorMessage: String? = null,
     val showEditProfileScreen: Boolean = false,
     val showWriteReviewScreen: Boolean = false,
+    val reviewTargetOrder: OrderDetailDto? = null,
+    val reviewTargetSummary: OrderSummaryDto? = null,
+    val isReviewOrderLoading: Boolean = false,
+    val selectedReviewOrderItem: OrderItemDto? = null,
+    val isSubmittingReview: Boolean = false,
+    val isReviewImageUploading: Boolean = false,
     val showChangePasswordScreen: Boolean = false,
     val userProfile: UserProfile = UserProfile(),
-    val addresses: List<UserAddress> = listOf(
-        UserAddress(
-            id = "addr_1",
-            recipientName = "Nguyễn Văn A",
-            phoneNumber = "0987 654 321",
-            addressType = "Nhà riêng",
-            fullAddress = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
-            isDefault = true,
-            deliveryNote = "Lưu ý: Giao giờ hành chính, gọi trước 15 phút"
-        ),
-        UserAddress(
-            id = "addr_2",
-            recipientName = "Nguyễn Văn A",
-            phoneNumber = "0987 654 321",
-            addressType = "Văn phòng",
-            fullAddress = "Tòa nhà Bitexco Financial Tower, Tầng 18, 2 Hải Triều, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
-            isDefault = false
-        ),
-        UserAddress(
-            id = "addr_3",
-            recipientName = "Trần Thị B (Mẹ)",
-            phoneNumber = "0912 345 678",
-            addressType = "Nhà riêng",
-            fullAddress = "45 Lê Lợi, Phường Vĩnh Ninh, TP. Huế, Thừa Thiên Huế",
-            isDefault = false
-        )
-    ),
+    val addresses: List<UserAddress> = emptyList(),
+    val selectedCheckoutAddressId: String? = null,
+    val availablePromotions: List<PromotionDto> = emptyList(),
+    val isPromotionsLoading: Boolean = false,
+    val selectedVoucher: PromotionDto? = null,
+    val orderPreview: OrderPreviewResponseDto? = null,
+    val isPreviewLoading: Boolean = false,
+    val isPlacingOrder: Boolean = false,
+    val checkoutSelectedPaymentMethod: String = "COD",
+    val checkoutSellerNote: String = "",
     val detailSelectedQuantity: Int = 1,
     val interactiveRatingDemo: Float = 4.0f,
     val toastMessage: String? = null,
@@ -234,6 +228,21 @@ data class B2CUiState(
             val matchQuery = searchQuery.isBlank() || product.name.contains(searchQuery, ignoreCase = true)
             matchCategory && matchQuery
         }
+
+    val activeCheckoutAddress: UserAddress?
+        get() = addresses.find { it.id == selectedCheckoutAddressId }
+            ?: addresses.firstOrNull { it.isDefault }
+            ?: addresses.firstOrNull()
+
+    val checkoutCartItems: List<CartItemDto>
+        get() = serverCartItems.filter { it.isSelected }
+
+    val checkoutItemsSubtotal: Long
+        get() = if (checkoutCartItems.isNotEmpty()) {
+            checkoutCartItems.sumOf { (it.lineTotal ?: ((it.priceSnapshot ?: 0.0) * it.quantity)).toLong() }
+        } else {
+            0L
+        }
 }
 
 class B2CViewModel : ViewModel() {
@@ -242,6 +251,8 @@ class B2CViewModel : ViewModel() {
     private val cartRepository: CartRepository by lazy { CartRepository() }
     private val userRepository: UserRepository by lazy { UserRepository() }
     private val orderRepository: OrderRepository by lazy { OrderRepository() }
+    private val paymentRepository: PaymentRepository by lazy { PaymentRepository() }
+    private val promotionRepository: PromotionRepository by lazy { PromotionRepository() }
     private val chatRepository: ChatRepository by lazy { ChatRepository() }
     private val wishlistRepository: WishlistRepository by lazy { WishlistRepository() }
     private val reviewRepository: ReviewRepository by lazy { ReviewRepository() }
@@ -1360,12 +1371,173 @@ class B2CViewModel : ViewModel() {
         }
     }
 
+    fun computeDiscountAmount(promo: PromotionDto, subtotal: Double): Double {
+        val minOrder = promo.minOrderValue ?: 0.0
+        if (subtotal < minOrder) return 0.0
+
+        val discountType = promo.discountType?.uppercase() ?: "PERCENT"
+        val value = promo.discountValue ?: 0.0
+        var discount = when (discountType) {
+            "PERCENT" -> (subtotal * value / 100.0)
+            "FIXED" -> value
+            "FREESHIP" -> 30000.0
+            else -> 0.0
+        }
+
+        promo.maxDiscountAmount?.let { maxCap ->
+            if (maxCap > 0 && discount > maxCap) {
+                discount = maxCap
+            }
+        }
+
+        if (discountType != "FREESHIP" && discount > subtotal) {
+            discount = subtotal
+        }
+
+        return discount
+    }
+
+    fun findDeepestDiscountVoucher(promotions: List<PromotionDto>, subtotal: Double): PromotionDto? {
+        val eligiblePromos = promotions.filter { promo ->
+            val isActive = promo.status == null || promo.status.equals("ACTIVE", ignoreCase = true)
+            val minOrder = promo.minOrderValue ?: 0.0
+            val hasStock = (promo.remainingQuantity ?: 1) > 0
+            isActive && hasStock && subtotal >= minOrder
+        }
+
+        return eligiblePromos
+            .map { promo -> Pair(promo, computeDiscountAmount(promo, subtotal)) }
+            .filter { it.second > 0.0 }
+            .maxByOrNull { it.second }
+            ?.first
+    }
+
     fun openCheckoutScreen() {
-        _uiState.update { it.copy(showCheckoutScreen = true) }
+        val subtotal = _uiState.value.checkoutItemsSubtotal.toDouble()
+        _uiState.update {
+            it.copy(
+                showCheckoutScreen = true,
+                orderPreview = null,
+                isPlacingOrder = false
+            )
+        }
+
+        if (_uiState.value.isLoggedIn) {
+            loadAddresses()
+            loadCheckoutPromotions(subtotal)
+        }
     }
 
     fun closeCheckoutScreen() {
         _uiState.update { it.copy(showCheckoutScreen = false) }
+    }
+
+    fun selectCheckoutAddress(addressId: String) {
+        _uiState.update { it.copy(selectedCheckoutAddressId = addressId) }
+        refreshOrderPreview()
+    }
+
+    fun setCheckoutPaymentMethod(method: String) {
+        _uiState.update { it.copy(checkoutSelectedPaymentMethod = method) }
+    }
+
+    fun setCheckoutSellerNote(note: String) {
+        _uiState.update { it.copy(checkoutSellerNote = note) }
+    }
+
+    fun loadCheckoutPromotions(subtotal: Double = _uiState.value.checkoutItemsSubtotal.toDouble()) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPromotionsLoading = true) }
+            val result = promotionRepository.getAvailablePromotions(_uiState.value.isLoggedIn)
+            result.onSuccess { promos ->
+                val bestVoucher = findDeepestDiscountVoucher(promos, subtotal)
+                _uiState.update {
+                    it.copy(
+                        availablePromotions = promos,
+                        isPromotionsLoading = false,
+                        selectedVoucher = bestVoucher
+                    )
+                }
+                refreshOrderPreview()
+            }.onFailure {
+                _uiState.update { it.copy(isPromotionsLoading = false) }
+                refreshOrderPreview()
+            }
+        }
+    }
+
+    fun selectVoucher(voucher: PromotionDto?) {
+        _uiState.update { it.copy(selectedVoucher = voucher) }
+        refreshOrderPreview()
+    }
+
+    fun applyVoucherByCode(code: String, onComplete: ((Boolean, String) -> Unit)? = null) {
+        val trimmed = code.trim().uppercase()
+        if (trimmed.isBlank()) {
+            val msg = "Vui lòng nhập mã giảm giá"
+            showErrorToast(msg)
+            onComplete?.invoke(false, msg)
+            return
+        }
+
+        val subtotal = _uiState.value.checkoutItemsSubtotal.toDouble()
+        viewModelScope.launch {
+            val result = promotionRepository.validatePromotion(trimmed, subtotal)
+            result.onSuccess { validation ->
+                if (validation.success) {
+                    val matchingPromo = _uiState.value.availablePromotions.find { it.code.equals(trimmed, ignoreCase = true) }
+                        ?: PromotionDto(
+                            id = 0L,
+                            code = validation.code ?: trimmed,
+                            name = validation.name ?: trimmed,
+                            discountType = validation.discountType ?: "PERCENT",
+                            discountValue = validation.discountAmount ?: 0.0,
+                            maxDiscountAmount = validation.discountAmount,
+                            minOrderValue = 0.0
+                        )
+                    _uiState.update { it.copy(selectedVoucher = matchingPromo) }
+                    refreshOrderPreview()
+                    val msg = validation.message ?: "Áp dụng mã giảm giá thành công!"
+                    showToast(msg)
+                    onComplete?.invoke(true, msg)
+                } else {
+                    val msg = validation.message ?: "Mã giảm giá không hợp lệ"
+                    showErrorToast(msg)
+                    onComplete?.invoke(false, msg)
+                }
+            }.onFailure { error ->
+                val msg = error.message ?: "Không thể kiểm tra mã giảm giá"
+                showErrorToast(msg)
+                onComplete?.invoke(false, msg)
+            }
+        }
+    }
+
+    fun refreshOrderPreview() {
+        val cartItemIds = _uiState.value.checkoutCartItems.map { it.id }
+        if (cartItemIds.isEmpty() || !_uiState.value.isLoggedIn) return
+
+        val addressId = _uiState.value.activeCheckoutAddress?.id?.toLongOrNull()
+        val voucherCode = _uiState.value.selectedVoucher?.code
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPreviewLoading = true) }
+            val result = orderRepository.previewOrder(
+                cartItemIds = cartItemIds,
+                addressId = addressId,
+                voucherCode = voucherCode
+            )
+            result.onSuccess { preview ->
+                _uiState.update {
+                    it.copy(
+                        orderPreview = preview,
+                        isPreviewLoading = false
+                    )
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isPreviewLoading = false) }
+            }
+        }
     }
 
     fun openVnpayPayment() {
@@ -1373,62 +1545,151 @@ class B2CViewModel : ViewModel() {
     }
 
     fun closeVnpayPayment() {
+        val pending = _uiState.value.pendingVnpayOrder
         _uiState.update { it.copy(showVnpayPaymentScreen = false) }
+        if (pending != null) {
+            _uiState.update { it.copy(showCheckoutScreen = false, pendingVnpayOrder = null) }
+            showToast("Đơn hàng #${pending.orderCode ?: pending.id} đã được lưu. Bạn có thể thanh toán sau trong mục Đơn mua.")
+            refreshCartBadgeCount()
+            loadCartItems()
+            loadOrders()
+            loadAccountOrderSummary()
+        }
     }
 
     fun completeVnpayPayment() {
-        val randomOrderCode = (100000..999999).random()
-        _uiState.update { state ->
-            state.copy(
-                showVnpayPaymentScreen = false,
-                showCheckoutScreen = false,
-                completedOrderSuccess = OrderSuccessInfo(
-                    orderId = "ORD-20261105-0$randomOrderCode",
-                    paymentMethodName = "Cổng VNPAY",
-                    isOnlinePaid = true,
-                    orderTime = "05/11/2026 14:20",
-                    expectedDelivery = "14 Th04 – 16 Th04",
-                    totalAmount = state.totalCartPrice.takeIf { it > 0 } ?: 388200L,
-                    recipientName = state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
-                    recipientPhoneMasked = "090****123",
-                    deliveryAddress = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
-                )
-            )
+        confirmVnpayPayment()
+    }
+
+    /**
+     * Xác nhận hoàn tất thanh toán VNPAY bằng cách gọi API callback thật (POST /api/v1/payments/callback)
+     * Backend chuyển trạng thái đơn hàng sang PAID và CONFIRMED.
+     */
+    fun confirmVnpayPayment() {
+        val pending = _uiState.value.pendingVnpayOrder
+        if (pending == null) {
+            showErrorToast("Không tìm thấy thông tin đơn hàng thanh toán")
+            return
         }
-        refreshCartBadgeCount()
-        loadCartItems()
-        loadOrders()
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isConfirmingVnpayPayment = true) }
+            val txnId = "VNPAY_${System.currentTimeMillis()}"
+            val result = paymentRepository.confirmPayment(
+                orderId = pending.id,
+                transactionId = txnId,
+                status = "SUCCESS",
+                provider = "VNPAY"
+            )
+            result.onSuccess {
+                val recipient = pending.receiverName ?: _uiState.value.activeCheckoutAddress?.recipientName ?: ""
+                val phone = pending.receiverPhone ?: _uiState.value.activeCheckoutAddress?.phoneNumber ?: ""
+                val addressStr = pending.shippingAddress ?: _uiState.value.activeCheckoutAddress?.fullAddress ?: ""
+
+                _uiState.update { state ->
+                    state.copy(
+                        isConfirmingVnpayPayment = false,
+                        showVnpayPaymentScreen = false,
+                        showCheckoutScreen = false,
+                        selectedVoucher = null,
+                        orderPreview = null,
+                        pendingVnpayOrder = null,
+                        completedOrderSuccess = OrderSuccessInfo(
+                            orderId = pending.orderCode ?: "ORD-${pending.id}",
+                            paymentMethodName = "Cổng VNPAY",
+                            isOnlinePaid = true,
+                            orderTime = pending.createdAt ?: "",
+                            expectedDelivery = "Nhận hàng sau 2-4 ngày (Đồng kiểm khi nhận)",
+                            totalAmount = pending.totalAmount?.toLong() ?: 0L,
+                            recipientName = recipient,
+                            recipientPhoneMasked = phone,
+                            deliveryAddress = addressStr,
+                            paymentUrl = pending.paymentUrl
+                        )
+                    )
+                }
+                showToast("Thanh toán đơn hàng #${pending.orderCode ?: pending.id} thành công!")
+                refreshCartBadgeCount()
+                loadCartItems()
+                loadOrders()
+                loadAccountOrderSummary()
+            }.onFailure { error ->
+                _uiState.update { it.copy(isConfirmingVnpayPayment = false) }
+                val errorMsg = error.message ?: "Xác nhận thanh toán VNPAY không thành công!"
+                showErrorToast(errorMsg)
+            }
+        }
     }
 
     fun completeOrderPlacement(paymentMethod: String = "COD", sellerNote: String = "") {
-        val randomOrderCode = (100000..999999).random()
-        val cartItemIds = _uiState.value.serverCartItems.filter { it.isSelected }.map { it.id }
+        val cartItemIds = _uiState.value.checkoutCartItems.map { it.id }
+        if (cartItemIds.isEmpty()) {
+            showErrorToast("Vui lòng chọn ít nhất 1 sản phẩm trong giỏ hàng để thanh toán")
+            return
+        }
 
-        if (cartItemIds.isNotEmpty() && _uiState.value.isLoggedIn) {
-            val defaultAddress = _uiState.value.addresses.firstOrNull { it.isDefault } ?: _uiState.value.addresses.firstOrNull()
-            val targetAddressId = defaultAddress?.id?.toLongOrNull() ?: 1L
-            viewModelScope.launch {
-                val req = CreateOrderRequestDto(
-                    cartItemIds = cartItemIds,
-                    addressId = targetAddressId,
-                    paymentMethod = paymentMethod,
-                    note = sellerNote.ifBlank { null }
-                )
-                val result = orderRepository.createOrder(req)
-                result.onSuccess { created ->
+        if (!_uiState.value.isLoggedIn) {
+            showErrorToast("Vui lòng đăng nhập để tiến hành đặt hàng")
+            return
+        }
+
+        val targetAddress = _uiState.value.activeCheckoutAddress
+        val targetAddressId = targetAddress?.id?.toLongOrNull()
+        if (targetAddressId == null) {
+            showErrorToast("Vui lòng chọn hoặc thêm địa chỉ nhận hàng trước khi đặt hàng")
+            return
+        }
+
+        val voucherCode = _uiState.value.selectedVoucher?.code
+        val isVnpay = paymentMethod.equals("VNPAY", ignoreCase = true)
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPlacingOrder = true) }
+            val req = CreateOrderRequestDto(
+                cartItemIds = cartItemIds,
+                addressId = targetAddressId,
+                paymentMethod = if (isVnpay) "VNPAY" else "COD",
+                voucherCode = voucherCode,
+                note = sellerNote.ifBlank { null }
+            )
+            val result = orderRepository.createOrder(req)
+            result.onSuccess { created ->
+                if (isVnpay) {
+                    // Nếu là VNPAY: Đơn hàng được tạo ở trạng thái chờ thanh toán
+                    // Mở cổng thanh toán VNPAY với dữ liệu thật từ Backend
                     _uiState.update { state ->
                         state.copy(
+                            isPlacingOrder = false,
+                            pendingVnpayOrder = created,
+                            showVnpayPaymentScreen = true
+                        )
+                    }
+                    showToast("Đã khởi tạo đơn hàng #${created.orderCode ?: created.id}. Vui lòng hoàn tất thanh toán VNPAY.")
+                } else {
+                    // Nếu là COD: Đặt hàng thành công ngay lập tức
+                    val recipient = created.receiverName ?: targetAddress.recipientName
+                    val phone = created.receiverPhone ?: targetAddress.phoneNumber
+                    val addressStr = created.shippingAddress ?: targetAddress.fullAddress
+
+                    _uiState.update { state ->
+                        state.copy(
+                            isPlacingOrder = false,
                             showCheckoutScreen = false,
+                            showVnpayPaymentScreen = false,
+                            selectedVoucher = null,
+                            orderPreview = null,
+                            pendingVnpayOrder = null,
                             completedOrderSuccess = OrderSuccessInfo(
-                                orderId = created.orderCode ?: "ORD-20261105-0${created.id}",
-                                paymentMethodName = if (paymentMethod == "VNPAY") "Cổng VNPAY" else "Thanh toán khi nhận hàng (COD)",
-                                isOnlinePaid = paymentMethod == "VNPAY",
-                                orderTime = created.createdAt ?: "05/11/2026 14:20",
-                                expectedDelivery = "14 Th04 – 16 Th04",
-                                totalAmount = created.totalAmount?.toLong() ?: 388200L,
-                                recipientName = created.receiverName ?: state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
-                                recipientPhoneMasked = created.receiverPhone ?: "090****123",
-                                deliveryAddress = created.shippingAddress ?: defaultAddress?.fullAddress ?: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
+                                orderId = created.orderCode ?: "ORD-${created.id}",
+                                paymentMethodName = "Thanh toán khi nhận hàng (COD)",
+                                isOnlinePaid = false,
+                                orderTime = created.createdAt ?: "",
+                                expectedDelivery = "Nhận hàng sau 2-4 ngày (Đồng kiểm khi nhận)",
+                                totalAmount = created.totalAmount?.toLong() ?: 0L,
+                                recipientName = recipient,
+                                recipientPhoneMasked = phone,
+                                deliveryAddress = addressStr,
+                                paymentUrl = null
                             )
                         )
                     }
@@ -1436,61 +1697,34 @@ class B2CViewModel : ViewModel() {
                     loadCartItems()
                     loadOrders()
                     loadAccountOrderSummary()
-                }.onFailure {
-                    _uiState.update { state ->
-                        state.copy(
-                            showCheckoutScreen = false,
-                            completedOrderSuccess = OrderSuccessInfo(
-                                orderId = "ORD-20261105-0$randomOrderCode",
-                                paymentMethodName = "Thanh toán khi nhận hàng (COD)",
-                                isOnlinePaid = false,
-                                orderTime = "05/11/2026 14:20",
-                                expectedDelivery = "14 Th04 – 16 Th04",
-                                totalAmount = state.totalCartPrice.takeIf { it > 0 } ?: 388200L,
-                                recipientName = state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
-                                recipientPhoneMasked = "090****123",
-                                deliveryAddress = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
-                            )
-                        )
-                    }
-                    loadOrders()
                 }
+            }.onFailure { error ->
+                _uiState.update { it.copy(isPlacingOrder = false) }
+                val errorMsg = error.message ?: "Đặt hàng không thành công. Vui lòng thử lại!"
+                showErrorToast(errorMsg)
             }
-        } else {
-            _uiState.update { state ->
-                state.copy(
-                    showCheckoutScreen = false,
-                    completedOrderSuccess = OrderSuccessInfo(
-                        orderId = "ORD-20261105-0$randomOrderCode",
-                        paymentMethodName = "Thanh toán khi nhận hàng (COD)",
-                        isOnlinePaid = false,
-                        orderTime = "05/11/2026 14:20",
-                        expectedDelivery = "14 Th04 – 16 Th04",
-                        totalAmount = state.totalCartPrice.takeIf { it > 0 } ?: 388200L,
-                        recipientName = state.userProfile.fullName.ifBlank { "Nguyễn Văn A" },
-                        recipientPhoneMasked = "090****123",
-                        deliveryAddress = "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. HCM"
-                    )
-                )
-            }
-            loadOrders()
         }
     }
 
     fun closeOrderSuccessScreen(navigateToOrdersTab: Boolean = false) {
+        val lastOrderId = _uiState.value.completedOrderSuccess?.orderId
         _uiState.update { state ->
             state.copy(
                 completedOrderSuccess = null,
-                detailedOrderTrackingScreen = if (navigateToOrdersTab) "ORD-20261105-0088" else null,
+                detailedOrderTrackingScreen = if (navigateToOrdersTab && !lastOrderId.isNullOrBlank()) lastOrderId else null,
                 currentTab = if (navigateToOrdersTab) 3 else 0
             )
         }
         if (navigateToOrdersTab) {
             loadOrders()
+            if (!lastOrderId.isNullOrBlank()) {
+                openOrderDetailsTrackingScreen(lastOrderId)
+            }
         }
     }
 
-    fun openOrderDetailsTrackingScreen(orderId: String = "ORD-20261105-0088") {
+    fun openOrderDetailsTrackingScreen(orderId: String) {
+        if (orderId.isBlank()) return
         _uiState.update { it.copy(detailedOrderTrackingScreen = orderId, activeOrderDetail = null) }
         val numericId = orderId.toLongOrNull()
             ?: _uiState.value.orders.firstOrNull { it.orderCode == orderId || "#${it.orderCode}" == orderId }?.id
@@ -1708,15 +1942,69 @@ class B2CViewModel : ViewModel() {
             val result = orderRepository.retryPayment(orderId)
             result.onSuccess { paymentUrl ->
                 showToast("Đang mở cổng thanh toán VNPay...", ToastType.INFO)
+                val currentDetail = _uiState.value.activeOrderDetail
+                    ?: orderRepository.getOrderDetail(orderId).getOrNull()
+                _uiState.update { state ->
+                    state.copy(
+                        pendingVnpayOrder = currentDetail?.copy(paymentUrl = paymentUrl),
+                        showVnpayPaymentScreen = true
+                    )
+                }
                 if (onPaymentUrlReady != null) {
                     onPaymentUrlReady(paymentUrl)
-                } else {
-                    openVnpayPayment()
                 }
             }.onFailure { err ->
                 showErrorToast(err.message ?: "Không tạo được liên kết thanh toán")
             }
             _uiState.update { it.copy(retryingOrderId = null) }
+        }
+    }
+
+    /**
+     * Xác nhận người mua đã nhận được hàng và hoàn tất đơn hàng (PATCH /api/v1/buyer/orders/{id}/complete)
+     */
+    fun confirmOrderDelivery(orderId: Long) {
+        _uiState.update { it.copy(isCompletingOrder = true) }
+        viewModelScope.launch {
+            val result = orderRepository.completeOrder(orderId)
+            result.onSuccess { completed ->
+                showSuccessToast("Cảm ơn bạn đã xác nhận đã nhận hàng thành công!")
+                _uiState.update { state ->
+                    state.copy(
+                        isCompletingOrder = false,
+                        activeOrderDetail = completed
+                    )
+                }
+                loadOrders(_uiState.value.selectedOrdersTab)
+                loadAccountOrderSummary()
+            }.onFailure { err ->
+                _uiState.update { it.copy(isCompletingOrder = false) }
+                showErrorToast(err.message ?: "Xác nhận nhận hàng thất bại")
+            }
+        }
+    }
+
+    /**
+     * Gửi yêu cầu trả hàng / hoàn tiền cho đơn hàng đã nhận (POST /api/v1/buyer/orders/{id}/return-request)
+     */
+    fun requestOrderReturn(orderId: Long, reason: String, description: String? = null) {
+        _uiState.update { it.copy(isRequestingReturn = true) }
+        viewModelScope.launch {
+            val result = orderRepository.requestReturn(orderId, reason, description)
+            result.onSuccess { returned ->
+                showSuccessToast("Yêu cầu trả hàng / hoàn tiền đã được gửi thành công!")
+                _uiState.update { state ->
+                    state.copy(
+                        isRequestingReturn = false,
+                        activeOrderDetail = returned
+                    )
+                }
+                loadOrders(_uiState.value.selectedOrdersTab)
+                loadAccountOrderSummary()
+            }.onFailure { err ->
+                _uiState.update { it.copy(isRequestingReturn = false) }
+                showErrorToast(err.message ?: "Gửi yêu cầu trả hàng thất bại")
+            }
         }
     }
 
@@ -2429,8 +2717,189 @@ class B2CViewModel : ViewModel() {
         _uiState.update { it.copy(showWriteReviewScreen = true) }
     }
 
+    /**
+     * Mở màn hình Viết Đánh Giá cho đơn hàng từ danh sách Đơn Mua
+     */
+    fun openWriteReviewForOrder(order: OrderSummaryDto) {
+        _uiState.update {
+            it.copy(
+                showWriteReviewScreen = true,
+                reviewTargetSummary = order,
+                reviewTargetOrder = null,
+                selectedReviewOrderItem = null,
+                isReviewOrderLoading = true
+            )
+        }
+        viewModelScope.launch {
+            val result = orderRepository.getOrderDetail(order.id)
+            result.onSuccess { detail ->
+                val items = detail.items ?: emptyList()
+                val firstUnreviewed = items.firstOrNull { it.isReviewed != true } ?: items.firstOrNull()
+                _uiState.update {
+                    it.copy(
+                        reviewTargetOrder = detail,
+                        selectedReviewOrderItem = firstUnreviewed,
+                        isReviewOrderLoading = false
+                    )
+                }
+            }.onFailure { _ ->
+                // Fallback nếu không tải được chi tiết đơn: dựng OrderDetail giả từ summary
+                val fallbackItem = OrderItemDto(
+                    id = null,
+                    productName = order.firstProductName ?: "Sản phẩm B2C",
+                    variantName = order.firstVariantName,
+                    imageUrl = order.firstProductThumbnail,
+                    quantity = 1,
+                    unitPrice = order.totalAmount,
+                    isReviewed = false
+                )
+                val fallbackDetail = OrderDetailDto(
+                    id = order.id,
+                    orderCode = order.orderCode,
+                    status = order.status,
+                    items = listOf(fallbackItem)
+                )
+                _uiState.update {
+                    it.copy(
+                        reviewTargetOrder = fallbackDetail,
+                        selectedReviewOrderItem = fallbackItem,
+                        isReviewOrderLoading = false
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Mở màn hình Viết Đánh Giá từ chi tiết đơn hàng (OrderDetailDto)
+     */
+    fun openWriteReviewForOrderDetail(orderDetail: OrderDetailDto, targetItem: OrderItemDto? = null) {
+        val items = orderDetail.items ?: emptyList()
+        val chosen = targetItem ?: items.firstOrNull { it.isReviewed != true } ?: items.firstOrNull()
+        _uiState.update {
+            it.copy(
+                showWriteReviewScreen = true,
+                reviewTargetOrder = orderDetail,
+                selectedReviewOrderItem = chosen,
+                isReviewOrderLoading = false
+            )
+        }
+    }
+
+    /**
+     * Chọn sản phẩm trong đơn để viết đánh giá
+     */
+    fun selectReviewOrderItem(item: OrderItemDto) {
+        _uiState.update { it.copy(selectedReviewOrderItem = item) }
+    }
+
     fun closeWriteReview() {
-        _uiState.update { it.copy(showWriteReviewScreen = false) }
+        _uiState.update {
+            it.copy(
+                showWriteReviewScreen = false,
+                reviewTargetOrder = null,
+                reviewTargetSummary = null,
+                selectedReviewOrderItem = null,
+                isReviewOrderLoading = false,
+                isSubmittingReview = false
+            )
+        }
+    }
+
+    /**
+     * Gửi đánh giá sản phẩm lên Backend: POST /api/v1/buyer/reviews
+     */
+    fun submitProductReview(
+        orderItemId: Long,
+        rating: Int,
+        comment: String,
+        imageUrls: List<String> = emptyList(),
+        isAnonymous: Boolean = false,
+        onSuccess: (() -> Unit)? = null
+    ) {
+        if (!_uiState.value.isLoggedIn) {
+            showErrorToast("Vui lòng đăng nhập để gửi đánh giá")
+            return
+        }
+
+        if (comment.isBlank()) {
+            showErrorToast("Vui lòng chia sẻ thêm cảm nhận của bạn về sản phẩm")
+            return
+        }
+
+        _uiState.update { it.copy(isSubmittingReview = true) }
+
+        viewModelScope.launch {
+            val jsonImageUrls = if (imageUrls.isNotEmpty()) {
+                "[" + imageUrls.joinToString(",") { "\"$it\"" } + "]"
+            } else {
+                null
+            }
+
+            val result = reviewRepository.submitReview(
+                orderItemId = orderItemId,
+                rating = rating,
+                comment = comment.trim(),
+                imageUrls = jsonImageUrls,
+                isAnonymous = isAnonymous
+            )
+
+            result.onSuccess {
+                // Đánh dấu item này đã được review trong state chi tiết đơn hiện tại
+                val currentDetail = _uiState.value.reviewTargetOrder
+                val updatedItems = currentDetail?.items?.map { itm ->
+                    if (itm.id == orderItemId) itm.copy(isReviewed = true) else itm
+                }
+                val updatedDetail = currentDetail?.copy(items = updatedItems)
+
+                // Tự động chuyển qua item tiếp theo chưa review (nếu còn)
+                val nextUnreviewed = updatedItems?.firstOrNull { it.isReviewed != true }
+
+                _uiState.update { state ->
+                    state.copy(
+                        isSubmittingReview = false,
+                        reviewTargetOrder = updatedDetail,
+                        selectedReviewOrderItem = nextUnreviewed ?: state.selectedReviewOrderItem?.copy(isReviewed = true)
+                    )
+                }
+
+                showSuccessToast("Gửi đánh giá thành công! Cảm ơn bạn đã phản hồi.")
+
+                // Tải lại danh sách đơn hàng để cập nhật badge và tab Đánh giá
+                loadOrders()
+
+                onSuccess?.invoke()
+            }.onFailure { err ->
+                _uiState.update { it.copy(isSubmittingReview = false) }
+                val errorMsg = err.message ?: "Không thể gửi đánh giá. Vui lòng thử lại sau."
+                showErrorToast(errorMsg)
+            }
+        }
+    }
+
+    /**
+     * Upload ảnh đánh giá lên Cloudinary
+     */
+    fun uploadReviewImage(
+        bytes: ByteArray,
+        mimeType: String = "image/jpeg",
+        fileName: String = "review_image.jpg",
+        onSuccess: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isReviewImageUploading = true) }
+            val result = userRepository.uploadImage(bytes, mimeType, fileName, "reviews")
+            result.onSuccess { responseDto ->
+                _uiState.update { it.copy(isReviewImageUploading = false) }
+                val url = responseDto.secureUrl ?: responseDto.url ?: ""
+                if (url.isNotBlank()) {
+                    onSuccess(url)
+                }
+            }.onFailure { error ->
+                _uiState.update { it.copy(isReviewImageUploading = false) }
+                showErrorToast(error.message ?: "Không thể tải ảnh lên")
+            }
+        }
     }
 
     fun openChangePassword() {
@@ -2489,12 +2958,14 @@ class B2CViewModel : ViewModel() {
                         state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
                     }
                     loadAddresses(isRefresh = true)
+                    refreshOrderPreview()
                 }.onFailure { error ->
                     val msg = error.message ?: "Không thể đặt địa chỉ mặc định"
                     _uiState.update { state ->
                         state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.ERROR))
                     }
                     loadAddresses(isRefresh = true)
+                    refreshOrderPreview()
                 }
             }
         } else {
@@ -2525,12 +2996,14 @@ class B2CViewModel : ViewModel() {
                         state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.SUCCESS))
                     }
                     loadAddresses(isRefresh = true)
+                    refreshOrderPreview()
                 }.onFailure { error ->
                     val msg = error.message ?: "Không thể xóa địa chỉ"
                     _uiState.update { state ->
                         state.copy(toastMessage = msg, currentToast = createToastData(msg, ToastType.ERROR))
                     }
                     loadAddresses(isRefresh = true)
+                    refreshOrderPreview()
                 }
             }
         } else {
@@ -2555,18 +3028,22 @@ class B2CViewModel : ViewModel() {
                     userRepository.createAddress(requestDto)
                 }
 
-                result.onSuccess {
+                result.onSuccess { savedDto ->
+                    val newAddressId = savedDto.id?.toString() ?: idLong?.toString()
                     val msg = if (idLong != null) "Cập nhật địa chỉ thành công!" else "Thêm địa chỉ mới thành công!"
                     _uiState.update { state ->
                         state.copy(
                             isAddressSaving = false,
                             showAddressEditorScreen = false,
                             editingAddressForScreen = null,
+                            selectedCheckoutAddressId = newAddressId ?: state.selectedCheckoutAddressId,
                             toastMessage = msg,
                             currentToast = createToastData(msg, ToastType.SUCCESS)
                         )
                     }
                     loadAddresses(isRefresh = true)
+                    refreshOrderPreview()
+                    refreshOrderPreview()
                     onDone?.invoke()
                 }.onFailure { error ->
                     val msg = error.message ?: "Không thể lưu địa chỉ. Vui lòng thử lại!"

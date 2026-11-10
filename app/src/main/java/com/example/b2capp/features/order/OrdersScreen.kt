@@ -825,7 +825,7 @@ fun OrdersScreen(
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(Color(0xFFBA2211))
                                                 .clickable {
-                                                    viewModel.openWriteReview()
+                                                    viewModel.openWriteReviewForOrder(order)
                                                 }
                                                 .padding(horizontal = 14.dp),
                                             contentAlignment = Alignment.Center

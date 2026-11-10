@@ -49,6 +49,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
@@ -110,6 +112,11 @@ fun OrderDetailsAndTrackingScreen(
     var showCancelDialog by remember { mutableStateOf(false) }
     var cancelReason by remember { mutableStateOf("Tôi muốn cập nhật lại địa chỉ nhận hàng") }
 
+    // Dialog yêu cầu trả hàng / hoàn tiền
+    var showReturnDialog by remember { mutableStateOf(false) }
+    var returnReasonKey by remember { mutableStateOf("DAMAGED") }
+    var returnDescription by remember { mutableStateOf("") }
+
     // Tự động gọi API lấy chi tiết đơn hàng
     LaunchedEffect(orderId) {
         val numericId = orderId.toLongOrNull()
@@ -129,9 +136,13 @@ fun OrderDetailsAndTrackingScreen(
     val status = detail?.status?.uppercase() ?: "SHIPPING"
     val isPending = status == "PENDING"
     val isCancelled = status == "CANCELLED"
-    val isDeliveredOrCompleted = status == "DELIVERED" || status == "COMPLETED"
+    val isDelivered = status == "DELIVERED"
+    val isCompleted = status == "COMPLETED"
+    val isDeliveredOrCompleted = isDelivered || isCompleted
     val isShipping = status == "SHIPPING"
     val isConfirmed = status == "CONFIRMED" || status == "PACKED"
+    val isReturnRequested = status == "RETURN_REQUESTED"
+    val isReturned = status == "RETURNED"
 
     // Visuals của Hero Status Banner
     val bannerVisuals = when (status) {
@@ -167,12 +178,36 @@ fun OrderDetailsAndTrackingScreen(
             subtitle = "Đang trên đường giao bởi đơn vị vận chuyển SPX Express",
             icon = Icons.Default.LocalShipping
         )
-        "DELIVERED", "COMPLETED" -> BannerVisuals(
+        "DELIVERED" -> BannerVisuals(
             bg = Color(0xFF065F46),
-            tagText = "• GIAO HÀNG THÀNH CÔNG",
+            tagText = "• ĐÃ GIAO HÀNG",
             tagColor = Color(0xFFA7F3D0),
-            title = "Kiện hàng đã được giao thành công tới bạn",
+            title = "Kiện hàng đã được phát tới bạn",
+            subtitle = "Vui lòng kiểm tra hàng và xác nhận đã nhận hàng",
+            icon = Icons.Default.CheckCircle
+        )
+        "COMPLETED" -> BannerVisuals(
+            bg = Color(0xFF047857),
+            tagText = "• HOÀN TẤT ĐƠN HÀNG",
+            tagColor = Color(0xFFA7F3D0),
+            title = "Đơn hàng đã hoàn thành",
             subtitle = "Cảm ơn bạn đã tin tưởng mua sắm tại B2C!",
+            icon = Icons.Default.CheckCircle
+        )
+        "RETURN_REQUESTED" -> BannerVisuals(
+            bg = Color(0xFF9A3412),
+            tagText = "• ĐÃ YÊU CẦU TRẢ HÀNG",
+            tagColor = Color(0xFFFED7AA),
+            title = "Đang xử lý yêu cầu trả hàng / hoàn tiền",
+            subtitle = "Lý do: ${detail?.returnReason ?: "Đang chờ người bán phản hồi"}",
+            icon = Icons.Outlined.ErrorOutline
+        )
+        "RETURNED" -> BannerVisuals(
+            bg = Color(0xFF4C1D95),
+            tagText = "• ĐÃ TRẢ HÀNG & HOÀN TIỀN",
+            tagColor = Color(0xFFDDD6FE),
+            title = "Yêu cầu trả hàng đã được chấp thuận",
+            subtitle = "Đơn hàng đã hoàn tất thủ tục trả hàng và hoàn tiền.",
             icon = Icons.Default.CheckCircle
         )
         "CANCELLED" -> BannerVisuals(
@@ -614,27 +649,16 @@ fun OrderDetailsAndTrackingScreen(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = detail?.receiverName ?: "Nguyễn Văn A",
+                                text = detail?.receiverName ?: "Người nhận",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF111827)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = detail?.receiverPhone ?: "(+84) 987 654 321",
-                                fontSize = 12.5.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(Color(0xFFF3F4F6))
-                                    .padding(horizontal = 5.dp, vertical = 1.dp)
-                            ) {
+                            if (!detail?.receiverPhone.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Mặc định",
-                                    fontSize = 10.sp,
+                                    text = detail?.receiverPhone ?: "",
+                                    fontSize = 12.5.sp,
                                     color = Color(0xFF6B7280)
                                 )
                             }
@@ -643,7 +667,7 @@ fun OrderDetailsAndTrackingScreen(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
-                            text = detail?.shippingAddress ?: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+                            text = detail?.shippingAddress ?: "Chưa có thông tin địa chỉ",
                             fontSize = 12.5.sp,
                             color = Color(0xFF4B5563),
                             lineHeight = 17.sp
@@ -822,6 +846,54 @@ fun OrderDetailsAndTrackingScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 color = CoralPrimary
                                             )
+                                        }
+
+                                        // Nút/Badge đánh giá riêng cho từng sản phẩm khi đơn đã giao
+                                        if (isDeliveredOrCompleted) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (orderItem.isReviewed == true) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(4.dp))
+                                                            .background(Color(0xFFE8F5E9))
+                                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "✓ Đã đánh giá",
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = Color(0xFF2E7D32)
+                                                        )
+                                                    }
+                                                } else {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(4.dp))
+                                                            .border(1.dp, Color(0xFFBA2211), RoundedCornerShape(4.dp))
+                                                            .background(Color(0xFFFFF5F5))
+                                                            .clickable {
+                                                                if (detail != null) {
+                                                                    viewModel.openWriteReviewForOrderDetail(detail, orderItem)
+                                                                } else {
+                                                                    viewModel.openWriteReview()
+                                                                }
+                                                            }
+                                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "Viết đánh giá",
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFFBA2211)
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1038,6 +1110,63 @@ fun OrderDetailsAndTrackingScreen(
                     }
                 }
             }
+
+            // 8.1 Card Thông tin Yêu cầu Trả hàng / Hoàn tiền nếu có
+            if (isReturnRequested || isReturned || !detail?.returnReason.isNullOrBlank()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+                        border = BorderStroke(1.dp, Color(0xFFFDE68A))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD97706),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "YÊU CẦU TRẢ HÀNG / HOÀN TIỀN",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF92400E)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Lý do: ${detail?.returnReason ?: "Không xác định"}",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF78350F)
+                            )
+                            if (!detail?.returnDescription.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Chi tiết: ${detail?.returnDescription}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF92400E)
+                                )
+                            }
+                            if (!detail?.returnAdminNote.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Ghi chú xử lý: ${detail?.returnAdminNote}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF1E3A8A)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // 9. Thanh nút hành động dính đáy
@@ -1134,8 +1263,8 @@ fun OrderDetailsAndTrackingScreen(
                             color = Color(0xFF1E40AF)
                         )
                     }
-                } else if (isShipping) {
-                    // Đơn SHIPPING: [Liên hệ Shop] & [ĐÃ NHẬN ĐƯỢC HÀNG]
+                } else if (isShipping || isDelivered) {
+                    // Đơn SHIPPING hoặc DELIVERED: [Liên hệ Shop] & [Trả hàng nếu DELIVERED] & [ĐÃ NHẬN ĐƯỢC HÀNG]
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1155,9 +1284,28 @@ fun OrderDetailsAndTrackingScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Liên hệ Shop",
-                                fontSize = 13.5.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF1E40AF)
+                            )
+                        }
+                    }
+
+                    if (isDelivered && detail?.returnRequestedAt == null) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFFEF3C7))
+                                .clickable { showReturnDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Trả hàng",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB45309)
                             )
                         }
                     }
@@ -1167,30 +1315,40 @@ fun OrderDetailsAndTrackingScreen(
                             .weight(1.3f)
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFBA2211))
-                            .clickable {
-                                viewModel.showSuccessToast("Cảm ơn bạn đã xác nhận đã nhận hàng thành công!")
+                            .background(if (uiState.isCompletingOrder) Color(0xFF888888) else Color(0xFFBA2211))
+                            .clickable(enabled = !uiState.isCompletingOrder && rawId != null) {
+                                if (rawId != null) {
+                                    viewModel.confirmOrderDelivery(rawId)
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(17.dp)
+                        if (uiState.isCompletingOrder) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "ĐÃ NHẬN ĐƯỢC HÀNG",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "ĐÃ NHẬN ĐƯỢC HÀNG",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
-                } else if (isDeliveredOrCompleted) {
-                    // Đơn DELIVERED/COMPLETED: [Liên hệ Shop] & [ĐÁNH GIÁ]
+                } else if (isCompleted) {
+                    // Đơn COMPLETED: [Mua lại] & [Trả hàng nếu còn hạn] & [ĐÁNH GIÁ SẢN PHẨM]
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1208,17 +1366,42 @@ fun OrderDetailsAndTrackingScreen(
                         )
                     }
 
+                    if (detail?.returnRequestedAt == null) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFFEF3C7))
+                                .clickable { showReturnDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Trả hàng",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB45309)
+                            )
+                        }
+                    }
+
                     Box(
                         modifier = Modifier
                             .weight(1.3f)
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFBA2211))
-                            .clickable { viewModel.openWriteReview() },
+                            .clickable {
+                                if (detail != null) {
+                                    viewModel.openWriteReviewForOrderDetail(detail)
+                                } else {
+                                    viewModel.openWriteReview()
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "ĐÁNH GIÁ SẢN PHẨM",
+                            text = "ĐÁNH GIÁ",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -1337,6 +1520,97 @@ fun OrderDetailsAndTrackingScreen(
             dismissButton = {
                 TextButton(onClick = { showCancelDialog = false }) {
                     Text("Giữ lại đơn", color = TextSecondary)
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            containerColor = SurfaceCard
+        )
+    }
+
+    // Dialog xác nhận yêu cầu trả hàng / hoàn tiền
+    if (showReturnDialog && rawId != null) {
+        val returnReasons = listOf(
+            "DAMAGED" to "Hàng bị hỏng, móp méo hoặc vỡ khi vận chuyển",
+            "WRONG_ITEM" to "Người bán gửi sai sản phẩm / màu / size",
+            "NOT_AS_DESCRIBED" to "Sản phẩm không đúng với mô tả trên app",
+            "CHANGED_MIND" to "Đổi ý, không còn nhu cầu sử dụng",
+            "OTHER" to "Lý do khác"
+        )
+
+        AlertDialog(
+            onDismissRequest = { showReturnDialog = false },
+            title = {
+                Text(
+                    text = "Yêu cầu Trả hàng / Hoàn tiền",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = NavySecondary
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Vui lòng chọn lý do yêu cầu trả hàng cho đơn #$displayOrderCode:",
+                        fontSize = 13.sp,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    returnReasons.forEach { (key, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { returnReasonKey = key }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = returnReasonKey == key,
+                                onClick = { returnReasonKey = key },
+                                colors = RadioButtonDefaults.colors(selectedColor = CoralPrimary),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = returnDescription,
+                        onValueChange = { returnDescription = it },
+                        label = { Text("Mô tả chi tiết (tùy chọn)", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CoralPrimary,
+                            focusedLabelColor = CoralPrimary
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showReturnDialog = false
+                        viewModel.requestOrderReturn(rawId, returnReasonKey, returnDescription.ifBlank { null })
+                    },
+                    enabled = !uiState.isRequestingReturn
+                ) {
+                    if (uiState.isRequestingReturn) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Gửi yêu cầu", color = CoralPrimary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReturnDialog = false }) {
+                    Text("Đóng", color = TextSecondary)
                 }
             },
             shape = RoundedCornerShape(12.dp),
