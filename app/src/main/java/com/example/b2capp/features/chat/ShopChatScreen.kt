@@ -102,6 +102,7 @@ import kotlinx.coroutines.launch
  */
 data class DetailedChatMessage(
     val id: String,
+    val senderName: String? = null,
     val text: String,
     val time: String,
     val isFromUser: Boolean,

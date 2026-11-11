@@ -155,9 +155,15 @@ class ChatRepository(
     ): DetailedChatMessage {
         val isFromUser = dto.senderType == "BUYER" || (currentUserId != null && dto.senderId == currentUserId && dto.senderType != "SELLER")
         val formattedTime = formatTime(dto.createdAt)
+        val resolvedSenderName = if (!isFromUser) {
+            dto.senderName?.takeIf { it.isNotBlank() } ?: shopName
+        } else {
+            "Tôi"
+        }
 
         return DetailedChatMessage(
             id = "msg_${dto.id}",
+            senderName = resolvedSenderName,
             text = dto.content,
             time = formattedTime,
             isFromUser = isFromUser,

@@ -1156,7 +1156,25 @@ class B2CViewModel : ViewModel() {
         _uiState.update { state ->
             val p = product
             val resolvedSellerId = sellerId ?: p?.sellerId
+
+            // Đánh dấu hội thoại này là đã đọc ngay trong state cục bộ
+            val updatedConversations = if (conversationId != null) {
+                state.shopConversations.map { conv ->
+                    if (conv.numericId == conversationId) {
+                        conv.copy(
+                            unreadCount = 0,
+                            isTimeRed = false,
+                            isLastMessageBold = false,
+                            checkStatus = CheckStatus.DOUBLE_CHECK_READ
+                        )
+                    } else conv
+                }
+            } else {
+                state.shopConversations
+            }
+
             state.copy(
+                shopConversations = updatedConversations,
                 activeShopChat = ShopChatInfo(
                     conversationId = conversationId,
                     sellerId = resolvedSellerId,
@@ -1169,6 +1187,13 @@ class B2CViewModel : ViewModel() {
                     product = p
                 )
             )
+        }
+
+        // Đồng bộ cập nhật trạng thái đã đọc lên Backend Database
+        if (conversationId != null) {
+            viewModelScope.launch {
+                chatRepository.markConversationAsRead(conversationId)
+            }
         }
     }
 

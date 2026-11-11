@@ -218,6 +218,20 @@ fun ShopChatBubble(
                 .border(0.8.dp, Color(0xFFE2E8F0), RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
+            // Tên người gửi (Tên Shop)
+            val displayName = message.senderName?.takeIf { it.isNotBlank() }
+            if (displayName != null) {
+                Text(
+                    text = displayName,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = com.example.b2capp.core.designsystem.theme.NavySecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             // Nếu Shop gửi hình ảnh
             message.attachmentUrl?.let { url ->
                 AsyncImage(
