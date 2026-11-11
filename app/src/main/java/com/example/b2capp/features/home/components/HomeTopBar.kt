@@ -50,6 +50,7 @@ fun HomeTopBar(
     onSearchChange: (String) -> Unit,
     onSearchSubmit: (String) -> Unit = {},
     cartBadgeCount: Int,
+    chatBadgeCount: Int = 0,
     onCartClick: () -> Unit,
     onChatClick: () -> Unit
 ) {
@@ -120,17 +121,38 @@ fun HomeTopBar(
 
             Spacer(modifier = Modifier.width(4.dp))
 
-            // Icon Chat tin nhắn
-            IconButton(
-                onClick = onChatClick,
-                modifier = Modifier.size(38.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.ChatBubbleOutline,
-                    contentDescription = "Tin nhắn",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(23.dp)
-                )
+            // Icon Chat tin nhắn kèm Badge đỏ khi có tin chưa đọc
+            Box(contentAlignment = Alignment.TopEnd) {
+                IconButton(
+                    onClick = onChatClick,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ChatBubbleOutline,
+                        contentDescription = "Tin nhắn",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(23.dp)
+                    )
+                }
+
+                if (chatBadgeCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = 2.dp, y = (-2).dp)
+                            .size(17.dp)
+                            .background(Color(0xFFD32F2F), CircleShape)
+                            .border(1.dp, Color.White, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (chatBadgeCount > 99) "99+" else chatBadgeCount.toString(),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 10.sp
+                        )
+                    }
+                }
             }
 
             // Icon Giỏ hàng kèm Badge đỏ

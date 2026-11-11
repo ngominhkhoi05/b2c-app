@@ -45,15 +45,22 @@ import com.example.b2capp.data.repository.PromotionRepository
 import com.example.b2capp.data.repository.ReviewRepository
 import com.example.b2capp.data.repository.UserRepository
 import com.example.b2capp.data.repository.WishlistRepository
+import com.example.b2capp.core.network.RealtimeChatEvent
+import com.example.b2capp.core.network.RealtimeOrderEvent
+import com.example.b2capp.core.network.StompWebSocketManager
 import com.example.b2capp.features.chat.CheckStatus
 import com.example.b2capp.features.chat.DetailedChatMessage
+import com.example.b2capp.features.chat.PrefixIconType
 import com.example.b2capp.features.chat.ShopConversation
 import com.example.b2capp.features.home.HomeBadgeType
 import com.example.b2capp.features.home.HomeBestSellerItem
 import com.example.b2capp.features.home.HomeSuggestedProduct
 import com.example.b2capp.features.home.QuickCategoryItem
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -262,6 +269,9 @@ class B2CViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(B2CUiState())
     val uiState: StateFlow<B2CUiState> = _uiState.asStateFlow()
 
+    private val _incomingChatMessages = MutableSharedFlow<Pair<Long, DetailedChatMessage>>(extraBufferCapacity = 32)
+    val incomingChatMessages: SharedFlow<Pair<Long, DetailedChatMessage>> = _incomingChatMessages.asSharedFlow()
+
     init {
         // Tự động tải dữ liệu Trang chủ từ API Backend (có fallback dữ liệu mẫu)
         loadHomeData()
@@ -272,11 +282,12 @@ class B2CViewModel : ViewModel() {
         // Kiểm tra phiên đăng nhập và tính hợp lệ của token / user khi mở app
         validateSessionOnAppStart()
 
-        // Lắng nghe sự kiện đăng xuất khi Refresh Token hết hạn từ TokenAuthenticator
+        // Lắng nghe sự kiện đăng xuất / thay đổi token và các sự kiện WebSocket Realtime
         try {
             viewModelScope.launch {
                 TokenManager.getInstance().isLoggedInState.collect { loggedIn ->
                     if (!loggedIn) {
+                        StompWebSocketManager.disconnect()
                         _uiState.update {
                             it.copy(
                                 isLoggedIn = false,
@@ -285,10 +296,27 @@ class B2CViewModel : ViewModel() {
                                 serverCartCount = null,
                                 wishlistItems = emptyList(),
                                 wishlistProductIds = emptySet(),
-                                wishlistCount = 0
+                                wishlistCount = 0,
+                                shopConversations = emptyList(),
+                                activeShopChat = null
                             )
                         }
                     }
+                }
+            }
+            viewModelScope.launch {
+                TokenManager.getInstance().accessTokenState.collect { newToken ->
+                    StompWebSocketManager.onAccessTokenChanged(newToken)
+                }
+            }
+            viewModelScope.launch {
+                StompWebSocketManager.orderEvents.collect { event ->
+                    handleRealtimeOrderEvent(event)
+                }
+            }
+            viewModelScope.launch {
+                StompWebSocketManager.chatEvents.collect { event ->
+                    handleRealtimeChatEvent(event)
                 }
             }
         } catch (_: Exception) {
@@ -426,9 +454,12 @@ class B2CViewModel : ViewModel() {
                 refreshCartBadgeCount()
                 loadCartItems()
                 loadOrders()
+                loadAccountOrderSummary()
                 loadAddresses()
                 refreshWishlistCount()
                 loadWishlist()
+                loadShopConversations(forceRefresh = true)
+                connectRealtimeWebSocket()
             }.onFailure { error ->
                 val errorMsg = error.message ?: ""
                 val isAuthOrUserNotFound = errorMsg.contains("401") ||
@@ -438,6 +469,7 @@ class B2CViewModel : ViewModel() {
                         tokenManager.isTokenExpired()
 
                 if (isAuthOrUserNotFound) {
+                    StompWebSocketManager.disconnect()
                     tokenManager.clearAuth()
                     _uiState.update {
                         it.copy(
@@ -464,7 +496,9 @@ class B2CViewModel : ViewModel() {
                             )
                         }
                         refreshCartBadgeCount()
+                        connectRealtimeWebSocket()
                     } else {
+                        StompWebSocketManager.disconnect()
                         tokenManager.clearAuth()
                         _uiState.update {
                             it.copy(
@@ -2187,6 +2221,8 @@ class B2CViewModel : ViewModel() {
                     loadAddresses()
                     refreshWishlistCount()
                     loadWishlist()
+                    loadShopConversations(forceRefresh = true)
+                    connectRealtimeWebSocket()
                     onSuccess()
                 },
                 onFailure = { error ->
@@ -2273,6 +2309,8 @@ class B2CViewModel : ViewModel() {
                     loadAddresses()
                     refreshWishlistCount()
                     loadWishlist()
+                    loadShopConversations(forceRefresh = true)
+                    connectRealtimeWebSocket()
                     onSuccess()
                 },
                 onFailure = { error ->
@@ -2321,6 +2359,7 @@ class B2CViewModel : ViewModel() {
     }
 
     fun logout() {
+        StompWebSocketManager.disconnect()
         viewModelScope.launch {
             try {
                 authRepository.logout()
@@ -2331,12 +2370,180 @@ class B2CViewModel : ViewModel() {
                 isLoggedIn = false,
                 serverCartCount = null,
                 serverCartItems = emptyList(),
+                shopConversations = emptyList(),
+                activeShopChat = null,
                 showSignInScreen = true,
                 showSignUpScreen = false,
                 showForgotPasswordScreen = false,
                 toastMessage = "Đã đăng xuất tài khoản",
                 currentToast = createToastData("Đã đăng xuất tài khoản", ToastType.INFO)
             )
+        }
+    }
+
+    /**
+     * Khởi tạo kết nối STOMP WebSocket khi người dùng đã đăng nhập hợp lệ
+     */
+    fun connectRealtimeWebSocket() {
+        try {
+            if (!tokenManager.isLoggedIn()) return
+            val userId = _uiState.value.userProfile.id ?: tokenManager.getUserId()
+            if (userId != null && userId > 0) {
+                StompWebSocketManager.connectForUser(userId)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun subscribeConversationRealtime(conversationId: Long) {
+        if (!_uiState.value.isLoggedIn) return
+        StompWebSocketManager.subscribe("/topic/chat/conversation/$conversationId")
+    }
+
+    fun unsubscribeConversationRealtime(conversationId: Long) {
+        StompWebSocketManager.unsubscribe("/topic/chat/conversation/$conversationId")
+    }
+
+    fun subscribeOrderDetailRealtime(orderId: Long) {
+        if (!_uiState.value.isLoggedIn) return
+        StompWebSocketManager.subscribe("/topic/order/$orderId")
+    }
+
+    fun unsubscribeOrderDetailRealtime(orderId: Long) {
+        StompWebSocketManager.unsubscribe("/topic/order/$orderId")
+    }
+
+    /**
+     * Xử lý sự kiện cập nhật trạng thái đơn hàng theo thời gian thực từ WebSocket (không hiện Toast):
+     * - Cập nhật ngay trạng thái đơn trong danh sách orders và orderStatusCounts (AccountScreen & OrdersScreen).
+     * - Nếu đang mở màn hình Chi tiết đơn hàng của đúng đơn đó, tự động cập nhật activeOrderDetail và tải lại lộ trình.
+     */
+    private fun handleRealtimeOrderEvent(event: RealtimeOrderEvent) {
+        if (!_uiState.value.isLoggedIn) return
+
+        _uiState.update { state ->
+            val updatedOrders = state.orders.map { order ->
+                if (order.id == event.orderId) {
+                    order.copy(status = event.status)
+                } else {
+                    order
+                }
+            }
+            val updatedDetail = if (state.activeOrderDetail?.id == event.orderId) {
+                state.activeOrderDetail.copy(
+                    status = event.status,
+                    cancelReason = event.reason ?: state.activeOrderDetail.cancelReason
+                )
+            } else {
+                state.activeOrderDetail
+            }
+            state.copy(
+                orders = updatedOrders,
+                orderStatusCounts = calculateOrderStatusCounts(updatedOrders),
+                activeOrderDetail = updatedDetail
+            )
+        }
+
+        // Đồng bộ ngầm dữ liệu mới nhất từ server (timestamps của timeline, tab filter...)
+        loadOrders(_uiState.value.selectedOrdersTab, isRefresh = true)
+        loadAccountOrderSummary()
+        if (_uiState.value.activeOrderDetail?.id == event.orderId) {
+            loadOrderDetail(event.orderId)
+        }
+    }
+
+    /**
+     * Xử lý sự kiện Chat Realtime từ WebSocket (/topic/chat/user/{userId} & /topic/chat/conversation/{convId}):
+     * - Dùng lại chatRepository.mapDtoToDetailedChatMessage() để giữ đúng senderName của Shop.
+     * - Nếu đang mở trực tiếp màn hình ShopChatScreen của hội thoại đó -> đẩy tin nhắn vào màn hình và tự markAsRead.
+     * - Nếu đang ở ngoài -> cập nhật danh sách hội thoại (đẩy lên đầu, tăng unreadCount, đổi màu đỏ).
+     */
+    private fun handleRealtimeChatEvent(event: RealtimeChatEvent) {
+        if (!_uiState.value.isLoggedIn) return
+
+        when (event.type) {
+            "NEW_MESSAGE" -> {
+                val msgDto = event.message ?: return
+                val currentState = _uiState.value
+                val activeChat = currentState.activeShopChat
+                val isViewingThisConversation = activeChat != null && (
+                    activeChat.conversationId == event.conversationId ||
+                    (event.sellerId != null && activeChat.sellerId == event.sellerId)
+                )
+
+                val existingConv = currentState.shopConversations.find { it.numericId == event.conversationId }
+                val resolvedShopName = event.shopName
+                    ?: activeChat?.shopName
+                    ?: existingConv?.shopName
+                    ?: msgDto.senderName
+                    ?: "Shop"
+
+                val detailedMsg = chatRepository.mapDtoToDetailedChatMessage(
+                    dto = msgDto,
+                    currentUserId = currentState.userProfile.id ?: tokenManager.getUserId(),
+                    shopName = resolvedShopName,
+                    avatarLetter = activeChat?.avatarLetter ?: existingConv?.avatarLetter,
+                    avatarBg = activeChat?.avatarBg ?: existingConv?.avatarBg
+                )
+
+                // Phát tin nhắn tới ShopChatScreen nếu đang mở
+                _incomingChatMessages.tryEmit(event.conversationId to detailedMsg)
+
+                // Nếu người dùng đang mở đúng màn hình chat này và nhận tin từ Shop -> tự động đánh dấu đã đọc
+                if (isViewingThisConversation && !detailedMsg.isFromUser) {
+                    viewModelScope.launch {
+                        chatRepository.markConversationAsRead(event.conversationId)
+                    }
+                }
+
+                // Cập nhật danh sách hội thoại (ShopMessagesScreen & Badge ở HomeTopBar / AccountScreen)
+                if (existingConv != null) {
+                    _uiState.update { state ->
+                        val newUnread = if (isViewingThisConversation || detailedMsg.isFromUser) {
+                            0
+                        } else {
+                            event.buyerUnreadCount?.takeIf { it > 0 } ?: (existingConv.unreadCount + 1)
+                        }
+                        val prefixType = when {
+                            msgDto.content.contains("[Hình ảnh]", ignoreCase = true) -> PrefixIconType.IMAGE
+                            msgDto.content.contains("voucher", ignoreCase = true) -> PrefixIconType.VOUCHER
+                            else -> PrefixIconType.NONE
+                        }
+                        val updatedConv = existingConv.copy(
+                            lastMessage = msgDto.content,
+                            time = "Vừa xong",
+                            unreadCount = newUnread,
+                            isTimeRed = newUnread > 0,
+                            isLastMessageBold = newUnread > 0,
+                            prefixIconType = prefixType,
+                            checkStatus = if (newUnread > 0) CheckStatus.NONE else CheckStatus.DOUBLE_CHECK_READ
+                        )
+                        val remaining = state.shopConversations.filterNot { it.numericId == event.conversationId }
+                        state.copy(shopConversations = listOf(updatedConv) + remaining)
+                    }
+                } else {
+                    loadShopConversations(forceRefresh = true)
+                }
+            }
+
+            "CONVERSATION_READ" -> {
+                _uiState.update { state ->
+                    val updated = state.shopConversations.map { conv ->
+                        if (conv.numericId == event.conversationId) {
+                            if (event.readerRole.equals("BUYER", ignoreCase = true)) {
+                                conv.copy(
+                                    unreadCount = 0,
+                                    isTimeRed = false,
+                                    isLastMessageBold = false,
+                                    checkStatus = CheckStatus.DOUBLE_CHECK_READ
+                                )
+                            } else {
+                                conv.copy(checkStatus = CheckStatus.DOUBLE_CHECK_READ)
+                            }
+                        } else conv
+                    }
+                    state.copy(shopConversations = updated)
+                }
+            }
         }
     }
 
@@ -2642,6 +2849,7 @@ class B2CViewModel : ViewModel() {
                         isProfileLoading = false
                     )
                 }
+                connectRealtimeWebSocket()
             }.onFailure {
                 _uiState.update { it.copy(isProfileLoading = false) }
             }

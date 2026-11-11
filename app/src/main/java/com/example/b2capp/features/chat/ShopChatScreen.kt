@@ -58,6 +58,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -169,6 +170,32 @@ fun ShopChatScreen(
         isLoadingMessages = false
     }
 
+    // Đăng ký lắng nghe STOMP topic của cuộc hội thoại đang mở và nhận tin nhắn realtime
+    DisposableEffect(activeConversationId) {
+        val convId = activeConversationId
+        if (convId != null) {
+            viewModel.subscribeConversationRealtime(convId)
+        }
+        onDispose {
+            if (convId != null) {
+                viewModel.unsubscribeConversationRealtime(convId)
+            }
+        }
+    }
+
+    LaunchedEffect(activeConversationId) {
+        viewModel.incomingChatMessages.collect { (convId, incomingMsg) ->
+            if (activeConversationId == null || convId == activeConversationId) {
+                if (activeConversationId == null) {
+                    activeConversationId = convId
+                }
+                if (!incomingMsg.isFromUser && messages.none { it.id == incomingMsg.id }) {
+                    messages.add(incomingMsg)
+                }
+            }
+        }
+    }
+
     // Tự động cuộn xuống tin nhắn cuối cùng khi có tin mới
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -183,8 +210,9 @@ fun ShopChatScreen(
     ) {
         if (content.isBlank() && productAttachment == null) return
 
+        val tempId = "user_${System.currentTimeMillis()}"
         val userMsg = DetailedChatMessage(
-            id = "user_${System.currentTimeMillis()}",
+            id = tempId,
             text = content,
             time = "Vừa xong",
             isFromUser = true,
@@ -204,13 +232,18 @@ fun ShopChatScreen(
             if (activeConversationId == null && sentDto.conversationId != null) {
                 activeConversationId = sentDto.conversationId
             }
+            val idx = messages.indexOfFirst { it.id == tempId }
+            if (idx >= 0) {
+                messages[idx] = messages[idx].copy(id = "msg_${sentDto.id}")
+            }
         }
     }
 
     // Hàm gửi hình ảnh đính kèm
     fun sendImageMessage(imageUrl: String) {
+        val tempId = "user_${System.currentTimeMillis()}"
         val userMsg = DetailedChatMessage(
-            id = "user_${System.currentTimeMillis()}",
+            id = tempId,
             text = "[Hình ảnh]",
             time = "Vừa xong",
             isFromUser = true,
@@ -227,6 +260,10 @@ fun ShopChatScreen(
         ) { sentDto ->
             if (activeConversationId == null && sentDto.conversationId != null) {
                 activeConversationId = sentDto.conversationId
+            }
+            val idx = messages.indexOfFirst { it.id == tempId }
+            if (idx >= 0) {
+                messages[idx] = messages[idx].copy(id = "msg_${sentDto.id}")
             }
         }
     }

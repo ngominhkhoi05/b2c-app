@@ -55,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -125,6 +126,19 @@ fun OrderDetailsAndTrackingScreen(
     LaunchedEffect(orderId, resolvedNumericId) {
         if (resolvedNumericId != null && detail?.id != resolvedNumericId && !uiState.isOrderDetailLoading) {
             viewModel.loadOrderDetail(resolvedNumericId)
+        }
+    }
+
+    // Đăng ký nhận cập nhật trạng thái đơn hàng theo thời gian thực qua WebSocket (/topic/order/{id})
+    DisposableEffect(resolvedNumericId) {
+        val targetId = resolvedNumericId
+        if (targetId != null) {
+            viewModel.subscribeOrderDetailRealtime(targetId)
+        }
+        onDispose {
+            if (targetId != null) {
+                viewModel.unsubscribeOrderDetailRealtime(targetId)
+            }
         }
     }
 

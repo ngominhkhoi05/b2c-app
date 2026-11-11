@@ -274,6 +274,7 @@ fun HomeScreen(
                     viewModel.openSearchResults(query.ifBlank { "áo thun nam" })
                 },
                 cartBadgeCount = uiState.totalCartCount,
+                chatBadgeCount = uiState.shopConversations.sumOf { it.unreadCount },
                 onCartClick = onNavigateToCart,
                 onChatClick = { viewModel.openShopMessages() }
             )
