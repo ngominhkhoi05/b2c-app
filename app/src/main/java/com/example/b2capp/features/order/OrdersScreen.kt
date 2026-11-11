@@ -668,7 +668,7 @@ fun OrdersScreen(
                             totalPriceText = "₫${currencyFormatter.format(order.totalAmount ?: 0.0)}"
                         ),
                         onShopClick = {
-                            viewModel.openOrderDetailsTrackingScreen(order.orderCode ?: order.id.toString())
+                            viewModel.openOrderDetailsTrackingScreen(order.id.toString())
                         },
                         actionsSlot = {
                             Row(
@@ -739,7 +739,7 @@ fun OrdersScreen(
                                                     .clip(RoundedCornerShape(6.dp))
                                                     .background(Color(0xFFE0EDFF))
                                                     .clickable {
-                                                        viewModel.openOrderDetailsTrackingScreen(order.orderCode ?: order.id.toString())
+                                                        viewModel.openOrderDetailsTrackingScreen(order.id.toString())
                                                     }
                                                     .padding(horizontal = 14.dp),
                                                 contentAlignment = Alignment.Center
@@ -784,7 +784,7 @@ fun OrdersScreen(
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(Color(0xFFE0EDFF))
                                                 .clickable {
-                                                    viewModel.openOrderDetailsTrackingScreen(order.orderCode ?: order.id.toString())
+                                                    viewModel.openOrderDetailsTrackingScreen(order.id.toString())
                                                 }
                                                 .padding(horizontal = 14.dp),
                                             contentAlignment = Alignment.Center
@@ -806,7 +806,7 @@ fun OrdersScreen(
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(Color(0xFFEBF3FA))
                                                 .clickable {
-                                                    viewModel.openOrderDetailsTrackingScreen(order.orderCode ?: order.id.toString())
+                                                    viewModel.openOrderDetailsTrackingScreen(order.id.toString())
                                                 }
                                                 .padding(horizontal = 12.dp),
                                             contentAlignment = Alignment.Center
@@ -892,7 +892,7 @@ fun OrdersScreen(
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(Color(0xFFF3F4F6))
                                                 .clickable {
-                                                    viewModel.openOrderDetailsTrackingScreen(order.orderCode ?: order.id.toString())
+                                                    viewModel.openOrderDetailsTrackingScreen(order.id.toString())
                                                 }
                                                 .padding(horizontal = 12.dp),
                                             contentAlignment = Alignment.Center

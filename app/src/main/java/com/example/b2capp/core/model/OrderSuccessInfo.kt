@@ -4,6 +4,7 @@ package com.example.b2capp.core.model
  * Thông tin đơn hàng sau khi hoàn tất thanh toán thành công (dữ liệu từ Backend).
  */
 data class OrderSuccessInfo(
+    val rawOrderId: Long? = null,
     val orderId: String = "",
     val paymentMethodName: String = "",
     val isOnlinePaid: Boolean = false,

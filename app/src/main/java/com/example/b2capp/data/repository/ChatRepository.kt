@@ -1,8 +1,6 @@
 package com.example.b2capp.data.repository
 
 import androidx.compose.ui.graphics.Color
-import com.example.R
-import com.example.b2capp.data.SampleData
 import com.example.b2capp.data.remote.ApiClient
 import com.example.b2capp.data.remote.api.ChatApiService
 import com.example.b2capp.data.remote.dto.ChatMessageDto
@@ -64,6 +62,23 @@ class ChatRepository(
             if (response.isSuccessful) {
                 val list = response.body()?.data?.content ?: emptyList()
                 Result.success(list)
+            } else {
+                val errorMsg = ApiClient.parseErrorMessage(response.errorBody()?.string())
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Đánh dấu cuộc hội thoại đã đọc trên server
+     */
+    suspend fun markConversationAsRead(conversationId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiServiceHolder().markAsRead(conversationId)
+            if (response.isSuccessful) {
+                Result.success(Unit)
             } else {
                 val errorMsg = ApiClient.parseErrorMessage(response.errorBody()?.string())
                 Result.failure(Exception(errorMsg))
@@ -140,25 +155,19 @@ class ChatRepository(
     ): DetailedChatMessage {
         val isFromUser = dto.senderType == "BUYER" || (currentUserId != null && dto.senderId == currentUserId && dto.senderType != "SELLER")
         val formattedTime = formatTime(dto.createdAt)
-        val isCoolmate = shopName.contains("Coolmate", ignoreCase = true)
-        val isVoucher = dto.content.contains("voucher", ignoreCase = true) || dto.content.contains("giảm giá", ignoreCase = true)
-
-        val attachedProduct = dto.refProductId?.let { pId ->
-            SampleData.products.find { it.id == pId.toString() }
-        }
 
         return DetailedChatMessage(
             id = "msg_${dto.id}",
             text = dto.content,
             time = formattedTime,
             isFromUser = isFromUser,
-            senderAvatarRes = if (!isFromUser && isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null,
-            avatarLetter = if (!isFromUser) avatarLetter else null,
-            avatarBg = if (!isFromUser) avatarBg else null,
-            attachedProduct = attachedProduct,
+            senderAvatarRes = null,
+            avatarLetter = if (!isFromUser) (avatarLetter ?: extractInitials(shopName)) else null,
+            avatarBg = if (!isFromUser) (avatarBg ?: generateAvatarColor(shopName)) else null,
+            attachedProduct = null,
             attachmentUrl = dto.attachmentUrl,
-            isVoucher = !isFromUser && isVoucher,
-            voucherValue = if (isVoucher) "20.000₫" else null
+            isVoucher = false,
+            voucherValue = null
         )
     }
 
@@ -166,7 +175,7 @@ class ChatRepository(
      * Chuyển đổi từ DTO Backend sang UI Model hiển thị trên ShopMessagesScreen
      */
     fun mapDtoToShopConversation(dto: ConversationDto): ShopConversation {
-        val name = dto.otherPartyName?.takeIf { it.isNotBlank() } ?: "Shop đối tác #${dto.otherPartyId ?: dto.id}"
+        val name = dto.otherPartyName?.takeIf { it.isNotBlank() } ?: "Shop #${dto.otherPartyId ?: dto.id}"
         val initialLetter = extractInitials(name)
         val bgColor = generateAvatarColor(name)
         val formattedTime = formatTime(dto.lastMessageAt ?: dto.createdAt)
@@ -192,7 +201,7 @@ class ChatRepository(
             tagBg = Color(0xFFB82414),
             time = formattedTime,
             isTimeRed = unread > 0,
-            lastMessage = dto.lastMessage?.takeIf { it.isNotBlank() } ?: "Chào bạn, shop có thể hỗ trợ gì cho bạn?",
+            lastMessage = dto.lastMessage?.trim().orEmpty(),
             isLastMessageBold = unread > 0,
             prefixIconType = prefixType,
             unreadCount = unread,

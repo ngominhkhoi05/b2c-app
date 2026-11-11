@@ -266,13 +266,14 @@ fun AccountScreen(
 
                         HorizontalDivider(color = BorderDivider.copy(alpha = 0.5f), thickness = 0.8.dp)
 
+                        val unreadShopChatCount = uiState.shopConversations.sumOf { it.unreadCount }
                         MenuListItem(
                             icon = Icons.Outlined.ChatBubbleOutline,
                             iconTint = NavySecondary,
                             iconBg = Color(0xFFEAF2FA),
                             title = "Tin nhắn với Shop",
                             subtitle = "Hỗ trợ trực tuyến & giải đáp",
-                            badgeCount = 3,
+                            badgeCount = unreadShopChatCount,
                             onClick = { viewModel.openShopMessages() }
                         )
 

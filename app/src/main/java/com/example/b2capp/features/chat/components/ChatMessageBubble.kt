@@ -179,7 +179,18 @@ fun ShopChatBubble(
         verticalAlignment = Alignment.Top
     ) {
         // Avatar Shop hoặc Nhân viên CSKH
-        if (message.avatarLetter != null) {
+        if (message.senderAvatarRes != null) {
+            Image(
+                painter = painterResource(id = message.senderAvatarRes),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .border(0.8.dp, Color(0xFFE2E8F0), CircleShape)
+            )
+        } else {
+            val letter = message.avatarLetter ?: "S"
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -189,23 +200,12 @@ fun ShopChatBubble(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (message.avatarLetter.length > 3) message.avatarLetter.take(3) else message.avatarLetter,
+                    text = if (letter.length > 3) letter.take(3) else letter,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = com.example.b2capp.core.designsystem.theme.NavySecondary
                 )
             }
-        } else {
-            val avatarRes = message.senderAvatarRes ?: R.drawable.coolmate_shop_avatar_1793960155632
-            Image(
-                painter = painterResource(id = avatarRes),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .border(0.8.dp, Color(0xFFE2E8F0), CircleShape)
-            )
         }
 
         Spacer(modifier = Modifier.width(8.dp))

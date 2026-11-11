@@ -65,7 +65,7 @@ data class ProductItem(
     val imageUrl: String,
     val price: Long,
     val originalPrice: Long? = null,
-    val rating: Float = 5.0f,
+    val rating: Float = 0f,
     val soldCount: Int = 0,
     val isFreeShipping: Boolean = true,
     val stock: Int = 99,

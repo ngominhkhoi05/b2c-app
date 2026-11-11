@@ -190,6 +190,33 @@ private fun B2CMainScreens(
         return
     }
 
+    // Khi người dùng mở màn hình Thêm/Sửa địa chỉ giao hàng (AddressEditorScreen)
+    if (uiState.showAddressEditorScreen) {
+        BackHandler {
+            viewModel.closeAddressEditor()
+        }
+        AddressEditorScreen(
+            initialAddress = uiState.editingAddressForScreen,
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeAddressEditor() }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Sổ Địa Chỉ / Địa Chỉ Của Tôi (AddressBookScreen)
+    if (uiState.showAddressBookScreen) {
+        BackHandler {
+            viewModel.closeAddressBook()
+        }
+        AddressBookScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeAddressBook() }
+        )
+        return
+    }
+
     // Khi người dùng mở màn hình Thanh toán (CheckoutScreen) khi ấn Mua ngay hoặc Mua từ giỏ hàng
     if (uiState.showCheckoutScreen) {
         BackHandler {
@@ -351,32 +378,7 @@ private fun B2CMainScreens(
         return
     }
 
-    // Khi người dùng mở màn hình Thêm/Sửa địa chỉ giao hàng (AddressEditorScreen)
-    if (uiState.showAddressEditorScreen) {
-        BackHandler {
-            viewModel.closeAddressEditor()
-        }
-        AddressEditorScreen(
-            initialAddress = uiState.editingAddressForScreen,
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeAddressEditor() }
-        )
-        return
-    }
 
-    // Khi người dùng mở màn hình Sổ Địa Chỉ / Địa Chỉ Của Tôi (AddressBookScreen)
-    if (uiState.showAddressBookScreen) {
-        BackHandler {
-            viewModel.closeAddressBook()
-        }
-        AddressBookScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeAddressBook() }
-        )
-        return
-    }
 
     // Xử lý nút Back hệ thống
     if (uiState.currentTab != 0) {

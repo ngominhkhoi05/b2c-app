@@ -45,6 +45,7 @@ import com.example.b2capp.data.repository.PromotionRepository
 import com.example.b2capp.data.repository.ReviewRepository
 import com.example.b2capp.data.repository.UserRepository
 import com.example.b2capp.data.repository.WishlistRepository
+import com.example.b2capp.features.chat.CheckStatus
 import com.example.b2capp.features.chat.DetailedChatMessage
 import com.example.b2capp.features.chat.ShopConversation
 import com.example.b2capp.features.home.HomeBadgeType
@@ -146,7 +147,7 @@ data class B2CUiState(
     val toastMessage: String? = null,
     val currentToast: ToastData? = null,
     val homeCategories: List<QuickCategoryItem> = HomeRepository.getDefaultCategories(),
-    val homeBestSellers: List<HomeBestSellerItem> = HomeRepository.getDefaultBestSellers(),
+    val homeBestSellers: List<HomeBestSellerItem> = emptyList(),
     val homeSuggestedProducts: List<HomeSuggestedProduct> = emptyList(),
     val homeBanners: List<HomeBannerItem> = HomeRepository.getDefaultBanners(),
     val isHomeLoading: Boolean = false,
@@ -1116,7 +1117,9 @@ class B2CViewModel : ViewModel() {
             val result = chatRepository.getConversations()
             result.fold(
                 onSuccess = { dtoList ->
-                    val mapped = dtoList.map { chatRepository.mapDtoToShopConversation(it) }
+                    val mapped = dtoList
+                        .filter { !it.lastMessage.isNullOrBlank() }
+                        .map { chatRepository.mapDtoToShopConversation(it) }
                     _uiState.update {
                         it.copy(
                             shopConversations = mapped,
@@ -1130,7 +1133,7 @@ class B2CViewModel : ViewModel() {
                         it.copy(
                             shopConversations = emptyList(),
                             isShopConversationsLoading = false,
-                            shopConversationsError = error.message
+                            shopConversationsError = if (_uiState.value.isLoggedIn) error.message else null
                         )
                     }
                 }
@@ -1179,6 +1182,22 @@ class B2CViewModel : ViewModel() {
         avatarLetter: String? = null,
         avatarBg: androidx.compose.ui.graphics.Color? = null
     ): List<DetailedChatMessage> {
+        // Cập nhật trạng thái đã đọc cục bộ ngay lập tức để người dùng thấy unreadCount về 0
+        _uiState.update { state ->
+            val updated = state.shopConversations.map { conv ->
+                if (conv.numericId == conversationId) {
+                    conv.copy(
+                        unreadCount = 0,
+                        isTimeRed = false,
+                        isLastMessageBold = false,
+                        checkStatus = CheckStatus.DOUBLE_CHECK_READ
+                    )
+                } else conv
+            }
+            state.copy(shopConversations = updated)
+        }
+
+        // Gọi API tải danh sách tin nhắn (backend tự động đánh dấu đã đọc trong DB)
         val result = chatRepository.getMessages(conversationId)
         return result.fold(
             onSuccess = { dtos ->
@@ -1195,6 +1214,25 @@ class B2CViewModel : ViewModel() {
             },
             onFailure = { emptyList() }
         )
+    }
+
+    fun markShopConversationAsRead(conversationId: Long) {
+        viewModelScope.launch {
+            _uiState.update { state ->
+                val updated = state.shopConversations.map { conv ->
+                    if (conv.numericId == conversationId) {
+                        conv.copy(
+                            unreadCount = 0,
+                            isTimeRed = false,
+                            isLastMessageBold = false,
+                            checkStatus = CheckStatus.DOUBLE_CHECK_READ
+                        )
+                    } else conv
+                }
+                state.copy(shopConversations = updated)
+            }
+            chatRepository.markConversationAsRead(conversationId)
+        }
     }
 
     fun sendChatMessage(
@@ -1220,6 +1258,7 @@ class B2CViewModel : ViewModel() {
             )
             result.onSuccess { msgDto ->
                 onMessageSent?.invoke(msgDto)
+                loadShopConversations(forceRefresh = true)
             }
             _uiState.update { state ->
                 val displayMsg = content.ifBlank { if (messageType == "IMAGE") "[Hình ảnh]" else "Đã gửi tệp đính kèm" }
@@ -1266,6 +1305,9 @@ class B2CViewModel : ViewModel() {
         if (numericId != null) {
             loadProductReviews(numericId)
         }
+
+        // Tải danh sách voucher/khuyến mãi khả dụng từ API
+        loadCheckoutPromotions(product.price.toDouble())
 
         // Nếu ID là dạng số hợp lệ từ Backend, gọi API để cập nhật chi tiết đầy đủ nhất
         if (numericId != null) {
@@ -1629,6 +1671,7 @@ class B2CViewModel : ViewModel() {
                         orderPreview = null,
                         pendingVnpayOrder = null,
                         completedOrderSuccess = OrderSuccessInfo(
+                            rawOrderId = pending.id,
                             orderId = pending.orderCode ?: "ORD-${pending.id}",
                             paymentMethodName = "Cổng VNPAY",
                             isOnlinePaid = true,
@@ -1714,6 +1757,7 @@ class B2CViewModel : ViewModel() {
                             orderPreview = null,
                             pendingVnpayOrder = null,
                             completedOrderSuccess = OrderSuccessInfo(
+                                rawOrderId = created.id,
                                 orderId = created.orderCode ?: "ORD-${created.id}",
                                 paymentMethodName = "Thanh toán khi nhận hàng (COD)",
                                 isOnlinePaid = false,
@@ -1741,30 +1785,52 @@ class B2CViewModel : ViewModel() {
     }
 
     fun closeOrderSuccessScreen(navigateToOrdersTab: Boolean = false) {
-        val lastOrderId = _uiState.value.completedOrderSuccess?.orderId
+        val successInfo = _uiState.value.completedOrderSuccess
+        val targetOrderKey = successInfo?.rawOrderId?.toString() ?: successInfo?.orderId
         _uiState.update { state ->
             state.copy(
                 completedOrderSuccess = null,
-                detailedOrderTrackingScreen = if (navigateToOrdersTab && !lastOrderId.isNullOrBlank()) lastOrderId else null,
+                detailedOrderTrackingScreen = if (navigateToOrdersTab && !targetOrderKey.isNullOrBlank()) targetOrderKey else null,
                 currentTab = if (navigateToOrdersTab) 3 else 0
             )
         }
         if (navigateToOrdersTab) {
             loadOrders()
-            if (!lastOrderId.isNullOrBlank()) {
-                openOrderDetailsTrackingScreen(lastOrderId)
+            if (!targetOrderKey.isNullOrBlank()) {
+                openOrderDetailsTrackingScreen(targetOrderKey)
             }
         }
     }
 
     fun openOrderDetailsTrackingScreen(orderId: String) {
         if (orderId.isBlank()) return
-        _uiState.update { it.copy(detailedOrderTrackingScreen = orderId, activeOrderDetail = null) }
+        _uiState.update {
+            it.copy(
+                detailedOrderTrackingScreen = orderId,
+                activeOrderDetail = null,
+                isOrderDetailLoading = true,
+                orderDetailErrorMessage = null
+            )
+        }
         val numericId = orderId.toLongOrNull()
             ?: _uiState.value.orders.firstOrNull { it.orderCode == orderId || "#${it.orderCode}" == orderId }?.id
-            ?: orderId.replace(Regex("[^0-9]"), "").toLongOrNull()
         if (numericId != null) {
             loadOrderDetail(numericId)
+        } else {
+            viewModelScope.launch {
+                val foundId = orderRepository.getOrders(page = 0, size = 50).getOrNull()?.content
+                    ?.firstOrNull { it.orderCode == orderId || "#${it.orderCode}" == orderId }?.id
+                if (foundId != null) {
+                    loadOrderDetail(foundId)
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            isOrderDetailLoading = false,
+                            orderDetailErrorMessage = "Không tìm thấy thông tin đơn hàng"
+                        )
+                    }
+                }
+            }
         }
     }
 

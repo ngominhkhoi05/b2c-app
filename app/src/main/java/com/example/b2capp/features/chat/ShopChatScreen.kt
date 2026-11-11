@@ -204,29 +204,6 @@ fun ShopChatScreen(
                 activeConversationId = sentDto.conversationId
             }
         }
-
-        // Phản hồi tự động chỉ dành cho Trợ lý AI Bot (nếu đang chat với AI Bot)
-        val isAiBot = chatInfo.shopName.contains("AI Bot", ignoreCase = true) || chatInfo.shopName.contains("Trợ lý", ignoreCase = true)
-        if (isAiBot) {
-            coroutineScope.launch {
-                delay(100)
-                if (messages.isNotEmpty()) {
-                    listState.animateScrollToItem(messages.size - 1)
-                }
-                delay(800)
-                messages.add(
-                    DetailedChatMessage(
-                        id = "bot_${System.currentTimeMillis()}",
-                        text = "Dạ B2C Bot xin chào bạn! Hệ thống đã ghi nhận yêu cầu của bạn. Bạn cần hỗ trợ thêm thông tin gì về đơn hàng hay sản phẩm không ạ?",
-                        time = "Vừa xong",
-                        isFromUser = false,
-                        avatarLetter = "BOT",
-                        avatarBg = Color(0xFF2A527A)
-                    )
-                )
-                listState.animateScrollToItem(messages.size - 1)
-            }
-        }
     }
 
     // Hàm gửi hình ảnh đính kèm
@@ -249,28 +226,6 @@ fun ShopChatScreen(
         ) { sentDto ->
             if (activeConversationId == null && sentDto.conversationId != null) {
                 activeConversationId = sentDto.conversationId
-            }
-        }
-
-        val isAiBot = chatInfo.shopName.contains("AI Bot", ignoreCase = true) || chatInfo.shopName.contains("Trợ lý", ignoreCase = true)
-        if (isAiBot) {
-            coroutineScope.launch {
-                delay(100)
-                if (messages.isNotEmpty()) {
-                    listState.animateScrollToItem(messages.size - 1)
-                }
-                delay(800)
-                messages.add(
-                    DetailedChatMessage(
-                        id = "bot_${System.currentTimeMillis()}",
-                        text = "Dạ hình ảnh rất rõ nét ạ, trợ lý AI đã tiếp nhận và đang hỗ trợ bạn!",
-                        time = "Vừa xong",
-                        isFromUser = false,
-                        avatarLetter = "BOT",
-                        avatarBg = Color(0xFF2A527A)
-                    )
-                )
-                listState.animateScrollToItem(messages.size - 1)
             }
         }
     }
@@ -310,30 +265,16 @@ fun ShopChatScreen(
                 Spacer(modifier = Modifier.width(4.dp))
 
                 // Avatar Shop tròn kèm badge MALL ở chân avatar
-                val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
+                val initialLetter = chatInfo.avatarLetter ?: chatInfo.shopName.take(2).uppercase()
+                val bgColor = chatInfo.avatarBg ?: Color(0xFFF0FDF4)
+
                 Box(
                     modifier = Modifier.size(44.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (chatInfo.avatarLetter != null && !isCoolmate) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(chatInfo.avatarBg ?: Color(0xFFF0FDF4))
-                                .border(1.dp, Color(0xFFE5E7EB), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (chatInfo.avatarLetter.length > 3) chatInfo.avatarLetter.take(3) else chatInfo.avatarLetter,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NavySecondary
-                            )
-                        }
-                    } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.coolmate_shop_avatar_1793960155632),
+                    if (!chatInfo.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = chatInfo.avatarUrl,
                             contentDescription = chatInfo.shopName,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
@@ -341,6 +282,22 @@ fun ShopChatScreen(
                                 .clip(CircleShape)
                                 .border(1.dp, Color(0xFFE5E7EB), CircleShape)
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(bgColor)
+                                .border(1.dp, Color(0xFFE5E7EB), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (initialLetter.length > 3) initialLetter.take(3) else initialLetter,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NavySecondary
+                            )
+                        }
                     }
 
                     // Badge MALL đỏ chữ trắng ở dưới cùng avatar

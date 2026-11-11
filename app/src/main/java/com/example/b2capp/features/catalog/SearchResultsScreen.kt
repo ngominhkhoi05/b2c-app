@@ -190,121 +190,7 @@ fun SearchResultsScreen(
         triggerSearch(targetQuery = query)
     }
 
-    // Danh sách 6 sản phẩm chính xác theo ảnh
-    val productsList = remember {
-        listOf(
-            SearchProductResultItem(
-                id = "sr_1",
-                name = "Áo thun nam Cotton Compact thoáng mát siêu mềm mịn",
-                imageRes = R.drawable.product_white_tshirt_1793955938236,
-                price = 149000L,
-                originalPrice = 249000L,
-                discountPercent = 40,
-                rating = 4.9f,
-                reviewCountText = "3.4k",
-                location = "TP. HCM",
-                topBadgeText = "MALL",
-                topBadgeBg = Color(0xFFB82414),
-                featureBadgeText = "Freeship Xtra",
-                featureBadgeType = SearchBadgeType.FREESHIP_XTRA
-            ),
-            SearchProductResultItem(
-                id = "sr_2",
-                name = "Áo phông nam form rộng Unisex phong cách Hàn Quốc",
-                imageRes = R.drawable.tshirt_black_streetwear_1793958196938,
-                price = 119000L,
-                originalPrice = 170000L,
-                discountPercent = 30,
-                rating = 4.8f,
-                reviewCountText = "8.9k",
-                location = "Hà Nội",
-                topBadgeText = "",
-                topBadgeBg = Color.Transparent,
-                featureBadgeText = "",
-                featureBadgeType = SearchBadgeType.FREESHIP_XTRA
-            ),
-            SearchProductResultItem(
-                id = "sr_3",
-                name = "Áo Polo nam ngắn tay vải Pique gai cá sấu cao cấp",
-                imageRes = R.drawable.polo_navy_folded_1793957349647,
-                price = 189000L,
-                originalPrice = 250000L,
-                discountPercent = 25,
-                rating = 4.9f,
-                reviewCountText = "1.8k",
-                location = "TP. HCM",
-                topBadgeText = "MALL",
-                topBadgeBg = Color(0xFFB82414),
-                featureBadgeText = "Chính hãng",
-                featureBadgeType = SearchBadgeType.CHINH_HANG
-            ),
-            SearchProductResultItem(
-                id = "sr_4",
-                name = "Áo thun thể thao nam Pro Dry thoáng khí co giãn 4",
-                imageRes = R.drawable.tshirt_sport_heather_grey_1793958213522,
-                price = 99000L,
-                originalPrice = 199000L,
-                discountPercent = 50,
-                rating = 5.0f,
-                reviewCountText = "5.2k",
-                location = "Đà Nẵng",
-                topBadgeText = "Chính hãng",
-                topBadgeBg = Color(0xFF28537D),
-                featureBadgeText = "Freeship Xtra",
-                featureBadgeType = SearchBadgeType.FREESHIP_XTRA
-            ),
-            SearchProductResultItem(
-                id = "sr_5",
-                name = "Áo thun kẻ sọc Vintage form regular fit chất đũi mềm",
-                imageRes = R.drawable.tshirt_striped_vintage_1793958230121,
-                price = 135000L,
-                originalPrice = 160000L,
-                discountPercent = 15,
-                rating = 4.7f,
-                reviewCountText = "620",
-                location = "TP. HCM",
-                topBadgeText = "",
-                topBadgeBg = Color.Transparent,
-                featureBadgeText = "Hàng mới",
-                featureBadgeType = SearchBadgeType.HANG_MOI
-            ),
-            SearchProductResultItem(
-                id = "sr_6",
-                name = "Áo thun in họa tiết Typography phản quang nổi bật",
-                imageRes = R.drawable.tshirt_olive_pocket_1793958249431,
-                price = 165000L,
-                originalPrice = 255000L,
-                discountPercent = 35,
-                rating = 4.9f,
-                reviewCountText = "2.1k",
-                location = "Hà Nội",
-                topBadgeText = "MALL",
-                topBadgeBg = Color(0xFFB82414),
-                featureBadgeText = "Freeship Xtra",
-                featureBadgeType = SearchBadgeType.FREESHIP_XTRA
-            )
-        )
-    }
-
     val sortTabs = listOf("Liên quan", "Mới nhất", "Bán chạy", "Giá ↑", "Giá ↓")
-
-    val sortedProducts = remember(selectedSortTab, productsList, activeFilterCriteria) {
-        val filtered = productsList.filter { product ->
-            val matchMinPrice = activeFilterCriteria.minPrice == null || product.price >= activeFilterCriteria.minPrice!!
-            val matchMaxPrice = activeFilterCriteria.maxPrice == null || product.price <= activeFilterCriteria.maxPrice!!
-            val matchMall = !activeFilterCriteria.isShopeeMall || product.topBadgeText == "MALL"
-            val matchFreeship = !activeFilterCriteria.isFreeShipping || product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA
-            val matchStar = activeFilterCriteria.starRatingMin == null || product.rating >= (activeFilterCriteria.starRatingMin!!.toFloat() - 0.5f)
-            matchMinPrice && matchMaxPrice && matchMall && matchFreeship && matchStar
-        }
-        val listToSort = if (filtered.isEmpty()) productsList else filtered
-        when (selectedSortTab) {
-            "Giá ↑" -> listToSort.sortedBy { it.price }
-            "Giá ↓" -> listToSort.sortedByDescending { it.price }
-            "Mới nhất" -> listToSort.reversed()
-            else -> listToSort // Bán chạy hoặc liên quan
-        }
-    }
 
     Scaffold(
         modifier = modifier
@@ -666,28 +552,8 @@ fun SearchResultsScreen(
                 }
             }
 
-            // 5. Tính toán danh sách sản phẩm kết quả tìm kiếm (từ API backend hoặc fallback)
-            val hasServerResults = uiState.searchResults.isNotEmpty()
-            val rawProducts: List<ProductItem> = if (hasServerResults) {
-                uiState.searchResults
-            } else if (!uiState.isSearching && uiState.searchTotalElements == 0L && uiState.searchResultQuery != null) {
-                emptyList()
-            } else {
-                sortedProducts.map { product ->
-                    ProductItem(
-                        id = product.id,
-                        name = product.name,
-                        imageUrl = "",
-                        price = product.price,
-                        originalPrice = product.originalPrice,
-                        rating = product.rating,
-                        soldCount = 3400,
-                        isFreeShipping = product.featureBadgeType == SearchBadgeType.FREESHIP_XTRA,
-                        shopName = if (product.topBadgeText == "MALL") "Coolmate Official Store" else "Thời Trang Unisex",
-                        shopLocation = product.location
-                    )
-                }
-            }
+            // 5. Danh sách sản phẩm kết quả tìm kiếm: lấy hoàn toàn từ API backend (không dùng dữ liệu mock)
+            val rawProducts: List<ProductItem> = uiState.searchResults
 
             // Lọc bổ sung theo các tiêu chí client-side
             val effectiveProducts = remember(
@@ -730,7 +596,7 @@ fun SearchResultsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val countText = if (uiState.isSearching) "..." else if (uiState.searchResults.isNotEmpty()) uiState.searchTotalElements.toString() else if (uiState.searchResultQuery != null && uiState.searchTotalElements == 0L) "0" else sortedProducts.size.toString()
+                            val countText = if (uiState.isSearching) "..." else if (uiState.searchResults.isNotEmpty()) uiState.searchTotalElements.toString() else "0"
                             Text(
                                 text = "Tìm thấy ",
                                 fontSize = 12.sp,

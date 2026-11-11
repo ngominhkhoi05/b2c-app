@@ -84,9 +84,14 @@ import com.example.b2capp.core.designsystem.theme.BorderDivider
 import com.example.b2capp.core.designsystem.theme.CoralPrimary
 import com.example.b2capp.core.designsystem.theme.NavySecondary
 import com.example.b2capp.core.designsystem.theme.StarRatingGold
+import com.example.b2capp.core.ui.components.StarRatingBar
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.data.remote.dto.PromotionDto
+import com.example.b2capp.features.cart.VoucherSelectionBottomSheet
+import java.text.NumberFormat
+import java.util.Locale
 
 /**
  * Màn hình Chi Tiết Sản Phẩm (Product Details Screen)
@@ -141,12 +146,33 @@ fun ProductDetailsScreen(
     val isWishlisted = numericProductId != null && uiState.wishlistProductIds.contains(numericProductId)
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var showVariantSheet by remember { mutableStateOf(false) }
+    var showVoucherSelectionSheet by remember { mutableStateOf(false) }
     var variantSheetMode by remember { mutableStateOf(VariantSheetMode.ADD_TO_CART) }
 
     val displayImages = remember(product.id, product.images) {
         if (product.images.isNotEmpty()) product.images else listOfNotNull(product.imageUrl.ifBlank { null })
     }
     val pagerState = rememberPagerState(pageCount = { displayImages.size.coerceAtLeast(1) })
+
+    val effectivePrice = (currentVariant?.price ?: product.price).toDouble()
+    val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
+
+    val topVouchers = remember(uiState.availablePromotions, effectivePrice) {
+        uiState.availablePromotions
+            .filter { promo ->
+                val isActive = promo.status == null || promo.status.equals("ACTIVE", ignoreCase = true)
+                val hasStock = (promo.remainingQuantity ?: 1) > 0
+                val meetsMinOrder = effectivePrice >= (promo.minOrderValue ?: 0.0)
+                isActive && hasStock && meetsMinOrder
+            }
+            .map { promo ->
+                val discount = viewModel.computeDiscountAmount(promo, effectivePrice)
+                Pair(promo, discount)
+            }
+            .filter { it.second > 0.0 }
+            .sortedByDescending { it.second }
+            .take(3)
+    }
 
     Box(
         modifier = modifier
@@ -343,24 +369,28 @@ fun ProductDetailsScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.clickable { viewModel.openProductReviewsScreen() }
                         ) {
-                            Text(
-                                text = String.format(java.util.Locale.US, "%.1f", product.rating),
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
+                            val hasRating = product.rating > 0f
+                            if (hasRating) {
+                                Text(
+                                    text = String.format(java.util.Locale.US, "%.1f", product.rating),
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
 
-                            // 5 sao vàng
-                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                                val starCount = product.rating.toInt().coerceIn(1, 5)
-                                repeat(starCount) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Star,
-                                        contentDescription = null,
-                                        tint = StarRatingGold,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
+                                // Sao vàng theo điểm thực tế (hỗ trợ nửa sao)
+                                StarRatingBar(
+                                    rating = product.rating,
+                                    starSize = 14.dp,
+                                    showRatingText = false,
+                                    testTag = "product_detail_rating_stars"
+                                )
+                            } else {
+                                Text(
+                                    text = "Chưa có đánh giá",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
                             }
 
                             Text(
@@ -380,45 +410,58 @@ fun ProductDetailsScreen(
                 }
             }
 
-            // 3. Dải ƯU ĐÃI Voucher
-            item {
-                HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { /* Mở danh sách voucher */ }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "ƯU ĐÃI:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
+            // 3. Dải ƯU ĐÃI Voucher (Lấy từ API thật - hiển thị 3 voucher tốt nhất hoặc ẩn nếu không có)
+            if (topVouchers.isNotEmpty()) {
+                item {
+                    HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
 
                     Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showVoucherSelectionSheet = true }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        VoucherTag(text = "Giảm ₫15k", isRed = true, showTicket = true)
-                        VoucherTag(text = "Giảm 10%", isRed = true)
-                        VoucherTag(text = "Freeship 200k", isGreen = true)
+                        Text(
+                            text = "ƯU ĐÃI:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            topVouchers.forEachIndexed { index, (voucher, discount) ->
+                                val discountText = if (discount >= 1000) {
+                                    "Giảm ₫${currencyFormatter.format(discount.toLong())}"
+                                } else {
+                                    "Giảm ₫${discount.toInt()}"
+                                }
+                                val isFreeship = voucher.discountType.equals("FREESHIP", ignoreCase = true)
+                                VoucherTag(
+                                    text = discountText,
+                                    isRed = !isFreeship,
+                                    isGreen = isFreeship,
+                                    showTicket = index == 0
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = "Xem tất cả ưu đãi",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(12.dp)
+                        )
                     }
 
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(12.dp)
-                    )
+                    HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
                 }
-
-                HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 8.dp)
             }
 
             // 4. Chọn phân loại (Chỉ hiển thị khi sản phẩm có tùy chọn phân loại thực tế từ API)
@@ -1130,6 +1173,32 @@ fun ProductDetailsScreen(
                     if (mode == VariantSheetMode.BUY_NOW) {
                         viewModel.openCheckoutScreen()
                     }
+                }
+            )
+        }
+
+        // Popup ModalBottomSheet chọn mã giảm giá / voucher
+        if (showVoucherSelectionSheet) {
+            val effectivePrice = (currentVariant?.price ?: product.price).toDouble()
+            VoucherSelectionBottomSheet(
+                promotions = uiState.availablePromotions,
+                selectedVoucher = uiState.selectedVoucher,
+                orderSubtotal = effectivePrice,
+                isLoading = uiState.isPromotionsLoading,
+                onDismissRequest = { showVoucherSelectionSheet = false },
+                onSelectVoucher = { chosen ->
+                    viewModel.selectVoucher(chosen)
+                    showVoucherSelectionSheet = false
+                },
+                onApplyCustomCode = { code ->
+                    viewModel.applyVoucherByCode(code) { success, _ ->
+                        if (success) {
+                            showVoucherSelectionSheet = false
+                        }
+                    }
+                },
+                calculateDiscount = { promo, subtotal ->
+                    viewModel.computeDiscountAmount(promo, subtotal)
                 }
             )
         }

@@ -8,11 +8,11 @@ import androidx.compose.ui.graphics.Color
 data class ShopChatInfo(
     val conversationId: Long? = null,
     val sellerId: Long? = null,
-    val shopName: String = "Coolmate Official Store",
+    val shopName: String = "Shop",
     val avatarLetter: String? = null,
     val avatarBg: Color? = null,
     val avatarUrl: String? = null,
-    val isMall: Boolean = true,
+    val isMall: Boolean = false,
     val isOnline: Boolean = true,
     val product: ProductItem? = null
 )

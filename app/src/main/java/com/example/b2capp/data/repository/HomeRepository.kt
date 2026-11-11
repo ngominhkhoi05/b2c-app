@@ -272,16 +272,12 @@ class HomeRepository(
             val response = homeApiService.getFeaturedProducts(page = 0, size = 10)
             if (response.isSuccessful && response.body()?.data != null) {
                 val pageData = response.body()!!.data!!
-                if (pageData.content.isNotEmpty()) {
-                    pageData.content.map { it.toHomeBestSellerItem() }
-                } else {
-                    getDefaultBestSellers()
-                }
+                pageData.content.map { it.toHomeBestSellerItem() }
             } else {
-                getDefaultBestSellers()
+                emptyList()
             }
         } catch (_: Exception) {
-            getDefaultBestSellers()
+            emptyList()
         }
     }
 
@@ -423,8 +419,9 @@ class HomeRepository(
             price = priceLong,
             originalPrice = origPriceLong,
             discountPercent = discount,
-            rating = (ratingAvg ?: 5.0).toFloat(),
+            rating = (ratingAvg ?: 0.0).toFloat(),
             soldCount = soldCount ?: 0,
+            ratingCount = ratingCount ?: 0,
             shopName = shopName ?: "Coolmate Official Store",
             shopLocation = "Việt Nam",
             description = "Sản phẩm chính hãng, bảo hành đổi trả trong 7 ngày."
@@ -433,7 +430,7 @@ class HomeRepository(
 
     private fun ProductSummaryDto.toHomeSuggestedProduct(): HomeSuggestedProduct {
         val priceLong = (minPrice ?: 0.0).toLong()
-        val ratingVal = (ratingAvg ?: 5.0).toFloat()
+        val ratingVal = (ratingAvg ?: 0.0).toFloat()
         val sold = soldCount ?: 0
 
         val soldStr = if (sold >= 1000) {
@@ -456,6 +453,8 @@ class HomeRepository(
             badgeType = badge,
             rating = ratingVal,
             soldText = soldStr,
+            soldCount = sold,
+            ratingCount = ratingCount ?: 0,
             stock = 50,
             description = "Sản phẩm phân phối chính hãng.",
             shopName = shopName ?: "Coolmate Official Store",
@@ -614,7 +613,7 @@ fun ProductSummaryDto.toProductItem(): ProductItem {
             ?: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80",
         price = priceLong,
         originalPrice = if (origPriceLong > priceLong) origPriceLong else null,
-        rating = (ratingAvg ?: 5.0).toFloat(),
+        rating = (ratingAvg ?: 0.0).toFloat(),
         soldCount = soldCount ?: 0,
         isFreeShipping = true,
         stock = 99,

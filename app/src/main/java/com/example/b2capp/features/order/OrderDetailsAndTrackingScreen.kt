@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,7 +39,6 @@ import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -93,10 +91,11 @@ import java.util.Locale
 /**
  * Màn hình Chi Tiết Đơn Hàng & Lộ Trình Vận Đơn (Order Details & Tracking Screen)
  * - Tự động gọi API GET /api/v1/buyer/orders/{id} khi mở màn hình
- * - Hiển thị trạng thái đơn hàng thời gian thực: PENDING, CONFIRMED, PACKED, SHIPPING, DELIVERED, COMPLETED, CANCELLED
- * - Hiển thị Lộ trình vận chuyển động theo mốc thời gian thực của đơn hàng
- * - Hiển thị địa chỉ giao hàng, danh sách sản phẩm thực tế, chi tiết thanh toán
- * - Thao tác Hủy đơn hàng và Thanh toán lại VNPay trực tiếp
+ * - Bắt buộc chờ tải dữ liệu thật từ API, không hiển thị dữ liệu mock khi đang tải
+ * - Lộ trình đơn hàng:
+ *   + COD: Đơn hàng đặt hàng thành công -> Người bán chuẩn bị hàng -> Đang vận chuyển -> Giao hàng thành công
+ *   + VNPay chưa thanh toán: Đơn hàng đặt hàng thành công -> Chờ thanh toán -> Người bán chuẩn bị hàng -> Đang vận chuyển -> Giao hàng thành công
+ *   + VNPay đã thanh toán: Đơn hàng đặt hàng thành công -> Đã thanh toán -> Người bán chuẩn bị hàng -> Đang vận chuyển -> Giao hàng thành công
  */
 @Composable
 fun OrderDetailsAndTrackingScreen(
@@ -117,136 +116,16 @@ fun OrderDetailsAndTrackingScreen(
     var returnReasonKey by remember { mutableStateOf("DAMAGED") }
     var returnDescription by remember { mutableStateOf("") }
 
-    // Tự động gọi API lấy chi tiết đơn hàng
-    LaunchedEffect(orderId) {
-        val numericId = orderId.toLongOrNull()
-            ?: uiState.orders.firstOrNull { it.orderCode == orderId || "#${it.orderCode}" == orderId }?.id
-            ?: orderId.replace(Regex("[^0-9]"), "").toLongOrNull()
-
-        if (numericId != null) {
-            viewModel.loadOrderDetail(numericId)
-        }
-    }
-
     val detail = uiState.activeOrderDetail
-    val displayOrderCode = detail?.orderCode ?: orderId
-    val rawId = detail?.id ?: orderId.toLongOrNull()
+    val resolvedNumericId = detail?.id
+        ?: orderId.toLongOrNull()
+        ?: uiState.orders.firstOrNull { it.orderCode == orderId || "#${it.orderCode}" == orderId }?.id
 
-    // Trạng thái đơn hàng
-    val status = detail?.status?.uppercase() ?: "SHIPPING"
-    val isPending = status == "PENDING"
-    val isCancelled = status == "CANCELLED"
-    val isDelivered = status == "DELIVERED"
-    val isCompleted = status == "COMPLETED"
-    val isDeliveredOrCompleted = isDelivered || isCompleted
-    val isShipping = status == "SHIPPING"
-    val isConfirmed = status == "CONFIRMED" || status == "PACKED"
-    val isReturnRequested = status == "RETURN_REQUESTED"
-    val isReturned = status == "RETURNED"
-
-    val isCod = (detail?.paymentMethod ?: "COD").uppercase() == "COD"
-    val isPaid = detail?.paymentStatus.equals("PAID", ignoreCase = true)
-
-    // Visuals của Hero Status Banner
-    val bannerVisuals = when (status) {
-        "PENDING" -> when {
-            isCod -> BannerVisuals(
-                bg = Color(0xFF1E3A8A),
-                tagText = "• CHỜ XÁC NHẬN",
-                tagColor = Color(0xFF93C5FD),
-                title = "Đơn hàng đang chờ xác nhận (COD)",
-                subtitle = "Người bán đang tiếp nhận và chuẩn bị đơn hàng của bạn",
-                icon = Icons.Outlined.AccessTime
-            )
-            isPaid -> BannerVisuals(
-                bg = Color(0xFF065F46),
-                tagText = "• ĐÃ THANH TOÁN",
-                tagColor = Color(0xFFA7F3D0),
-                title = "Đơn hàng đã thanh toán thành công",
-                subtitle = "Người bán đang tiếp nhận và chuẩn bị đóng gói sản phẩm",
-                icon = Icons.Default.Verified
-            )
-            else -> BannerVisuals(
-                bg = Color(0xFF854D0E),
-                tagText = "• CHỜ THANH TOÁN",
-                tagColor = Color(0xFFFDE68A),
-                title = "Đơn hàng đang chờ thanh toán",
-                subtitle = "Vui lòng hoàn tất thanh toán trước khi đơn hàng hết hạn",
-                icon = Icons.Outlined.AccessTime
-            )
+    // Tự động gọi API lấy chi tiết đơn hàng nếu chưa có dữ liệu đúng của đơn này
+    LaunchedEffect(orderId, resolvedNumericId) {
+        if (resolvedNumericId != null && detail?.id != resolvedNumericId && !uiState.isOrderDetailLoading) {
+            viewModel.loadOrderDetail(resolvedNumericId)
         }
-        "CONFIRMED" -> BannerVisuals(
-            bg = Color(0xFF1E3A8A),
-            tagText = "• ĐÃ XÁC NHẬN",
-            tagColor = Color(0xFF93C5FD),
-            title = "Người bán đã xác nhận đơn hàng",
-            subtitle = "Kiện hàng đang được người bán chuẩn bị",
-            icon = Icons.Default.Verified
-        )
-        "PACKED" -> BannerVisuals(
-            bg = Color(0xFF4338CA),
-            tagText = "• ĐÃ ĐÓNG GÓI",
-            tagColor = Color(0xFFC7D2FE),
-            title = "Đơn hàng đã được đóng gói kỹ lưỡng",
-            subtitle = "Đang chờ bàn giao cho đơn vị vận chuyển SPX Express",
-            icon = Icons.Outlined.Inventory2
-        )
-        "SHIPPING" -> BannerVisuals(
-            bg = Color(0xFF2C4C70),
-            tagText = "• ĐANG GIAO HÀNG",
-            tagColor = Color(0xFF2DD4BF),
-            title = "Đơn hàng đang được giao đến bạn",
-            subtitle = "Đang trên đường giao bởi đơn vị vận chuyển SPX Express",
-            icon = Icons.Default.LocalShipping
-        )
-        "DELIVERED" -> BannerVisuals(
-            bg = Color(0xFF065F46),
-            tagText = "• ĐÃ GIAO HÀNG",
-            tagColor = Color(0xFFA7F3D0),
-            title = "Kiện hàng đã được phát tới bạn",
-            subtitle = "Vui lòng kiểm tra hàng và xác nhận đã nhận hàng",
-            icon = Icons.Default.CheckCircle
-        )
-        "COMPLETED" -> BannerVisuals(
-            bg = Color(0xFF047857),
-            tagText = "• HOÀN TẤT ĐƠN HÀNG",
-            tagColor = Color(0xFFA7F3D0),
-            title = "Đơn hàng đã hoàn thành",
-            subtitle = "Cảm ơn bạn đã tin tưởng mua sắm tại B2C!",
-            icon = Icons.Default.CheckCircle
-        )
-        "RETURN_REQUESTED" -> BannerVisuals(
-            bg = Color(0xFF9A3412),
-            tagText = "• ĐÃ YÊU CẦU TRẢ HÀNG",
-            tagColor = Color(0xFFFED7AA),
-            title = "Đang xử lý yêu cầu trả hàng / hoàn tiền",
-            subtitle = "Lý do: ${detail?.returnReason ?: "Đang chờ người bán phản hồi"}",
-            icon = Icons.Outlined.ErrorOutline
-        )
-        "RETURNED" -> BannerVisuals(
-            bg = Color(0xFF4C1D95),
-            tagText = "• ĐÃ TRẢ HÀNG & HOÀN TIỀN",
-            tagColor = Color(0xFFDDD6FE),
-            title = "Yêu cầu trả hàng đã được chấp thuận",
-            subtitle = "Đơn hàng đã hoàn tất thủ tục trả hàng và hoàn tiền.",
-            icon = Icons.Default.CheckCircle
-        )
-        "CANCELLED" -> BannerVisuals(
-            bg = Color(0xFF7F1D1D),
-            tagText = "• ĐÃ HỦY ĐƠN HÀNG",
-            tagColor = Color(0xFFFECACA),
-            title = "Đơn hàng đã được hủy thành công",
-            subtitle = "Lý do: ${detail?.cancelReason ?: "Người mua yêu cầu hủy đơn"}",
-            icon = Icons.Default.Cancel
-        )
-        else -> BannerVisuals(
-            bg = Color(0xFF2C4C70),
-            tagText = "• $status",
-            tagColor = Color(0xFF5EEAD4),
-            title = "Thông tin đơn hàng #$displayOrderCode",
-            subtitle = "Hệ thống đang xử lý đơn hàng của bạn",
-            icon = Icons.Default.LocalShipping
-        )
     }
 
     Column(
@@ -291,9 +170,9 @@ fun OrderDetailsAndTrackingScreen(
                     )
                 }
 
-                if (rawId != null) {
+                if (resolvedNumericId != null) {
                     IconButton(
-                        onClick = { viewModel.loadOrderDetail(rawId) },
+                        onClick = { viewModel.loadOrderDetail(resolvedNumericId) },
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
@@ -307,6 +186,198 @@ fun OrderDetailsAndTrackingScreen(
             }
         }
 
+        // Khi chưa load xong API: bắt người dùng chờ, tuyệt đối không hiển thị dữ liệu mock
+        if (uiState.isOrderDetailLoading || (detail == null && uiState.orderDetailErrorMessage == null)) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = CoralPrimary,
+                        modifier = Modifier.size(40.dp),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Đang tải thông tin đơn hàng...",
+                        fontSize = 14.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+            return@Column
+        }
+
+        // Khi có lỗi tải API và chưa có dữ liệu chi tiết
+        if (detail == null) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            tint = Color(0xFFDC2626),
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = uiState.orderDetailErrorMessage ?: "Không tải được thông tin đơn hàng",
+                            color = Color(0xFF991B1B),
+                            fontSize = 13.5.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        if (resolvedNumericId != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            AppButton(
+                                text = "Thử lại",
+                                onClick = { viewModel.loadOrderDetail(resolvedNumericId) },
+                                modifier = Modifier.width(120.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            return@Column
+        }
+
+        // Từ đây trở xuống: detail != null (Dữ liệu thật từ API Backend)
+        val rawId = detail.id
+        val displayOrderCode = detail.orderCode ?: detail.id.toString()
+
+        val status = detail.status?.uppercase() ?: ""
+        val isPending = status == "PENDING"
+        val isCancelled = status == "CANCELLED"
+        val isDelivered = status == "DELIVERED"
+        val isCompleted = status == "COMPLETED"
+        val isDeliveredOrCompleted = isDelivered || isCompleted
+        val isShipping = status == "SHIPPING"
+        val isConfirmed = status == "CONFIRMED" || status == "PACKED"
+        val isReturnRequested = status == "RETURN_REQUESTED"
+        val isReturned = status == "RETURNED"
+
+        val isCod = detail.paymentMethod.equals("COD", ignoreCase = true)
+        val isPaid = detail.paymentStatus.equals("PAID", ignoreCase = true)
+
+        // Visuals của Hero Status Banner dựa trên trạng thái thật
+        val bannerVisuals = when (status) {
+            "PENDING" -> when {
+                isCod -> BannerVisuals(
+                    bg = Color(0xFF1E3A8A),
+                    tagText = "• NGƯỜI BÁN CHUẨN BỊ HÀNG",
+                    tagColor = Color(0xFF93C5FD),
+                    title = "Người bán đang chuẩn bị đơn hàng (COD)",
+                    subtitle = "Đơn hàng đã đặt thành công và được chuyển cho người bán chuẩn bị",
+                    icon = Icons.Outlined.Inventory2
+                )
+                isPaid -> BannerVisuals(
+                    bg = Color(0xFF065F46),
+                    tagText = "• ĐÃ THANH TOÁN",
+                    tagColor = Color(0xFFA7F3D0),
+                    title = "Đơn hàng đã thanh toán thành công",
+                    subtitle = "Đơn hàng đã được chuyển cho người bán tiếp nhận và chuẩn bị hàng",
+                    icon = Icons.Default.Verified
+                )
+                else -> BannerVisuals(
+                    bg = Color(0xFF854D0E),
+                    tagText = "• CHỜ THANH TOÁN",
+                    tagColor = Color(0xFFFDE68A),
+                    title = "Đơn hàng đang chờ thanh toán",
+                    subtitle = "Vui lòng hoàn tất thanh toán để đơn hàng được chuyển cho người bán",
+                    icon = Icons.Outlined.AccessTime
+                )
+            }
+            "CONFIRMED" -> BannerVisuals(
+                bg = Color(0xFF1E3A8A),
+                tagText = "• ĐÃ XÁC NHẬN",
+                tagColor = Color(0xFF93C5FD),
+                title = "Người bán đang chuẩn bị hàng",
+                subtitle = "Đơn hàng đã được người bán xác nhận và chuẩn bị đóng gói",
+                icon = Icons.Default.Verified
+            )
+            "PACKED" -> BannerVisuals(
+                bg = Color(0xFF4338CA),
+                tagText = "• ĐÃ ĐÓNG GÓI",
+                tagColor = Color(0xFFC7D2FE),
+                title = "Đơn hàng đã được đóng gói",
+                subtitle = "Đang chờ bàn giao cho đơn vị vận chuyển",
+                icon = Icons.Outlined.Inventory2
+            )
+            "SHIPPING" -> BannerVisuals(
+                bg = Color(0xFF2C4C70),
+                tagText = "• ĐANG GIAO HÀNG",
+                tagColor = Color(0xFF2DD4BF),
+                title = "Đơn hàng đang được giao đến bạn",
+                subtitle = "Kiện hàng đang trên đường vận chuyển tới địa chỉ nhận hàng",
+                icon = Icons.Default.LocalShipping
+            )
+            "DELIVERED" -> BannerVisuals(
+                bg = Color(0xFF065F46),
+                tagText = "• ĐÃ GIAO HÀNG",
+                tagColor = Color(0xFFA7F3D0),
+                title = "Kiện hàng đã được giao tới bạn",
+                subtitle = "Vui lòng kiểm tra hàng và xác nhận đã nhận hàng",
+                icon = Icons.Default.CheckCircle
+            )
+            "COMPLETED" -> BannerVisuals(
+                bg = Color(0xFF047857),
+                tagText = "• HOÀN TẤT ĐƠN HÀNG",
+                tagColor = Color(0xFFA7F3D0),
+                title = "Đơn hàng đã hoàn thành",
+                subtitle = "Cảm ơn bạn đã tin tưởng mua sắm!",
+                icon = Icons.Default.CheckCircle
+            )
+            "RETURN_REQUESTED" -> BannerVisuals(
+                bg = Color(0xFF9A3412),
+                tagText = "• ĐÃ YÊU CẦU TRẢ HÀNG",
+                tagColor = Color(0xFFFED7AA),
+                title = "Đang xử lý yêu cầu trả hàng / hoàn tiền",
+                subtitle = if (!detail.returnReason.isNullOrBlank()) "Lý do: ${detail.returnReason}" else "Đang chờ người bán phản hồi",
+                icon = Icons.Outlined.ErrorOutline
+            )
+            "RETURNED" -> BannerVisuals(
+                bg = Color(0xFF4C1D95),
+                tagText = "• ĐÃ TRẢ HÀNG & HOÀN TIỀN",
+                tagColor = Color(0xFFDDD6FE),
+                title = "Yêu cầu trả hàng đã được chấp thuận",
+                subtitle = "Đơn hàng đã hoàn tất thủ tục trả hàng và hoàn tiền.",
+                icon = Icons.Default.CheckCircle
+            )
+            "CANCELLED" -> BannerVisuals(
+                bg = Color(0xFF7F1D1D),
+                tagText = "• ĐÃ HỦY ĐƠN HÀNG",
+                tagColor = Color(0xFFFECACA),
+                title = "Đơn hàng đã bị hủy",
+                subtitle = if (!detail.cancelReason.isNullOrBlank()) "Lý do: ${detail.cancelReason}" else "Đơn hàng đã hủy",
+                icon = Icons.Default.Cancel
+            )
+            else -> BannerVisuals(
+                bg = Color(0xFF2C4C70),
+                tagText = "• $status",
+                tagColor = Color(0xFF5EEAD4),
+                title = "Đơn hàng #$displayOrderCode",
+                subtitle = "Trạng thái: $status",
+                icon = Icons.Default.LocalShipping
+            )
+        }
+
         // Toàn bộ các phần cuộn dọc
         LazyColumn(
             modifier = Modifier
@@ -315,53 +386,6 @@ fun OrderDetailsAndTrackingScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Loading indicator nếu đang nạp chi tiết từ API
-            if (uiState.isOrderDetailLoading && detail == null) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = CoralPrimary, modifier = Modifier.size(36.dp))
-                    }
-                }
-            }
-
-            // Error banner nếu có lỗi tải chi tiết
-            if (uiState.orderDetailErrorMessage != null && detail == null) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = uiState.orderDetailErrorMessage ?: "Không tải được thông tin đơn hàng",
-                                color = Color(0xFF991B1B),
-                                fontSize = 13.sp,
-                                textAlign = TextAlign.Center
-                            )
-                            if (rawId != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                AppButton(
-                                    text = "Thử lại",
-                                    onClick = { viewModel.loadOrderDetail(rawId) },
-                                    modifier = Modifier.width(120.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             // 2. Breadcrumb & Mã đơn hàng & Nút Trợ giúp
             item {
                 Row(
@@ -378,7 +402,7 @@ fun OrderDetailsAndTrackingScreen(
                                 color = NavySecondary
                             )
                             Text(
-                                text = " • Chi tiết vận đơn",
+                                text = " • Chi tiết đơn hàng",
                                 fontSize = 11.5.sp,
                                 color = Color(0xFF9CA3AF)
                             )
@@ -486,55 +510,6 @@ fun OrderDetailsAndTrackingScreen(
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Khung mã vận đơn SPX Express
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White.copy(alpha = 0.15f))
-                                .padding(horizontal = 10.dp, vertical = 7.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.LocalShipping,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "SPX Express • SPX${displayOrderCode.replace("-", "")}",
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color.White.copy(alpha = 0.25f))
-                                        .clickable {
-                                            viewModel.showSuccessToast("Đã sao chép mã vận đơn SPX${displayOrderCode.replace("-", "")}")
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Text(
-                                            text = "📋 Sao chép",
-                                            fontSize = 11.sp,
-                                            color = Color.White
-                                        )
-                                    }
-                            }
-                        }
                     }
                 }
             }
@@ -554,85 +529,208 @@ fun OrderDetailsAndTrackingScreen(
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFB82414))
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Lộ trình đơn hàng",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
-                                )
-                            }
-
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFB82414))
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Chi tiết >",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF1E5B94),
-                                modifier = Modifier.clickable {
-                                    viewModel.showToast("Mở chi tiết vận đơn SPX Express")
-                                }
+                                text = "Lộ trình đơn hàng",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF111827)
                             )
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        val createdTime = detail?.createdAt ?: "Thời gian đặt"
-                        val confirmedTime = detail?.confirmedAt ?: detail?.createdAt ?: "Chờ xác nhận"
-                        val shippedTime = detail?.shippedAt ?: "Đang xử lý xuất kho"
-                        val deliveredTime = detail?.deliveredAt ?: detail?.completedAt ?: "Dự kiến 2-3 ngày"
+                        val createdTime = detail.createdAt ?: ""
+                        val confirmedTime = detail.confirmedAt ?: ""
+                        val shippedTime = detail.shippedAt ?: ""
+                        val deliveredTime = detail.deliveredAt ?: detail.completedAt ?: ""
+                        val cancelledTime = detail.cancelledAt ?: detail.updatedAt ?: ""
 
-                        // Bước 1: Vận chuyển
-                        TimelineStepItem(
-                            stepIcon = Icons.Default.LocalShipping,
-                            iconBg = if (isShipping || isDeliveredOrCompleted) Color(0xFF3B82F6) else Color(0xFF9CA3AF),
-                            iconTint = Color.White,
-                            title = if (isDeliveredOrCompleted) "Giao hàng thành công" else if (isShipping) "Đang vận chuyển" else "Chờ đơn vị vận chuyển",
-                            time = if (isDeliveredOrCompleted) deliveredTime else if (isShipping) shippedTime else "Chờ xử lý",
-                            description = if (isDeliveredOrCompleted) {
-                                "Kiện hàng đã được phát thành công tới người nhận."
-                            } else if (isShipping) {
-                                "Kiện hàng đã rời kho phân loại và đang trên đường giao tới bạn."
-                            } else {
-                                "Đơn vị vận chuyển SPX sẽ tiếp nhận kiện hàng khi người bán đóng gói xong."
-                            },
-                            driverTag = if (isShipping) "Tài xế: SPX Express Delivery" else null,
-                            isLineActive = isConfirmed || isShipping || isDeliveredOrCompleted,
-                            isTitleBold = isShipping,
-                            titleColor = if (isShipping) Color(0xFF1D4ED8) else Color(0xFF111827)
-                        )
+                        val hasPassedSellerPrep = isShipping || isDeliveredOrCompleted || isReturnRequested || isReturned
+                        // Đơn hàng chỉ chuyển cho người bán khi:
+                        // - Là COD (đặt thành công là chuyển ngay cho người bán)
+                        // - Hoặc là VNPay nhưng ĐÃ THANH TOÁN (isPaid == true) hoặc đã qua trạng thái xác nhận/giao hàng
+                        val isTransferredToSeller = !isCancelled && (isCod || isPaid || isConfirmed || hasPassedSellerPrep)
+                        val isSellerPreparingNow = isTransferredToSeller && !hasPassedSellerPrep
 
-                        // Bước 2: Người bán chuẩn bị hàng
-                        TimelineStepItem(
-                            stepIcon = Icons.Default.Check,
-                            iconBg = if (isConfirmed || isShipping || isDeliveredOrCompleted) Color(0xFF059669) else Color(0xFFD1D5DB),
-                            iconTint = Color.White,
-                            title = "Người bán chuẩn bị hàng",
-                            time = confirmedTime,
-                            description = "Kiện hàng đã được xác nhận và đóng gói cẩn thận.",
-                            isLineActive = true
-                        )
-
-                        // Bước 3: Đơn hàng đã đặt thành công
+                        // Bước 1: Đơn hàng đặt hàng thành công (luôn hiển thị đầu tiên)
                         TimelineStepItem(
                             stepIcon = Icons.Default.Check,
                             iconBg = Color(0xFF059669),
                             iconTint = Color.White,
-                            title = "Đơn hàng đã đặt thành công",
+                            title = "Đơn hàng đặt hàng thành công",
                             time = createdTime,
-                            description = "Đơn hàng đã được tạo trên hệ thống B2C.",
-                            isLineActive = false,
-                            isLast = true
+                            description = "Đơn hàng #$displayOrderCode đã được tạo thành công.",
+                            isLineActive = true,
+                            isLast = false
                         )
+
+                        // Bước 2 (chỉ dành cho VNPay / thanh toán trực tuyến):
+                        // Nếu chưa thanh toán: hiển thị "Chờ thanh toán" trước khi chuyển cho người bán
+                        // Nếu đã thanh toán: hiển thị "Đã thanh toán" rồi mới chuyển sang Người bán chuẩn bị hàng
+                        if (!isCod) {
+                            val isWaitingPayment = !isPaid && !isCancelled && !isConfirmed && !hasPassedSellerPrep
+                            val isPaymentDone = isPaid || isConfirmed || hasPassedSellerPrep
+
+                            TimelineStepItem(
+                                stepIcon = if (isPaymentDone) Icons.Default.Check else Icons.Outlined.AccessTime,
+                                iconBg = when {
+                                    isPaymentDone -> Color(0xFF059669)
+                                    isWaitingPayment -> Color(0xFFD97706)
+                                    else -> Color(0xFFD1D5DB)
+                                },
+                                iconTint = Color.White,
+                                title = if (isPaymentDone) "Đã thanh toán thành công" else "Chờ thanh toán",
+                                time = if (isPaymentDone) (detail.confirmedAt ?: detail.updatedAt ?: "") else if (isWaitingPayment) "Đang chờ" else "",
+                                description = when {
+                                    isPaymentDone -> "Thanh toán VNPay hoàn tất. Đơn hàng đã được chuyển cho người bán."
+                                    isWaitingPayment -> "Vui lòng hoàn tất thanh toán VNPay để đơn hàng được chuyển cho người bán."
+                                    else -> "Đơn hàng chưa hoàn tất thanh toán."
+                                },
+                                isLineActive = isPaymentDone || isCancelled,
+                                isLast = false,
+                                isTitleBold = isWaitingPayment,
+                                titleColor = when {
+                                    isWaitingPayment -> Color(0xFFB45309)
+                                    isPaymentDone -> Color(0xFF111827)
+                                    else -> Color(0xFF9CA3AF)
+                                }
+                            )
+                        }
+
+                        if (isCancelled) {
+                            // Nếu đơn đã hủy: hiển thị bước Đã hủy đơn hàng kết thúc lộ trình
+                            TimelineStepItem(
+                                stepIcon = Icons.Default.Cancel,
+                                iconBg = Color(0xFFDC2626),
+                                iconTint = Color.White,
+                                title = "Đã hủy đơn hàng",
+                                time = cancelledTime,
+                                description = if (!detail.cancelReason.isNullOrBlank()) {
+                                    "Lý do: ${detail.cancelReason}"
+                                } else {
+                                    "Đơn hàng đã bị hủy."
+                                },
+                                isLineActive = false,
+                                isLast = true,
+                                isTitleBold = true,
+                                titleColor = Color(0xFFDC2626)
+                            )
+                        } else {
+                            // Bước: Người bán chuẩn bị hàng
+                            TimelineStepItem(
+                                stepIcon = when {
+                                    hasPassedSellerPrep -> Icons.Default.Check
+                                    isSellerPreparingNow -> Icons.Outlined.Inventory2
+                                    else -> Icons.Outlined.Inventory2
+                                },
+                                iconBg = when {
+                                    hasPassedSellerPrep -> Color(0xFF059669)
+                                    isSellerPreparingNow -> Color(0xFF2563EB)
+                                    else -> Color(0xFFD1D5DB)
+                                },
+                                iconTint = Color.White,
+                                title = "Người bán chuẩn bị hàng",
+                                time = when {
+                                    hasPassedSellerPrep -> confirmedTime
+                                    isSellerPreparingNow -> confirmedTime.ifBlank { "Đang chuẩn bị" }
+                                    else -> ""
+                                },
+                                description = when {
+                                    hasPassedSellerPrep -> "Người bán đã chuẩn bị xong và bàn giao kiện hàng cho đơn vị vận chuyển."
+                                    status == "PACKED" -> "Người bán đã đóng gói kiện hàng, chờ bàn giao cho đơn vị vận chuyển."
+                                    status == "CONFIRMED" -> "Người bán đã xác nhận đơn hàng và đang đóng gói sản phẩm."
+                                    isSellerPreparingNow -> "Đơn hàng đã chuyển cho người bán tiếp nhận và chuẩn bị hàng."
+                                    else -> "Đơn hàng sẽ được chuyển cho người bán sau khi thanh toán hoàn thành."
+                                },
+                                isLineActive = hasPassedSellerPrep,
+                                isLast = false,
+                                isTitleBold = isSellerPreparingNow,
+                                titleColor = when {
+                                    isSellerPreparingNow -> Color(0xFF1D4ED8)
+                                    hasPassedSellerPrep -> Color(0xFF111827)
+                                    else -> Color(0xFF9CA3AF)
+                                }
+                            )
+
+                            // Bước: Đang vận chuyển
+                            val hasPassedShipping = isDeliveredOrCompleted || isReturnRequested || isReturned
+                            TimelineStepItem(
+                                stepIcon = if (hasPassedShipping) Icons.Default.Check else Icons.Default.LocalShipping,
+                                iconBg = when {
+                                    hasPassedShipping -> Color(0xFF059669)
+                                    isShipping -> Color(0xFF2563EB)
+                                    else -> Color(0xFFD1D5DB)
+                                },
+                                iconTint = Color.White,
+                                title = "Đang vận chuyển",
+                                time = when {
+                                    isShipping -> shippedTime.ifBlank { "Đang giao" }
+                                    hasPassedShipping -> shippedTime
+                                    else -> ""
+                                },
+                                description = when {
+                                    hasPassedShipping -> "Đơn vị vận chuyển đã giao kiện hàng tới địa chỉ nhận."
+                                    isShipping -> "Kiện hàng đang trên đường giao tới địa chỉ nhận hàng của bạn."
+                                    else -> "Đơn vị vận chuyển sẽ tiếp nhận kiện hàng sau khi người bán chuẩn bị xong."
+                                },
+                                isLineActive = hasPassedShipping,
+                                isLast = false,
+                                isTitleBold = isShipping,
+                                titleColor = when {
+                                    isShipping -> Color(0xFF1D4ED8)
+                                    hasPassedShipping -> Color(0xFF111827)
+                                    else -> Color(0xFF9CA3AF)
+                                }
+                            )
+
+                            // Bước: Giao hàng thành công
+                            val hasReturnStep = isReturnRequested || isReturned
+                            TimelineStepItem(
+                                stepIcon = if (hasPassedShipping) Icons.Default.CheckCircle else null,
+                                iconBg = if (hasPassedShipping) Color(0xFF059669) else Color(0xFFD1D5DB),
+                                iconTint = Color.White,
+                                title = "Giao hàng thành công",
+                                time = if (hasPassedShipping) deliveredTime else "",
+                                description = if (hasPassedShipping) {
+                                    "Kiện hàng đã được giao thành công tới người nhận."
+                                } else {
+                                    "Chờ giao hàng tới người nhận."
+                                },
+                                isLineActive = hasReturnStep,
+                                isLast = !hasReturnStep,
+                                isTitleBold = isDeliveredOrCompleted,
+                                titleColor = if (hasPassedShipping) Color(0xFF059669) else Color(0xFF9CA3AF)
+                            )
+
+                            // Bước trả hàng / hoàn tiền (nếu có)
+                            if (hasReturnStep) {
+                                TimelineStepItem(
+                                    stepIcon = if (isReturned) Icons.Default.CheckCircle else Icons.Outlined.ErrorOutline,
+                                    iconBg = if (isReturned) Color(0xFF4C1D95) else Color(0xFFD97706),
+                                    iconTint = Color.White,
+                                    title = if (isReturned) "Đã trả hàng & hoàn tiền" else "Yêu cầu trả hàng / hoàn tiền",
+                                    time = (if (isReturned) detail.returnApprovedAt else detail.returnRequestedAt) ?: "",
+                                    description = if (isReturned) {
+                                        "Yêu cầu trả hàng và hoàn tiền đã hoàn tất."
+                                    } else {
+                                        "Đang xử lý yêu cầu trả hàng: ${detail.returnReason ?: ""}"
+                                    },
+                                    isLineActive = false,
+                                    isLast = true,
+                                    isTitleBold = true,
+                                    titleColor = if (isReturned) Color(0xFF4C1D95) else Color(0xFFB45309)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -670,31 +768,32 @@ fun OrderDetailsAndTrackingScreen(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = detail?.receiverName ?: "Người nhận",
+                                text = detail.receiverName ?: "",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF111827)
                             )
-                            if (!detail?.receiverPhone.isNullOrBlank()) {
+                            if (!detail.receiverPhone.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = detail?.receiverPhone ?: "",
+                                    text = detail.receiverPhone,
                                     fontSize = 12.5.sp,
                                     color = Color(0xFF6B7280)
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        if (!detail.shippingAddress.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = detail.shippingAddress,
+                                fontSize = 12.5.sp,
+                                color = Color(0xFF4B5563),
+                                lineHeight = 17.sp
+                            )
+                        }
 
-                        Text(
-                            text = detail?.shippingAddress ?: "Chưa có thông tin địa chỉ",
-                            fontSize = 12.5.sp,
-                            color = Color(0xFF4B5563),
-                            lineHeight = 17.sp
-                        )
-
-                        if (!detail?.note.isNullOrBlank()) {
+                        if (!detail.note.isNullOrBlank()) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Box(
                                 modifier = Modifier
@@ -704,7 +803,7 @@ fun OrderDetailsAndTrackingScreen(
                                     .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = "🕒 Lời nhắn: ${detail?.note}",
+                                    text = "🕒 Lời nhắn: ${detail.note}",
                                     fontSize = 11.5.sp,
                                     color = Color(0xFF335C85)
                                 )
@@ -715,9 +814,10 @@ fun OrderDetailsAndTrackingScreen(
             }
 
             // 6. Card Danh sách sản phẩm trong đơn hàng
-            val itemsList = detail?.items ?: emptyList()
+            val itemsList = detail.items ?: emptyList()
             if (itemsList.isNotEmpty()) {
                 item {
+                    val shopName = uiState.orders.firstOrNull { it.id == detail.id }?.shopName
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -729,53 +829,40 @@ fun OrderDetailsAndTrackingScreen(
                                 .fillMaxWidth()
                                 .padding(14.dp)
                         ) {
-                            // Header gian hàng
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { viewModel.openShopMessages() },
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(Color(0xFFB82414))
-                                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                                    ) {
+                            if (!shopName.isNullOrBlank()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { viewModel.openShopMessages() },
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Storefront,
+                                            contentDescription = null,
+                                            tint = NavySecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "MALL",
-                                            fontSize = 8.5.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = Color.White
+                                            text = shopName,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = NavySecondary
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = uiState.orders.firstOrNull { it.id == detail?.id }?.shopName ?: "Gian hàng chính hãng",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = NavySecondary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
+
                                     Icon(
-                                        imageVector = Icons.Default.Storefront,
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                         contentDescription = null,
-                                        tint = NavySecondary,
-                                        modifier = Modifier.size(15.dp)
+                                        tint = Color(0xFF9CA3AF),
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
 
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = Color(0xFF9CA3AF),
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Spacer(modifier = Modifier.height(12.dp))
                             }
-
-                            Spacer(modifier = Modifier.height(12.dp))
 
                             // Lặp qua từng sản phẩm trong đơn
                             itemsList.forEachIndexed { index, orderItem ->
@@ -823,7 +910,7 @@ fun OrderDetailsAndTrackingScreen(
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = orderItem.productName ?: "Sản phẩm B2C",
+                                            text = orderItem.productName ?: "",
                                             fontSize = 13.5.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF111827),
@@ -898,11 +985,7 @@ fun OrderDetailsAndTrackingScreen(
                                                             .border(1.dp, Color(0xFFBA2211), RoundedCornerShape(4.dp))
                                                             .background(Color(0xFFFFF5F5))
                                                             .clickable {
-                                                                if (detail != null) {
-                                                                    viewModel.openWriteReviewForOrderDetail(detail, orderItem)
-                                                                } else {
-                                                                    viewModel.openWriteReview()
-                                                                }
+                                                                viewModel.openWriteReviewForOrderDetail(detail, orderItem)
                                                             }
                                                             .padding(horizontal = 10.dp, vertical = 4.dp)
                                                     ) {
@@ -919,35 +1002,6 @@ fun OrderDetailsAndTrackingScreen(
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-            } else {
-                // Fallback nếu chưa có danh sách item con
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                        border = BorderStroke(0.8.dp, Color(0xFFE5E7EB))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp)
-                        ) {
-                            Text(
-                                text = "Sản phẩm đơn hàng",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NavySecondary
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = uiState.orders.firstOrNull { it.id == detail?.id }?.firstProductName ?: "Đơn hàng B2C #$displayOrderCode",
-                                fontSize = 13.sp,
-                                color = TextPrimary
-                            )
                         }
                     }
                 }
@@ -984,10 +1038,10 @@ fun OrderDetailsAndTrackingScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        val subtotalVal = detail?.subtotal ?: detail?.totalAmount ?: 0.0
-                        val shippingFeeVal = detail?.shippingFee ?: 30000.0
-                        val discountVal = detail?.discountAmount ?: 0.0
-                        val totalVal = detail?.totalAmount ?: (subtotalVal + shippingFeeVal - discountVal)
+                        val subtotalVal = detail.subtotal ?: detail.totalAmount ?: 0.0
+                        val shippingFeeVal = detail.shippingFee ?: 0.0
+                        val discountVal = (detail.discountAmount ?: 0.0) + (detail.platformDiscount ?: 0.0)
+                        val totalVal = detail.totalAmount ?: (subtotalVal + shippingFeeVal - discountVal)
 
                         PaymentDetailLine(label = "Tổng tiền hàng", value = "₫${currencyFormatter.format(subtotalVal)}")
                         Spacer(modifier = Modifier.height(6.dp))
@@ -1037,8 +1091,7 @@ fun OrderDetailsAndTrackingScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Phương thức thanh toán
-                        val method = detail?.paymentMethod ?: "COD"
-                        val isPaid = detail?.paymentStatus.equals("PAID", ignoreCase = true)
+                        val method = detail.paymentMethod ?: ""
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -1054,23 +1107,25 @@ fun OrderDetailsAndTrackingScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (method == "VNPAY") Color(0xFFEBF3FC) else Color(0xFFF3F4F6))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = method,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = if (method == "VNPAY") Color(0xFF005BAA) else NavySecondary
-                                        )
+                                    if (method.isNotBlank()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (method.equals("VNPAY", ignoreCase = true)) Color(0xFFEBF3FC) else Color(0xFFF3F4F6))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = method,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = if (method.equals("VNPAY", ignoreCase = true)) Color(0xFF005BAA) else NavySecondary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = if (method == "VNPAY") "Cổng VNPAY-QR" else "Thanh toán khi nhận hàng (COD)",
+                                            text = if (method.equals("VNPAY", ignoreCase = true)) "Cổng VNPAY-QR" else "Thanh toán khi nhận hàng (COD)",
                                             fontSize = 12.5.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF111827)
@@ -1111,7 +1166,7 @@ fun OrderDetailsAndTrackingScreen(
                 }
             }
 
-            // 8. Khung thông số đơn hàng
+            // 8. Khung thông số đơn hàng (chỉ hiển thị thông tin thật từ API)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -1125,15 +1180,33 @@ fun OrderDetailsAndTrackingScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         OrderMetaRow(label = "Mã đơn hàng", value = displayOrderCode)
-                        OrderMetaRow(label = "Thời gian đặt hàng", value = detail?.createdAt ?: "Hôm nay")
-                        OrderMetaRow(label = "Phương thức thanh toán", value = detail?.paymentMethod ?: "COD")
-                        OrderMetaRow(label = "Hình thức giao hàng", value = "Giao hàng Tiêu chuẩn (2-3 ngày)")
+                        if (!detail.createdAt.isNullOrBlank()) {
+                            OrderMetaRow(label = "Thời gian đặt hàng", value = detail.createdAt)
+                        }
+                        if (!detail.paymentMethod.isNullOrBlank()) {
+                            OrderMetaRow(label = "Phương thức thanh toán", value = detail.paymentMethod)
+                        }
+                        if (!detail.confirmedAt.isNullOrBlank()) {
+                            OrderMetaRow(label = "Thời gian xác nhận", value = detail.confirmedAt)
+                        }
+                        if (!detail.shippedAt.isNullOrBlank()) {
+                            OrderMetaRow(label = "Thời gian giao vận chuyển", value = detail.shippedAt)
+                        }
+                        if (!detail.deliveredAt.isNullOrBlank()) {
+                            OrderMetaRow(label = "Thời gian nhận hàng", value = detail.deliveredAt)
+                        }
+                        if (!detail.completedAt.isNullOrBlank()) {
+                            OrderMetaRow(label = "Thời gian hoàn tất", value = detail.completedAt)
+                        }
+                        if (!detail.cancelledAt.isNullOrBlank()) {
+                            OrderMetaRow(label = "Thời gian hủy đơn", value = detail.cancelledAt)
+                        }
                     }
                 }
             }
 
             // 8.1 Card Thông tin Yêu cầu Trả hàng / Hoàn tiền nếu có
-            if (isReturnRequested || isReturned || !detail?.returnReason.isNullOrBlank()) {
+            if (isReturnRequested || isReturned || !detail.returnReason.isNullOrBlank()) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -1161,25 +1234,27 @@ fun OrderDetailsAndTrackingScreen(
                                     color = Color(0xFF92400E)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Lý do: ${detail?.returnReason ?: "Không xác định"}",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF78350F)
-                            )
-                            if (!detail?.returnDescription.isNullOrBlank()) {
+                            if (!detail.returnReason.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Lý do: ${detail.returnReason}",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF78350F)
+                                )
+                            }
+                            if (!detail.returnDescription.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Text(
-                                    text = "Chi tiết: ${detail?.returnDescription}",
+                                    text = "Chi tiết: ${detail.returnDescription}",
                                     fontSize = 12.sp,
                                     color = Color(0xFF92400E)
                                 )
                             }
-                            if (!detail?.returnAdminNote.isNullOrBlank()) {
+                            if (!detail.returnAdminNote.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Ghi chú xử lý: ${detail?.returnAdminNote}",
+                                    text = "Ghi chú xử lý: ${detail.returnAdminNote}",
                                     fontSize = 12.sp,
                                     color = Color(0xFF1E3A8A)
                                 )
@@ -1206,7 +1281,7 @@ fun OrderDetailsAndTrackingScreen(
             ) {
                 if (isPending) {
                     // Đơn PENDING:
-                    // 1. Nếu là COD: Tuyệt đối KHÔNG có nút thanh toán ngay! Hiển thị [Hủy đơn hàng] & [Liên hệ Shop]
+                    // 1. Nếu là COD: Hiển thị [Hủy đơn hàng] & [Liên hệ Shop]
                     // 2. Nếu là VNPay:
                     //    - Chưa thanh toán (!isPaid): Hiển thị [Hủy đơn hàng] & [THANH TOÁN NGAY]
                     //    - Đã thanh toán (isPaid): Hiển thị [Hủy đơn hàng] & [Liên hệ Shop]
@@ -1236,11 +1311,7 @@ fun OrderDetailsAndTrackingScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFBA2211))
                                 .clickable {
-                                    if (rawId != null) {
-                                        viewModel.retryOrderPayment(rawId)
-                                    } else {
-                                        viewModel.openVnpayPayment()
-                                    }
+                                    viewModel.retryOrderPayment(rawId)
                                 }
                                 .padding(horizontal = 12.dp),
                             contentAlignment = Alignment.Center
@@ -1338,7 +1409,7 @@ fun OrderDetailsAndTrackingScreen(
                         }
                     }
 
-                    if (isDelivered && detail?.returnRequestedAt == null) {
+                    if (isDelivered && detail.returnRequestedAt == null) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -1363,10 +1434,8 @@ fun OrderDetailsAndTrackingScreen(
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (uiState.isCompletingOrder) Color(0xFF888888) else Color(0xFFBA2211))
-                            .clickable(enabled = !uiState.isCompletingOrder && rawId != null) {
-                                if (rawId != null) {
-                                    viewModel.confirmOrderDelivery(rawId)
-                                }
+                            .clickable(enabled = !uiState.isCompletingOrder) {
+                                viewModel.confirmOrderDelivery(rawId)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -1395,7 +1464,7 @@ fun OrderDetailsAndTrackingScreen(
                         }
                     }
                 } else if (isCompleted) {
-                    // Đơn COMPLETED: [Mua lại] & [Trả hàng nếu còn hạn] & [ĐÁNH GIÁ SẢN PHẨM]
+                    // Đơn COMPLETED: [Mua lại] & [Trả hàng nếu còn hạn] & [ĐÁNH GIÁ]
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1413,7 +1482,7 @@ fun OrderDetailsAndTrackingScreen(
                         )
                     }
 
-                    if (detail?.returnRequestedAt == null) {
+                    if (detail.returnRequestedAt == null) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -1439,11 +1508,7 @@ fun OrderDetailsAndTrackingScreen(
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFBA2211))
                             .clickable {
-                                if (detail != null) {
-                                    viewModel.openWriteReviewForOrderDetail(detail)
-                                } else {
-                                    viewModel.openWriteReview()
-                                }
+                                viewModel.openWriteReviewForOrderDetail(detail)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -1455,7 +1520,7 @@ fun OrderDetailsAndTrackingScreen(
                         )
                     }
                 } else {
-                    // CANCELLED
+                    // CANCELLED, RETURN_REQUESTED, RETURNED
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1495,7 +1560,8 @@ fun OrderDetailsAndTrackingScreen(
     }
 
     // Dialog xác nhận hủy đơn hàng
-    if (showCancelDialog && rawId != null) {
+    if (showCancelDialog && detail != null) {
+        val displayCode = detail.orderCode ?: detail.id.toString()
         val reasons = listOf(
             "Tôi muốn cập nhật lại địa chỉ nhận hàng",
             "Tôi muốn đổi sản phẩm hoặc áp dụng voucher khác",
@@ -1517,7 +1583,7 @@ fun OrderDetailsAndTrackingScreen(
             text = {
                 Column {
                     Text(
-                        text = "Bạn có chắc chắn muốn hủy đơn hàng #$displayOrderCode không?",
+                        text = "Bạn có chắc chắn muốn hủy đơn hàng #$displayCode không?",
                         fontSize = 13.sp,
                         color = TextPrimary
                     )
@@ -1558,7 +1624,7 @@ fun OrderDetailsAndTrackingScreen(
                 TextButton(
                     onClick = {
                         showCancelDialog = false
-                        viewModel.cancelOrder(rawId, cancelReason)
+                        viewModel.cancelOrder(detail.id, cancelReason)
                     }
                 ) {
                     Text("Xác nhận hủy", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
@@ -1575,7 +1641,8 @@ fun OrderDetailsAndTrackingScreen(
     }
 
     // Dialog xác nhận yêu cầu trả hàng / hoàn tiền
-    if (showReturnDialog && rawId != null) {
+    if (showReturnDialog && detail != null) {
+        val displayCode = detail.orderCode ?: detail.id.toString()
         val returnReasons = listOf(
             "DAMAGED" to "Hàng bị hỏng, móp méo hoặc vỡ khi vận chuyển",
             "WRONG_ITEM" to "Người bán gửi sai sản phẩm / màu / size",
@@ -1597,7 +1664,7 @@ fun OrderDetailsAndTrackingScreen(
             text = {
                 Column {
                     Text(
-                        text = "Vui lòng chọn lý do yêu cầu trả hàng cho đơn #$displayOrderCode:",
+                        text = "Vui lòng chọn lý do yêu cầu trả hàng cho đơn #$displayCode:",
                         fontSize = 13.sp,
                         color = TextPrimary
                     )
@@ -1644,7 +1711,7 @@ fun OrderDetailsAndTrackingScreen(
                 TextButton(
                     onClick = {
                         showReturnDialog = false
-                        viewModel.requestOrderReturn(rawId, returnReasonKey, returnDescription.ifBlank { null })
+                        viewModel.requestOrderReturn(detail.id, returnReasonKey, returnDescription.ifBlank { null })
                     },
                     enabled = !uiState.isRequestingReturn
                 ) {

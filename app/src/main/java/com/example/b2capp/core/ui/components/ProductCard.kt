@@ -261,21 +261,29 @@ fun ProductCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Star,
-                            contentDescription = "Đánh giá",
-                            tint = StarRatingGold,
-                            modifier = Modifier.size(13.dp)
-                        )
+                    if (product.rating > 0f) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = "Đánh giá",
+                                tint = StarRatingGold,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = String.format(java.util.Locale.US, "%.1f", product.rating),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                        }
+                    } else {
                         Text(
-                            text = String.format(java.util.Locale.US, "%.1f", product.rating),
+                            text = "Chưa có đánh giá",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
+                            color = TextSecondary
                         )
                     }
 

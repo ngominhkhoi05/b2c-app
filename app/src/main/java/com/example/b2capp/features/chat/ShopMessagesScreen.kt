@@ -145,29 +145,23 @@ data class ChatMessage(
     val senderAvatarRes: Int? = null
 )
 
+enum class ChatFilterTab(val title: String) {
+    ALL("Tất cả"),
+    UNREAD("Chưa đọc"),
+    READ("Đã đọc")
+}
+
 /**
  * Màn hình Tin Nhắn Với Shop (Shop Messages Screen)
  * Thiết kế chính xác 100% theo ShopMessagesScreen_cafb5486.png:
  * 1. Top Bar: Nút Back, "Tin Nhắn Với Shop", nút tìm kiếm.
  * 2. Ô tìm kiếm: "Tìm kiếm tin nhắn, tên Shop..."
  * 3. Hàng Filter pills:
- *    - "Tất cả (12)" (nền đỏ cam đậm, chữ trắng)
- *    - "Chưa đọc ● (3)" (chấm tròn đỏ)
- *    - "Official Mall"
- *    - "Hỗ trợ 24/7" (kèm dấu tích)
- * 4. Khối đặc biệt "Trợ lý B2C 24/7 (AI Bot)":
- *    - Nền xanh phấn nhạt, icon robot/tai nghe navy, chấm xanh online.
- *    - "Trợ lý B2C 24/7" kèm tag "AI Bot" đỏ.
- *    - "Giải đáp khiếu nại & tư vấn đơn hàng" | "Vừa xong >".
- * 5. Tiêu đề "HỘP THOẠI GẦN ĐÂY" kèm nút "Bộ lọc hoạt động".
- * 6. Danh sách 6 shop:
- *    - Coolmate Official Store (Mall, 10:30, "Dạ sản phẩm này shop còn size L bạn nhé!", badge đỏ 2)
- *    - Logitech Flagship Store (Mall, 09:15, "[Hình ảnh] Bạn kiểm tra mã đơn hàng #OF...", badge đỏ 1)
- *    - Anker Audio Flagship (Chính hãng, Hôm qua, "Cảm ơn bạn đã đặt hàng...", tích đôi xanh)
- *    - Nội Thất Minimalist Living (15 Th10, voucher 20k, tích đơn xám)
- *    - Gia Dụng Thông Minh Lock&Lock (Mall, 12 Th10, tích đôi xanh)
- *    - Thời Trang Unisex Studio (05 Th10, restock đủ màu, tích đơn xám)
- * 7. Khung chat chi tiết tương tác khi chạm vào bất kỳ cuộc trò chuyện nào.
+ *    - "Tất cả (X)"
+ *    - "Chưa đọc (Y)" kèm chấm đỏ/trắng
+ *    - "Đã đọc (Z)"
+ * 4. Tiêu đề "HỘP THOẠI GẦN ĐÂY" kèm nút "Bộ lọc hoạt động".
+ * 5. Danh sách cuộc hội thoại thực tế từ cơ sở dữ liệu.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -178,8 +172,7 @@ fun ShopMessagesScreen(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilterPill by remember { mutableStateOf("Tất cả") }
-    var activeChatConversation by remember { mutableStateOf<ShopConversation?>(null) }
+    var selectedFilterTab by remember { mutableStateOf(ChatFilterTab.ALL) }
 
     // Tự động kích hoạt gọi API load danh sách tin nhắn khi mở màn hình
     LaunchedEffect(Unit) {
@@ -190,29 +183,22 @@ fun ShopMessagesScreen(
 
     val unreadCount = remember(conversations) { conversations.count { it.unreadCount > 0 } }
     val readCount = remember(conversations) { conversations.count { it.unreadCount == 0 } }
+    val totalCount = conversations.size
 
-    val filterPills = remember(conversations.size, unreadCount, readCount) {
-        listOf(
-            "Tất cả (${conversations.size})",
-            "Chưa đọc ($unreadCount)",
-            "Đã đọc ($readCount)"
-        )
-    }
-
-    // Lọc danh sách theo pill và từ khóa tìm kiếm
-    val filteredConversations = remember(selectedFilterPill, searchQuery, conversations) {
+    // Lọc danh sách theo tab và từ khóa tìm kiếm
+    val filteredConversations = remember(selectedFilterTab, searchQuery, conversations) {
         conversations.filter { conv ->
             val matchQuery = searchQuery.isBlank() ||
                     conv.shopName.contains(searchQuery, ignoreCase = true) ||
                     conv.lastMessage.contains(searchQuery, ignoreCase = true)
 
-            val matchPill = when {
-                selectedFilterPill.startsWith("Chưa đọc") -> conv.unreadCount > 0
-                selectedFilterPill.startsWith("Đã đọc") -> conv.unreadCount == 0
-                else -> true
+            val matchTab = when (selectedFilterTab) {
+                ChatFilterTab.ALL -> true
+                ChatFilterTab.UNREAD -> conv.unreadCount > 0
+                ChatFilterTab.READ -> conv.unreadCount == 0
             }
 
-            matchQuery && matchPill
+            matchQuery && matchTab
         }
     }
 
@@ -358,25 +344,31 @@ fun ShopMessagesScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    filterPills.forEach { pill ->
-                        val isSelected = pill == selectedFilterPill
+                    ChatFilterTab.values().forEach { tab ->
+                        val isSelected = tab == selectedFilterTab
+                        val count = when (tab) {
+                            ChatFilterTab.ALL -> totalCount
+                            ChatFilterTab.UNREAD -> unreadCount
+                            ChatFilterTab.READ -> readCount
+                        }
+                        val label = "${tab.title} ($count)"
 
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (isSelected) Color(0xFFBA2211) else Color(0xFFF0F2F5))
-                                .clickable { selectedFilterPill = pill }
+                                .clickable { selectedFilterTab = tab }
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = pill,
+                                    text = label,
                                     fontSize = 12.5.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSelected) Color.White else Color(0xFF4B5563)
                                 )
 
-                                if (pill == "Chưa đọc" && conversations.any { it.unreadCount > 0 }) {
+                                if (tab == ChatFilterTab.UNREAD && unreadCount > 0) {
                                     Spacer(modifier = Modifier.width(5.dp))
                                     Box(
                                         modifier = Modifier
@@ -401,108 +393,7 @@ fun ShopMessagesScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 4. Banner Trợ lý B2C 24/7 (AI Bot)
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            viewModel.openShopChat(
-                                shopName = "Trợ lý B2C 24/7 (AI Bot)"
-                            )
-                        },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF2FC)),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Icon Trợ lý bo tròn mềm
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF2A527A)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.HeadsetMic,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-
-                            // Chấm xanh online góc dưới phải
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .size(10.dp)
-                                    .background(Color(0xFF10B981), CircleShape)
-                                    .border(1.5.dp, Color.White, CircleShape)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Trợ lý B2C 24/7",
-                                    fontSize = 14.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E3A8A)
-                                )
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
-                                Box(
-                                    modifier = Modifier
-                                        .background(Color(0xFFFFEBE7), RoundedCornerShape(3.dp))
-                                        .padding(horizontal = 5.dp, vertical = 1.dp)
-                                ) {
-                                    Text(
-                                        text = "AI Bot",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFBA2211)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                text = "Giải đáp khiếu nại & tư vấn đơn hàng",
-                                fontSize = 12.sp,
-                                color = TextSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Vừa xong",
-                                fontSize = 11.sp,
-                                color = Color(0xFF3B82F6)
-                            )
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = Color(0xFF3B82F6),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 5. Tiêu đề HỘP THOẠI GẦN ĐÂY
+            // Tiêu đề HỘP THOẠI GẦN ĐÂY
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
@@ -644,12 +535,14 @@ fun ShopMessagesScreen(
                                 )
                             }
                             Text(
-                                text = if (searchQuery.isNotBlank() || selectedFilterPill != "Tất cả") {
-                                    if (selectedFilterPill.startsWith("Chưa đọc")) "Không có tin nhắn chưa đọc"
-                                    else if (selectedFilterPill.startsWith("Đã đọc")) "Không có tin nhắn đã đọc"
-                                    else "Không tìm thấy tin nhắn phù hợp"
+                                text = if (searchQuery.isNotBlank()) {
+                                    "Không tìm thấy tin nhắn phù hợp"
                                 } else {
-                                    "Không có dữ liệu tin nhắn"
+                                    when (selectedFilterTab) {
+                                        ChatFilterTab.UNREAD -> "Không có tin nhắn chưa đọc"
+                                        ChatFilterTab.READ -> "Không có tin nhắn đã đọc"
+                                        ChatFilterTab.ALL -> "Không có dữ liệu tin nhắn"
+                                    }
                                 },
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -657,10 +550,14 @@ fun ShopMessagesScreen(
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = if (searchQuery.isNotBlank() || selectedFilterPill != "Tất cả") {
-                                    "Hãy thử tìm kiếm với từ khóa khác hoặc chuyển bộ lọc."
+                                text = if (searchQuery.isNotBlank()) {
+                                    "Hãy thử tìm kiếm với từ khóa khác hoặc xóa ô tìm kiếm."
                                 } else {
-                                    "Bạn chưa có cuộc trò chuyện nào với các Shop. Khi nhắn tin với Shop, lịch sử trò chuyện sẽ được hiển thị tại đây."
+                                    when (selectedFilterTab) {
+                                        ChatFilterTab.UNREAD -> "Bạn đã đọc hết tất cả tin nhắn. Khi có tin nhắn mới từ Shop, tin nhắn sẽ hiển thị tại đây."
+                                        ChatFilterTab.READ -> "Chưa có cuộc trò chuyện nào được đánh dấu là đã đọc."
+                                        ChatFilterTab.ALL -> "Bạn chưa có cuộc trò chuyện nào với các Shop. Khi nhắn tin với Shop, lịch sử trò chuyện sẽ được hiển thị tại đây."
+                                    }
                                 },
                                 fontSize = 12.sp,
                                 color = TextSecondary,
@@ -709,273 +606,7 @@ fun ShopMessagesScreen(
             }
         }
     }
-
-    // Modal Sheet Chat trực tuyến chi tiết với Shop
-    activeChatConversation?.let { conv ->
-        ConversationChatModal(
-            conversation = conv,
-            onDismissRequest = { activeChatConversation = null }
-        )
-    }
 }
 
-
-
-/**
- * Modal cửa sổ Chat trực tiếp với Shop khi chọn một cuộc trò chuyện
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ConversationChatModal(
-    conversation: ShopConversation,
-    onDismissRequest: () -> Unit
-) {
-    var messageInput by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
-
-    val chatMessages = remember {
-        mutableStateListOf<ChatMessage>()
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        containerColor = SurfaceCard,
-        dragHandle = null
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            // Chat Header
-            Surface(
-                color = SurfaceCard,
-                shadowElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onDismissRequest,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Đóng",
-                            tint = TextPrimary
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(conversation.avatarBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = conversation.avatarLetter.take(2),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = NavySecondary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = conversation.shopName,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(
-                                        if (conversation.isOnline) Color(0xFF10B981) else Color(0xFF9CA3AF),
-                                        CircleShape
-                                    )
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (conversation.isOnline) "Đang hoạt động" else "Hoạt động gần đây",
-                                fontSize = 11.sp,
-                                color = if (conversation.isOnline) Color(0xFF10B981) else TextSecondary
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .border(0.8.dp, CoralPrimary, RoundedCornerShape(6.dp))
-                            .clickable { /* Xem shop */ }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "Xem Shop",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CoralPrimary
-                        )
-                    }
-                }
-            }
-
-            // Danh sách tin nhắn
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(Color(0xFFF5F6F8))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(chatMessages, key = { it.id }) { msg ->
-                    ChatBubbleRow(message = msg)
-                }
-            }
-
-            // Thanh nhập tin nhắn dính đáy
-            Surface(
-                color = SurfaceCard,
-                shadowElevation = 8.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFFF0F2F5))
-                            .padding(horizontal = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        BasicTextField(
-                            value = messageInput,
-                            onValueChange = { messageInput = it },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                fontSize = 13.5.sp,
-                                color = TextPrimary
-                            ),
-                            cursorBrush = SolidColor(CoralPrimary),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(
-                                onSend = {
-                                    if (messageInput.isNotBlank()) {
-                                        val textToSend = messageInput
-                                        messageInput = ""
-                                        chatMessages.add(
-                                            ChatMessage(
-                                                id = "user_${System.currentTimeMillis()}",
-                                                senderName = "Tôi",
-                                                text = textToSend,
-                                                time = "Vừa xong",
-                                                isFromUser = true
-                                            )
-                                        )
-                                        scope.launch {
-                                            delay(100)
-                                            listState.animateScrollToItem(chatMessages.size - 1)
-                                            // Phản hồi mẫu tự động từ Shop
-                                            delay(1000)
-                                            chatMessages.add(
-                                                ChatMessage(
-                                                    id = "shop_${System.currentTimeMillis()}",
-                                                    senderName = conversation.shopName,
-                                                    text = "Shop đã nhận được tin nhắn của bạn và sẽ phản hồi trong giây lát nhé!",
-                                                    time = "Vừa xong",
-                                                    isFromUser = false
-                                                )
-                                            )
-                                            listState.animateScrollToItem(chatMessages.size - 1)
-                                        }
-                                    }
-                                }
-                            ),
-                            decorationBox = { innerTextField ->
-                                if (messageInput.isEmpty()) {
-                                    Text(
-                                        text = "Nhập tin nhắn với ${conversation.shopName}...",
-                                        fontSize = 12.5.sp,
-                                        color = TextSecondary
-                                    )
-                                }
-                                innerTextField()
-                            }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = {
-                            if (messageInput.isNotBlank()) {
-                                val textToSend = messageInput
-                                messageInput = ""
-                                chatMessages.add(
-                                    ChatMessage(
-                                        id = "user_${System.currentTimeMillis()}",
-                                        senderName = "Tôi",
-                                        text = textToSend,
-                                        time = "Vừa xong",
-                                        isFromUser = true
-                                    )
-                                )
-                                scope.launch {
-                                    delay(100)
-                                    listState.animateScrollToItem(chatMessages.size - 1)
-                                    delay(1000)
-                                    chatMessages.add(
-                                        ChatMessage(
-                                            id = "shop_${System.currentTimeMillis()}",
-                                            senderName = conversation.shopName,
-                                            text = "Shop đã nhận được tin nhắn của bạn và sẽ phản hồi trong giây lát nhé!",
-                                            time = "Vừa xong",
-                                            isFromUser = false
-                                        )
-                                    )
-                                    listState.animateScrollToItem(chatMessages.size - 1)
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(Color(0xFFBA2211), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Gửi",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 
