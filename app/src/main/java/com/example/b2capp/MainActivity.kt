@@ -217,6 +217,19 @@ private fun B2CMainScreens(
         return
     }
 
+    // Khi đơn hàng đặt thành công (COD hoặc Online VNPAY) -> Hiển thị Màn hình Đặt Hàng Thành Công
+    if (uiState.completedOrderSuccess != null) {
+        BackHandler {
+            viewModel.closeOrderSuccessScreen(navigateToOrdersTab = false)
+        }
+        OrderSuccessScreen(
+            orderInfo = uiState.completedOrderSuccess!!,
+            uiState = uiState,
+            viewModel = viewModel
+        )
+        return
+    }
+
     // Khi người dùng mở màn hình Thanh toán (CheckoutScreen) khi ấn Mua ngay hoặc Mua từ giỏ hàng
     if (uiState.showCheckoutScreen) {
         BackHandler {
@@ -321,19 +334,6 @@ private fun B2CMainScreens(
             onProductClick = { product ->
                 viewModel.openProductDetailsScreen(product)
             }
-        )
-        return
-    }
-
-    // Khi đơn hàng đặt thành công (COD hoặc Online VNPAY) -> Hiển thị Màn hình Đặt Hàng Thành Công
-    if (uiState.completedOrderSuccess != null) {
-        BackHandler {
-            viewModel.closeOrderSuccessScreen(navigateToOrdersTab = false)
-        }
-        OrderSuccessScreen(
-            orderInfo = uiState.completedOrderSuccess!!,
-            uiState = uiState,
-            viewModel = viewModel
         )
         return
     }

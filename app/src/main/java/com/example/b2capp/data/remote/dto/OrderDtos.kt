@@ -52,6 +52,7 @@ data class OrderDetailDto(
     @Json(name = "orderCode") val orderCode: String? = null,
     @Json(name = "buyerId") val buyerId: Long? = null,
     @Json(name = "sellerId") val sellerId: Long? = null,
+    @Json(name = "shopName") val shopName: String? = null,
     @Json(name = "receiverName") val receiverName: String? = null,
     @Json(name = "receiverPhone") val receiverPhone: String? = null,
     @Json(name = "shippingAddress") val shippingAddress: String? = null,

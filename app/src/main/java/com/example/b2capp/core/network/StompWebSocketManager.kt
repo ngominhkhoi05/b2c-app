@@ -460,14 +460,20 @@ object StompWebSocketManager {
         }
     }
 
+    private fun JSONObject.optNullableString(key: String): String? {
+        if (!has(key) || isNull(key)) return null
+        val raw = optString(key, "").trim()
+        return if (raw.isNotEmpty() && !raw.equals("null", ignoreCase = true)) raw else null
+    }
+
     internal fun parseOrderEvent(jsonStr: String): RealtimeOrderEvent? {
         return try {
             val root = JSONObject(jsonStr)
-            val type = root.optString("type", "ORDER_STATUS_UPDATED")
+            val type = root.optNullableString("type") ?: "ORDER_STATUS_UPDATED"
             val payload = root.optJSONObject("payload") ?: root
             val orderId = payload.optLong("orderId", -1L)
-            val status = payload.optString("status", "")
-            val reason = payload.optString("reason", "").takeIf { it.isNotBlank() }
+            val status = payload.optNullableString("status").orEmpty()
+            val reason = payload.optNullableString("reason")
             if (orderId > 0 && status.isNotBlank()) {
                 RealtimeOrderEvent(
                     type = type,
@@ -484,16 +490,16 @@ object StompWebSocketManager {
     internal fun parseChatEvent(jsonStr: String): RealtimeChatEvent? {
         return try {
             val root = JSONObject(jsonStr)
-            val type = root.optString("type", "NEW_MESSAGE")
+            val type = root.optNullableString("type") ?: "NEW_MESSAGE"
             val convId = root.optLong("conversationId", -1L)
             if (convId <= 0) return null
 
             val sellerId = if (root.has("sellerId") && !root.isNull("sellerId")) root.optLong("sellerId") else null
-            val shopName = root.optString("shopName", "").takeIf { it.isNotBlank() }
-            val shopAvatar = root.optString("shopAvatar", "").takeIf { it.isNotBlank() }
+            val shopName = root.optNullableString("shopName")
+            val shopAvatar = root.optNullableString("shopAvatar")
             val buyerUnread = if (root.has("buyerUnreadCount") && !root.isNull("buyerUnreadCount")) root.optInt("buyerUnreadCount") else null
             val sellerUnread = if (root.has("sellerUnreadCount") && !root.isNull("sellerUnreadCount")) root.optInt("sellerUnreadCount") else null
-            val readerRole = root.optString("readerRole", "").takeIf { it.isNotBlank() }
+            val readerRole = root.optNullableString("readerRole")
 
             val msgObj = root.optJSONObject("message")
             val messageDto = if (msgObj != null) {
@@ -501,16 +507,16 @@ object StompWebSocketManager {
                     id = msgObj.optLong("id", System.currentTimeMillis()),
                     conversationId = msgObj.optLong("conversationId", convId),
                     senderId = if (msgObj.has("senderId") && !msgObj.isNull("senderId")) msgObj.optLong("senderId") else null,
-                    senderType = msgObj.optString("senderType", "SELLER"),
-                    senderName = msgObj.optString("senderName", "").takeIf { it.isNotBlank() },
-                    content = msgObj.optString("content", ""),
-                    messageType = msgObj.optString("messageType", "TEXT"),
-                    attachmentUrl = msgObj.optString("attachmentUrl", "").takeIf { it.isNotBlank() },
+                    senderType = msgObj.optNullableString("senderType") ?: "SELLER",
+                    senderName = msgObj.optNullableString("senderName"),
+                    content = msgObj.optNullableString("content").orEmpty(),
+                    messageType = msgObj.optNullableString("messageType") ?: "TEXT",
+                    attachmentUrl = msgObj.optNullableString("attachmentUrl"),
                     refProductId = if (msgObj.has("refProductId") && !msgObj.isNull("refProductId")) msgObj.optLong("refProductId") else null,
                     refOrderId = if (msgObj.has("refOrderId") && !msgObj.isNull("refOrderId")) msgObj.optLong("refOrderId") else null,
                     isRead = msgObj.optBoolean("isRead", false),
-                    readAt = msgObj.optString("readAt", "").takeIf { it.isNotBlank() },
-                    createdAt = msgObj.optString("createdAt", "").takeIf { it.isNotBlank() }
+                    readAt = msgObj.optNullableString("readAt"),
+                    createdAt = msgObj.optNullableString("createdAt")
                 )
             } else null
 

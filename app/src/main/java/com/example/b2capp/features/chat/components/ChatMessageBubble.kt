@@ -117,10 +117,13 @@ fun UserChatBubble(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Nếu có đính kèm hình ảnh
-            message.attachmentUrl?.let { url ->
+            // Nếu có đính kèm hình ảnh hợp lệ
+            val validUserAttachmentUrl = message.attachmentUrl
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+            if (validUserAttachmentUrl != null) {
                 AsyncImage(
-                    model = url,
+                    model = validUserAttachmentUrl,
                     contentDescription = "Ảnh đính kèm",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -132,7 +135,7 @@ fun UserChatBubble(
             }
 
             // Văn bản tin nhắn
-            if (message.text.isNotBlank() && (message.attachmentUrl == null || message.text != "[Hình ảnh]")) {
+            if (message.text.isNotBlank() && (validUserAttachmentUrl == null || message.text != "[Hình ảnh]")) {
                 Text(
                     text = message.text,
                     fontSize = 13.5.sp,
@@ -232,10 +235,13 @@ fun ShopChatBubble(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            // Nếu Shop gửi hình ảnh
-            message.attachmentUrl?.let { url ->
+            // Nếu Shop gửi hình ảnh hợp lệ
+            val validShopAttachmentUrl = message.attachmentUrl
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+            if (validShopAttachmentUrl != null) {
                 AsyncImage(
-                    model = url,
+                    model = validShopAttachmentUrl,
                     contentDescription = "Ảnh đính kèm từ Shop",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -247,7 +253,7 @@ fun ShopChatBubble(
             }
 
             // Văn bản tin nhắn
-            if (message.text.isNotBlank() && (message.attachmentUrl == null || message.text != "[Hình ảnh]")) {
+            if (message.text.isNotBlank() && (validShopAttachmentUrl == null || message.text != "[Hình ảnh]")) {
                 Text(
                     text = message.text,
                     fontSize = 13.5.sp,

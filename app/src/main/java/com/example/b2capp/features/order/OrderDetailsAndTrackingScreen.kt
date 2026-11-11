@@ -288,7 +288,7 @@ fun OrderDetailsAndTrackingScreen(
         val isReturned = status == "RETURNED"
 
         val isCod = detail.paymentMethod.equals("COD", ignoreCase = true)
-        val isPaid = detail.paymentStatus.equals("PAID", ignoreCase = true)
+        val isPaid = detail.paymentStatus.equals("PAID", ignoreCase = true) || isDeliveredOrCompleted
 
         // Visuals của Hero Status Banner dựa trên trạng thái thật
         val bannerVisuals = when (status) {
@@ -449,7 +449,7 @@ fun OrderDetailsAndTrackingScreen(
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color(0xFFBFDBFE))
                             .clickable {
-                                viewModel.openShopMessages()
+                                viewModel.openShopChatForOrder(detail)
                             }
                             .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
@@ -831,7 +831,8 @@ fun OrderDetailsAndTrackingScreen(
             val itemsList = detail.items ?: emptyList()
             if (itemsList.isNotEmpty()) {
                 item {
-                    val shopName = uiState.orders.firstOrNull { it.id == detail.id }?.shopName
+                    val shopName = detail.shopName
+                        ?: uiState.orders.firstOrNull { it.id == detail.id }?.shopName
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -847,7 +848,7 @@ fun OrderDetailsAndTrackingScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { viewModel.openShopMessages() },
+                                        .clickable { viewModel.openShopChatForOrder(detail, shopName) },
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -1199,6 +1200,7 @@ fun OrderDetailsAndTrackingScreen(
                         }
                         if (!detail.paymentMethod.isNullOrBlank()) {
                             OrderMetaRow(label = "Phương thức thanh toán", value = detail.paymentMethod)
+                            OrderMetaRow(label = "Trạng thái thanh toán", value = if (isPaid) "Đã thanh toán" else "Chưa thanh toán")
                         }
                         if (!detail.confirmedAt.isNullOrBlank()) {
                             OrderMetaRow(label = "Thời gian xác nhận", value = detail.confirmedAt)
@@ -1345,7 +1347,7 @@ fun OrderDetailsAndTrackingScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFE0EDFF))
                                 .clickable {
-                                    viewModel.openShopMessages()
+                                    viewModel.openShopChatForOrder(detail)
                                 }
                                 .padding(horizontal = 12.dp),
                             contentAlignment = Alignment.Center
@@ -1384,7 +1386,7 @@ fun OrderDetailsAndTrackingScreen(
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFBFDBFE))
-                            .clickable { viewModel.openShopMessages() }
+                            .clickable { viewModel.openShopChatForOrder(detail) }
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1403,7 +1405,7 @@ fun OrderDetailsAndTrackingScreen(
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFBFDBFE))
-                            .clickable { viewModel.openShopMessages() },
+                            .clickable { viewModel.openShopChatForOrder(detail) },
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1419,25 +1421,6 @@ fun OrderDetailsAndTrackingScreen(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF1E40AF)
-                            )
-                        }
-                    }
-
-                    if (isDelivered && detail.returnRequestedAt == null) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFFEF3C7))
-                                .clickable { showReturnDialog = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Trả hàng",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFB45309)
                             )
                         }
                     }
@@ -1478,39 +1461,31 @@ fun OrderDetailsAndTrackingScreen(
                         }
                     }
                 } else if (isCompleted) {
-                    // Đơn COMPLETED: [Mua lại] & [Trả hàng nếu còn hạn] & [ĐÁNH GIÁ]
+                    // Đơn COMPLETED: [Mua lại] & [ĐÁNH GIÁ]
+                    val isReorderingThis = uiState.reorderingOrderId == rawId
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFE0EDFF))
-                            .clickable { viewModel.openCheckoutScreen() },
+                            .clickable(enabled = !isReorderingThis) {
+                                viewModel.reorderFromOrder(rawId)
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Mua lại",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E5B94)
-                        )
-                    }
-
-                    if (detail.returnRequestedAt == null) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFFEF3C7))
-                                .clickable { showReturnDialog = true },
-                            contentAlignment = Alignment.Center
-                        ) {
+                        if (isReorderingThis) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color(0xFF1E5B94),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
                             Text(
-                                text = "Trả hàng",
-                                fontSize = 12.5.sp,
+                                text = "Mua lại",
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFB45309)
+                                color = Color(0xFF1E5B94)
                             )
                         }
                     }
@@ -1535,13 +1510,14 @@ fun OrderDetailsAndTrackingScreen(
                     }
                 } else {
                     // CANCELLED, RETURN_REQUESTED, RETURNED
+                    val isReorderingThis = uiState.reorderingOrderId == rawId
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFBFDBFE))
-                            .clickable { viewModel.openShopMessages() },
+                            .clickable { viewModel.openShopChatForOrder(detail) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -1558,15 +1534,25 @@ fun OrderDetailsAndTrackingScreen(
                             .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFBA2211))
-                            .clickable { viewModel.openCheckoutScreen() },
+                            .clickable(enabled = !isReorderingThis) {
+                                viewModel.reorderFromOrder(rawId)
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Mua lại sản phẩm",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        if (isReorderingThis) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Mua lại sản phẩm",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -1739,6 +1725,49 @@ fun OrderDetailsAndTrackingScreen(
             dismissButton = {
                 TextButton(onClick = { showReturnDialog = false }) {
                     Text("Đóng", color = TextSecondary)
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            containerColor = SurfaceCard
+        )
+    }
+
+    // Dialog thông báo khi sản phẩm trong đơn hàng không còn tồn tại hoặc đã ngừng bán
+    if (uiState.reorderErrorMessage != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissReorderError() },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.ErrorOutline,
+                        contentDescription = null,
+                        tint = Color(0xFFDC2626),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Không thể mua lại đơn hàng",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = NavySecondary
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = uiState.reorderErrorMessage,
+                    fontSize = 13.5.sp,
+                    color = TextPrimary,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissReorderError() }) {
+                    Text(
+                        text = "Đã hiểu",
+                        color = CoralPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             shape = RoundedCornerShape(12.dp),

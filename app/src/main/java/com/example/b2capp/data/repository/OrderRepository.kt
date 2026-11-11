@@ -2,6 +2,7 @@ package com.example.b2capp.data.repository
 
 import com.example.b2capp.data.remote.ApiClient
 import com.example.b2capp.data.remote.api.OrderApiService
+import com.example.b2capp.data.remote.dto.CartItemDto
 import com.example.b2capp.data.remote.dto.CreateOrderRequestDto
 import com.example.b2capp.data.remote.dto.OrderDetailDto
 import com.example.b2capp.data.remote.dto.OrderPreviewResponseDto
@@ -187,6 +188,26 @@ class OrderRepository(
                 orderItemIds = orderItemIds
             )
             val response = apiServiceHolder().requestReturn(orderId, req)
+            if (response.isSuccessful && response.body()?.data != null) {
+                Result.success(response.body()!!.data!!)
+            } else {
+                val errorMsg = ApiClient.parseErrorMessage(response.errorBody()?.string())
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Mua lại đơn hàng cũ:
+     * Backend kiểm tra các sản phẩm trong đơn còn tồn tại, đang mở bán và còn tồn kho hay không.
+     * Nếu hợp lệ, trả về danh sách sản phẩm đã chuẩn bị để tạo đơn mới.
+     * POST /api/v1/buyer/orders/{id}/reorder
+     */
+    suspend fun reorder(orderId: Long): Result<List<CartItemDto>> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiServiceHolder().reorder(orderId)
             if (response.isSuccessful && response.body()?.data != null) {
                 Result.success(response.body()!!.data!!)
             } else {

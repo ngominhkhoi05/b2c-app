@@ -13,6 +13,7 @@ import com.example.b2capp.features.chat.ShopConversation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
@@ -154,12 +155,16 @@ class ChatRepository(
         avatarBg: Color? = null
     ): DetailedChatMessage {
         val isFromUser = dto.senderType == "BUYER" || (currentUserId != null && dto.senderId == currentUserId && dto.senderType != "SELLER")
-        val formattedTime = formatTime(dto.createdAt)
+        val formattedTime = formatMessageTime(dto.createdAt)
         val resolvedSenderName = if (!isFromUser) {
             dto.senderName?.takeIf { it.isNotBlank() } ?: shopName
         } else {
             "Tôi"
         }
+
+        val cleanAttachmentUrl = dto.attachmentUrl
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
 
         return DetailedChatMessage(
             id = "msg_${dto.id}",
@@ -171,7 +176,7 @@ class ChatRepository(
             avatarLetter = if (!isFromUser) (avatarLetter ?: extractInitials(shopName)) else null,
             avatarBg = if (!isFromUser) (avatarBg ?: generateAvatarColor(shopName)) else null,
             attachedProduct = null,
-            attachmentUrl = dto.attachmentUrl,
+            attachmentUrl = cleanAttachmentUrl,
             isVoucher = false,
             voucherValue = null
         )
@@ -248,22 +253,54 @@ class ChatRepository(
     }
 
     /**
-     * Định dạng thời gian thân thiện (Vừa xong, 10:30, Hôm qua, 15 Th10...)
+     * Định dạng thời gian cho từng bong bóng tin nhắn trong ShopChatScreen:
+     * Luôn hiển thị giờ:phút cụ thể (HH:mm nếu trong ngày, hoặc dd/MM HH:mm nếu khác ngày)
+     * để người dùng phân biệt chính xác thời điểm gửi của từng tin nhắn.
+     */
+    fun formatMessageTime(isoString: String?): String {
+        val vnZone = ZoneId.of("Asia/Ho_Chi_Minh")
+        if (isoString.isNullOrBlank()) {
+            return LocalDateTime.now(vnZone).format(DateTimeFormatter.ofPattern("HH:mm"))
+        }
+        return try {
+            val cleaned = isoString.trim().removeSuffix("Z")
+            val parsed = LocalDateTime.parse(cleaned)
+            val now = LocalDateTime.now(vnZone)
+            if (parsed.toLocalDate() == now.toLocalDate()) {
+                parsed.format(DateTimeFormatter.ofPattern("HH:mm"))
+            } else if (parsed.year == now.year) {
+                parsed.format(DateTimeFormatter.ofPattern("HH:mm dd/MM"))
+            } else {
+                parsed.format(DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"))
+            }
+        } catch (e: Exception) {
+            if (isoString.length >= 16) {
+                isoString.substring(11, 16)
+            } else {
+                LocalDateTime.now(vnZone).format(DateTimeFormatter.ofPattern("HH:mm"))
+            }
+        }
+    }
+
+    /**
+     * Định dạng thời gian cho danh sách hội thoại (ShopMessagesScreen):
+     * So sánh theo cùng múi giờ Việt Nam (Asia/Ho_Chi_Minh) với Backend để tránh lỗi lệch UTC trên máy ảo Android.
      */
     fun formatTime(isoString: String?): String {
         if (isoString.isNullOrBlank()) return "Vừa xong"
+        val vnZone = ZoneId.of("Asia/Ho_Chi_Minh")
         return try {
-            val parsed = LocalDateTime.parse(isoString)
-            val now = LocalDateTime.now()
-            val minutesDiff = ChronoUnit.MINUTES.between(parsed, now)
-            val hoursDiff = ChronoUnit.HOURS.between(parsed, now)
-            val daysDiff = ChronoUnit.DAYS.between(parsed, now)
+            val cleaned = isoString.trim().removeSuffix("Z")
+            val parsed = LocalDateTime.parse(cleaned)
+            val now = LocalDateTime.now(vnZone)
+            val secondsDiff = ChronoUnit.SECONDS.between(parsed, now)
+            val daysDiff = ChronoUnit.DAYS.between(parsed.toLocalDate(), now.toLocalDate())
 
             when {
-                minutesDiff < 5 -> "Vừa xong"
-                hoursDiff < 24 && parsed.dayOfMonth == now.dayOfMonth -> parsed.format(DateTimeFormatter.ofPattern("HH:mm"))
+                secondsDiff in 0..59 -> "Vừa xong"
+                daysDiff == 0L -> parsed.format(DateTimeFormatter.ofPattern("HH:mm"))
                 daysDiff == 1L -> "Hôm qua"
-                daysDiff < 7 -> parsed.format(DateTimeFormatter.ofPattern("dd 'Th'MM"))
+                daysDiff in 2..6 -> parsed.format(DateTimeFormatter.ofPattern("dd 'Th'MM"))
                 else -> parsed.format(DateTimeFormatter.ofPattern("dd/MM"))
             }
         } catch (e: Exception) {

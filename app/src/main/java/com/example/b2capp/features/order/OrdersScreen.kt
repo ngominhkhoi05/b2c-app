@@ -629,7 +629,7 @@ fun OrdersScreen(
 
                     val isCod = order.paymentMethod?.uppercase() == "COD"
                     val isVnpay = order.paymentMethod?.uppercase()?.contains("VNPAY") == true
-                    val isPaid = order.paymentStatus.equals("PAID", ignoreCase = true)
+                    val isPaid = order.paymentStatus.equals("PAID", ignoreCase = true) || status == "DELIVERED" || status == "COMPLETED"
 
                     val deliveryBanner = when (status) {
                         "PENDING" -> when {
@@ -843,23 +843,32 @@ fun OrdersScreen(
 
                                     "DELIVERED", "COMPLETED" -> {
                                         // 2 Nút: [Mua lại], [ĐÁNH GIÁ]
+                                        val isReorderingThis = uiState.reorderingOrderId == order.id
                                         Box(
                                             modifier = Modifier
                                                 .height(34.dp)
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(Color(0xFFE0EDFF))
-                                                .clickable {
-                                                    viewModel.openCheckoutScreen()
+                                                .clickable(enabled = !isReorderingThis) {
+                                                    viewModel.reorderFromOrder(order.id)
                                                 }
                                                 .padding(horizontal = 14.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = "Mua lại",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF1E5B94)
-                                            )
+                                            if (isReorderingThis) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    color = Color(0xFF1E5B94),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Mua lại",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1E5B94)
+                                                )
+                                            }
                                         }
 
                                         Spacer(modifier = Modifier.width(10.dp))
@@ -885,7 +894,8 @@ fun OrdersScreen(
                                     }
 
                                     else -> {
-                                        // CANCELLED, RETURNED -> [Mua lại], [Xem chi tiết]
+                                        // CANCELLED, RETURNED -> [Xem chi tiết], [Mua lại]
+                                        val isReorderingThis = uiState.reorderingOrderId == order.id
                                         Box(
                                             modifier = Modifier
                                                 .height(34.dp)
@@ -912,18 +922,26 @@ fun OrdersScreen(
                                                 .height(34.dp)
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(Color(0xFFE0EDFF))
-                                                .clickable {
-                                                    viewModel.openCheckoutScreen()
+                                                .clickable(enabled = !isReorderingThis) {
+                                                    viewModel.reorderFromOrder(order.id)
                                                 }
                                                 .padding(horizontal = 14.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = "Mua lại",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF1E5B94)
-                                            )
+                                            if (isReorderingThis) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    color = Color(0xFF1E5B94),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Mua lại",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1E5B94)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1302,6 +1320,49 @@ fun OrdersScreen(
             onApply = { criteria ->
                 viewModel.applyOrderFilter(criteria)
             }
+        )
+    }
+
+    // Dialog thông báo khi sản phẩm trong đơn hàng không còn tồn tại hoặc đã ngừng bán
+    if (uiState.reorderErrorMessage != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissReorderError() },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.ErrorOutline,
+                        contentDescription = null,
+                        tint = Color(0xFFDC2626),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Không thể mua lại đơn hàng",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = NavySecondary
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = uiState.reorderErrorMessage,
+                    fontSize = 13.5.sp,
+                    color = TextPrimary,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissReorderError() }) {
+                    Text(
+                        text = "Đã hiểu",
+                        color = CoralPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            containerColor = SurfaceCard
         )
     }
 }

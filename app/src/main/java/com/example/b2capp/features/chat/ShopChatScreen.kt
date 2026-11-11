@@ -3,6 +3,10 @@ package com.example.b2capp.features.chat
 import com.example.b2capp.features.chat.components.ShopChatBubble
 import com.example.b2capp.features.chat.components.UserChatBubble
 
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -42,13 +46,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ConfirmationNumber
-import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Straighten
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,6 +62,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -72,7 +78,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import java.io.ByteArrayOutputStream
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -128,10 +136,13 @@ fun ShopChatScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
     var showAttachmentSheet by remember { mutableStateOf(false) }
+    var showImageSourceDialog by remember { mutableStateOf(false) }
+    var isUploadingChatImage by remember { mutableStateOf(false) }
     var isLoadingMessages by remember { mutableStateOf(false) }
     var activeConversationId by remember { mutableStateOf(chatInfo.conversationId) }
 
@@ -189,8 +200,12 @@ fun ShopChatScreen(
                 if (activeConversationId == null) {
                     activeConversationId = convId
                 }
-                if (!incomingMsg.isFromUser && messages.none { it.id == incomingMsg.id }) {
-                    messages.add(incomingMsg)
+                if (!incomingMsg.isFromUser) {
+                    if (messages.none { it.id == incomingMsg.id }) {
+                        messages.add(incomingMsg)
+                    }
+                    // Đang mở trực tiếp cuộc hội thoại với Shop -> tự động đánh dấu đã xem trên cả UI và Backend
+                    viewModel.markShopConversationAsRead(convId)
                 }
             }
         }
@@ -211,10 +226,12 @@ fun ShopChatScreen(
         if (content.isBlank() && productAttachment == null) return
 
         val tempId = "user_${System.currentTimeMillis()}"
+        val nowTimeStr = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
         val userMsg = DetailedChatMessage(
             id = tempId,
             text = content,
-            time = "Vừa xong",
+            time = nowTimeStr,
             isFromUser = true,
             attachedProduct = productAttachment
         )
@@ -234,7 +251,11 @@ fun ShopChatScreen(
             }
             val idx = messages.indexOfFirst { it.id == tempId }
             if (idx >= 0) {
-                messages[idx] = messages[idx].copy(id = "msg_${sentDto.id}")
+                val serverTime = sentDto.createdAt?.takeIf { it.length >= 16 }?.substring(11, 16) ?: messages[idx].time
+                messages[idx] = messages[idx].copy(
+                    id = "msg_${sentDto.id}",
+                    time = serverTime
+                )
             }
         }
     }
@@ -242,10 +263,12 @@ fun ShopChatScreen(
     // Hàm gửi hình ảnh đính kèm
     fun sendImageMessage(imageUrl: String) {
         val tempId = "user_${System.currentTimeMillis()}"
+        val nowTimeStr = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
         val userMsg = DetailedChatMessage(
             id = tempId,
             text = "[Hình ảnh]",
-            time = "Vừa xong",
+            time = nowTimeStr,
             isFromUser = true,
             attachmentUrl = imageUrl
         )
@@ -263,9 +286,188 @@ fun ShopChatScreen(
             }
             val idx = messages.indexOfFirst { it.id == tempId }
             if (idx >= 0) {
-                messages[idx] = messages[idx].copy(id = "msg_${sentDto.id}")
+                val serverTime = sentDto.createdAt?.takeIf { it.length >= 16 }?.substring(11, 16) ?: messages[idx].time
+                messages[idx] = messages[idx].copy(
+                    id = "msg_${sentDto.id}",
+                    time = serverTime
+                )
             }
         }
+    }
+
+    // Launcher chọn ảnh có sẵn từ thư viện trên máy
+    val galleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bytes = inputStream?.readBytes()
+                inputStream?.close()
+                if (bytes != null && bytes.isNotEmpty()) {
+                    val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    isUploadingChatImage = true
+                    viewModel.uploadImage(
+                        bytes = bytes,
+                        mimeType = mimeType,
+                        fileName = "chat_${System.currentTimeMillis()}.jpg",
+                        purpose = "chat",
+                        onSuccess = { uploadedUrl ->
+                            isUploadingChatImage = false
+                            if (uploadedUrl.isNotBlank()) {
+                                sendImageMessage(uploadedUrl)
+                            }
+                        },
+                        onError = {
+                            isUploadingChatImage = false
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                isUploadingChatImage = false
+                viewModel.showErrorToast("Không thể đọc ảnh từ thiết bị: ${e.message}")
+            }
+        }
+    }
+
+    // Launcher chụp ảnh trực tiếp bằng Camera
+    val cameraTakePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            try {
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+                val bytes = outputStream.toByteArray()
+                if (bytes.isNotEmpty()) {
+                    isUploadingChatImage = true
+                    viewModel.uploadImage(
+                        bytes = bytes,
+                        mimeType = "image/jpeg",
+                        fileName = "chat_cam_${System.currentTimeMillis()}.jpg",
+                        purpose = "chat",
+                        onSuccess = { uploadedUrl ->
+                            isUploadingChatImage = false
+                            if (uploadedUrl.isNotBlank()) {
+                                sendImageMessage(uploadedUrl)
+                            }
+                        },
+                        onError = {
+                            isUploadingChatImage = false
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                isUploadingChatImage = false
+                viewModel.showErrorToast("Không thể xử lý ảnh chụp: ${e.message}")
+            }
+        }
+    }
+
+    // Dialog cho phép người dùng chọn: Chụp ảnh mới hoặc Chọn ảnh từ máy
+    if (showImageSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceDialog = false },
+            containerColor = SurfaceCard,
+            title = {
+                Text(
+                    text = "Gửi hình ảnh",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFF8FAFC))
+                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
+                            .clickable {
+                                showImageSourceDialog = false
+                                try {
+                                    cameraTakePictureLauncher.launch(null)
+                                } catch (e: Exception) {
+                                    viewModel.showErrorToast("Không thể mở máy ảnh: ${e.message}")
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Chụp ảnh",
+                            tint = CoralPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Chụp ảnh mới",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Sử dụng máy ảnh để chụp trực tiếp",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFF8FAFC))
+                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
+                            .clickable {
+                                showImageSourceDialog = false
+                                galleryPickerLauncher.launch("image/*")
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoLibrary,
+                            contentDescription = "Chọn ảnh từ máy",
+                            tint = NavySecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Chọn ảnh từ thiết bị",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Mở thư viện ảnh có sẵn trong máy",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showImageSourceDialog = false }) {
+                    Text(
+                        text = "Hủy",
+                        color = TextSecondary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
     }
 
     Column(
@@ -818,7 +1020,7 @@ fun ShopChatScreen(
                             title = "Ảnh chụp",
                             onClick = {
                                 showAttachmentSheet = false
-                                sendImageMessage("https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80")
+                                showImageSourceDialog = true
                             }
                         )
                     }
@@ -843,37 +1045,32 @@ fun ShopChatScreen(
                         )
                     }
 
-                    // Nút Camera chụp ảnh
+                    // Nút Camera (Chọn ảnh từ máy hoặc chụp ảnh)
                     IconButton(
                         onClick = {
-                            sendImageMessage("https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500&auto=format&fit=crop&q=80")
+                            if (!isUploadingChatImage) {
+                                showImageSourceDialog = true
+                            }
                         },
                         modifier = Modifier.size(36.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CameraAlt,
-                            contentDescription = "Chụp ảnh",
-                            tint = Color(0xFF6B7280),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        if (isUploadingChatImage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = CoralPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Chọn hoặc chụp ảnh",
+                                tint = Color(0xFF6B7280),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
 
-                    // Nút Sticker / Mặt cười
-                    IconButton(
-                        onClick = {
-                            inputText += " 😊"
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SentimentSatisfiedAlt,
-                            contentDescription = "Biểu cảm",
-                            tint = Color(0xFF6B7280),
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     // Ô nhập tin nhắn hình pill
                     Row(

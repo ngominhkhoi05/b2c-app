@@ -184,6 +184,8 @@ data class B2CUiState(
     val orderDetailErrorMessage: String? = null,
     val cancellingOrderId: Long? = null,
     val retryingOrderId: Long? = null,
+    val reorderingOrderId: Long? = null,
+    val reorderErrorMessage: String? = null,
     val browserCategories: List<CategoryDto> = HomeRepository.getDefaultCategoryDtos(),
     val selectedBrowserCategory: CategoryDto? = null,
     val selectedBrowserSubCategoryId: Long? = null,
@@ -1185,16 +1187,34 @@ class B2CViewModel : ViewModel() {
         avatarUrl: String? = null,
         isMall: Boolean = false
     ) {
-        val letter = avatarLetter ?: chatRepository.extractInitials(shopName)
-        val bg = avatarBg ?: chatRepository.generateAvatarColor(shopName)
+        val resolvedSellerId = sellerId ?: product?.sellerId
+
+        // Nếu chưa có conversationId trực tiếp, tìm kiếm trong danh sách cuộc hội thoại hiện có
+        val existingConversation = if (conversationId == null) {
+            _uiState.value.shopConversations.firstOrNull { conv ->
+                (resolvedSellerId != null && conv.sellerId == resolvedSellerId) ||
+                (shopName.isNotBlank() && shopName != "Shop" && conv.shopName.equals(shopName, ignoreCase = true))
+            }
+        } else null
+
+        val effectiveConvId = conversationId ?: existingConversation?.numericId
+        val effectiveShopName = if (shopName.isNotBlank() && shopName != "Shop") {
+            shopName
+        } else {
+            existingConversation?.shopName ?: "Shop"
+        }
+        val effectiveAvatarUrl = avatarUrl ?: existingConversation?.avatarUrl
+        val letter = avatarLetter ?: existingConversation?.avatarLetter ?: chatRepository.extractInitials(effectiveShopName)
+        val bg = avatarBg ?: existingConversation?.avatarBg ?: chatRepository.generateAvatarColor(effectiveShopName)
+        val effectiveMall = isMall || (existingConversation?.tagText?.equals("Mall", ignoreCase = true) == true)
+
         _uiState.update { state ->
             val p = product
-            val resolvedSellerId = sellerId ?: p?.sellerId
 
             // Đánh dấu hội thoại này là đã đọc ngay trong state cục bộ
-            val updatedConversations = if (conversationId != null) {
+            val updatedConversations = if (effectiveConvId != null) {
                 state.shopConversations.map { conv ->
-                    if (conv.numericId == conversationId) {
+                    if (conv.numericId == effectiveConvId) {
                         conv.copy(
                             unreadCount = 0,
                             isTimeRed = false,
@@ -1210,13 +1230,13 @@ class B2CViewModel : ViewModel() {
             state.copy(
                 shopConversations = updatedConversations,
                 activeShopChat = ShopChatInfo(
-                    conversationId = conversationId,
+                    conversationId = effectiveConvId,
                     sellerId = resolvedSellerId,
-                    shopName = shopName,
+                    shopName = effectiveShopName,
                     avatarLetter = letter,
                     avatarBg = bg,
-                    avatarUrl = avatarUrl,
-                    isMall = isMall,
+                    avatarUrl = effectiveAvatarUrl,
+                    isMall = effectiveMall,
                     isOnline = true,
                     product = p
                 )
@@ -1224,15 +1244,95 @@ class B2CViewModel : ViewModel() {
         }
 
         // Đồng bộ cập nhật trạng thái đã đọc lên Backend Database
-        if (conversationId != null) {
+        if (effectiveConvId != null) {
             viewModelScope.launch {
-                chatRepository.markConversationAsRead(conversationId)
+                chatRepository.markConversationAsRead(effectiveConvId)
             }
         }
     }
 
+    /**
+     * Mở màn hình chat với Shop từ trang Chi tiết đơn hàng:
+     * - Nếu đã từng trò chuyện với Shop đó (đã có conversation trong cache hoặc trên backend): mở lại cuộc hội thoại đó kèm tin nhắn cũ
+     * - Nếu chưa từng trò chuyện với Shop đó: ShopChatScreen sẽ tự động gọi backend API (POST /api/v1/conversations?sellerId={sellerId})
+     *   để tạo mới cuộc hội thoại với sellerId của shop
+     * - Tự động đính kèm thông tin sản phẩm đầu tiên trong đơn hàng làm ngữ cảnh tư vấn
+     */
+    fun openShopChatForOrder(
+        orderDetail: OrderDetailDto?,
+        shopNameOverride: String? = null
+    ) {
+        if (orderDetail == null) return
+
+        val rawSellerId = orderDetail.sellerId
+            ?: _uiState.value.orders.firstOrNull { it.id == orderDetail.id }?.sellerId
+
+        val resolvedShopName = shopNameOverride
+            ?.takeIf { it.isNotBlank() }
+            ?: orderDetail.shopName
+            ?: _uiState.value.orders.firstOrNull { it.id == orderDetail.id }?.shopName
+            ?: "Shop"
+
+        // Tìm kiếm cuộc hội thoại đã từng có với Shop
+        val existingConv = _uiState.value.shopConversations.firstOrNull { conv ->
+            (rawSellerId != null && conv.sellerId == rawSellerId) ||
+            (conv.shopName.isNotBlank() && conv.shopName.equals(resolvedShopName, ignoreCase = true))
+        }
+
+        val targetSellerId = rawSellerId ?: existingConv?.sellerId
+        val targetConvId = existingConv?.numericId
+
+        // Lấy sản phẩm đầu tiên của đơn hàng làm sản phẩm tham chiếu trong chat
+        val firstItem = orderDetail.items?.firstOrNull()
+        val productContext = if (firstItem != null && firstItem.productId != null) {
+            ProductItem(
+                id = firstItem.productId.toString(),
+                name = firstItem.productName ?: "Sản phẩm trong đơn #${orderDetail.orderCode ?: orderDetail.id}",
+                imageUrl = firstItem.imageUrl ?: "",
+                price = firstItem.unitPrice?.toLong() ?: 0L,
+                sellerId = targetSellerId,
+                shopName = resolvedShopName
+            )
+        } else null
+
+        openShopChat(
+            shopName = resolvedShopName,
+            product = productContext,
+            conversationId = targetConvId,
+            sellerId = targetSellerId,
+            avatarLetter = existingConv?.avatarLetter,
+            avatarBg = existingConv?.avatarBg,
+            avatarUrl = existingConv?.avatarUrl,
+            isMall = existingConv?.tagText?.equals("Mall", ignoreCase = true) == true
+        )
+    }
+
     suspend fun startOrGetConversation(sellerId: Long): Long? {
-        return chatRepository.startConversation(sellerId).getOrNull()?.id
+        val convResult = chatRepository.startConversation(sellerId)
+        val convDto = convResult.getOrNull()
+        val startedId = convDto?.id
+        if (startedId != null) {
+            _uiState.update { state ->
+                val active = state.activeShopChat
+                if (active != null) {
+                    val resolvedName = if (active.shopName.isBlank() || active.shopName == "Shop") {
+                        convDto.otherPartyName?.takeIf { it.isNotBlank() } ?: active.shopName
+                    } else active.shopName
+                    val resolvedAvatar = active.avatarUrl ?: convDto.otherPartyAvatar
+                    state.copy(
+                        activeShopChat = active.copy(
+                            conversationId = startedId,
+                            sellerId = sellerId,
+                            shopName = resolvedName,
+                            avatarUrl = resolvedAvatar
+                        )
+                    )
+                } else state
+            }
+            // Tải lại danh sách hội thoại ngầm để cập nhật hội thoại mới vào danh sách
+            loadShopConversations(forceRefresh = true)
+        }
+        return startedId
     }
 
     suspend fun loadMessagesForConversation(
@@ -1340,8 +1440,28 @@ class B2CViewModel : ViewModel() {
     }
 
     fun closeShopChat() {
-        _uiState.update { it.copy(activeShopChat = null) }
-        loadShopConversations(forceRefresh = true)
+        val closingConvId = _uiState.value.activeShopChat?.conversationId
+        _uiState.update { state ->
+            val updatedConversations = if (closingConvId != null) {
+                state.shopConversations.map { conv ->
+                    if (conv.numericId == closingConvId) {
+                        conv.copy(
+                            unreadCount = 0,
+                            isTimeRed = false,
+                            isLastMessageBold = false,
+                            checkStatus = CheckStatus.DOUBLE_CHECK_READ
+                        )
+                    } else conv
+                }
+            } else state.shopConversations
+            state.copy(activeShopChat = null, shopConversations = updatedConversations)
+        }
+        viewModelScope.launch {
+            if (closingConvId != null) {
+                chatRepository.markConversationAsRead(closingConvId)
+            }
+            loadShopConversations(forceRefresh = true)
+        }
     }
 
     fun openProductDetailsScreen(product: ProductItem) {
@@ -1547,6 +1667,154 @@ class B2CViewModel : ViewModel() {
             ?.first
     }
 
+    fun buyNow(
+        product: ProductItem,
+        variant: ProductVariantItem? = null,
+        quantity: Int = 1,
+        color: String = ""
+    ) {
+        if (!_uiState.value.isLoggedIn) {
+            openSignIn()
+            showErrorToast("Vui lòng đăng nhập để tiến hành mua hàng")
+            return
+        }
+
+        val targetVariant = variant ?: product.variants.firstOrNull()
+        val targetVariantId = targetVariant?.id
+
+        if (targetVariantId == null) {
+            showErrorToast("Không tìm thấy phân loại sản phẩm hợp lệ")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCartLoading = true) }
+            val addResult = cartRepository.addCartItem(variantId = targetVariantId, quantity = quantity)
+            addResult.onSuccess { addedItem ->
+                // Lấy toàn bộ giỏ hàng mới nhất từ server
+                val cartResult = cartRepository.getCartItems()
+                cartResult.onSuccess { items ->
+                    // Đặt chỉ riêng sản phẩm vừa ấn Mua ngay là isSelected = true, tất cả các sản phẩm khác isSelected = false
+                    val updatedItems = items.map { item ->
+                        item.copy(isSelected = item.id == addedItem.id)
+                    }
+                    _uiState.update { state ->
+                        state.copy(
+                            serverCartItems = updatedItems,
+                            serverCartCount = updatedItems.sumOf { it.quantity },
+                            isCartLoading = false,
+                            showCheckoutScreen = true,
+                            orderPreview = null,
+                            isPlacingOrder = false
+                        )
+                    }
+                    // Đồng bộ trạng thái chọn lên server để previewOrder và createOrder hoạt động chuẩn
+                    items.forEach { item ->
+                        val shouldBeSelected = item.id == addedItem.id
+                        if (item.isSelected != shouldBeSelected) {
+                            cartRepository.updateCartItem(id = item.id, isSelected = shouldBeSelected)
+                        }
+                    }
+                    val subtotal = _uiState.value.checkoutItemsSubtotal.toDouble()
+                    loadAddresses()
+                    loadCheckoutPromotions(subtotal)
+                    refreshOrderPreview()
+                    refreshCartBadgeCount()
+                }.onFailure { err ->
+                    _uiState.update { it.copy(isCartLoading = false) }
+                    showErrorToast(err.message ?: "Không thể tải giỏ hàng")
+                }
+            }.onFailure { err ->
+                _uiState.update { it.copy(isCartLoading = false) }
+                showErrorToast(err.message ?: "Không thể thêm sản phẩm vào đơn hàng")
+            }
+        }
+    }
+
+    fun dismissReorderError() {
+        _uiState.update { it.copy(reorderErrorMessage = null) }
+    }
+
+    /**
+     * Mua lại đơn hàng cũ (từ trang Đơn hàng của bạn hoặc Chi tiết đơn hàng):
+     * - Gọi POST /api/v1/buyer/orders/{id}/reorder để Backend kiểm tra các sản phẩm trong đơn.
+     * - Nếu sản phẩm không còn tồn tại, ngừng bán, bị khóa, hoặc hết hàng -> Backend trả lỗi 400
+     *   và Mobile hiển thị thông báo cho người dùng (không cho phép mua).
+     * - Nếu hợp lệ -> Backend trả về danh sách các sản phẩm của đơn đó (đã đặt isSelected = true),
+     *   Mobile mở thẳng màn hình Thanh toán (CheckoutScreen) để tạo đơn hàng mới hoàn toàn.
+     */
+    fun reorderFromOrder(orderId: Long) {
+        if (!_uiState.value.isLoggedIn) {
+            openSignIn()
+            showErrorToast("Vui lòng đăng nhập để tiến hành mua lại đơn hàng")
+            return
+        }
+        if (_uiState.value.reorderingOrderId != null) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    reorderingOrderId = orderId,
+                    reorderErrorMessage = null
+                )
+            }
+            val result = orderRepository.reorder(orderId)
+            result.onSuccess { reorderedItems ->
+                if (reorderedItems.isEmpty()) {
+                    val msg = "Không tìm thấy sản phẩm khả dụng trong đơn hàng này để mua lại."
+                    _uiState.update {
+                        it.copy(
+                            reorderingOrderId = null,
+                            reorderErrorMessage = msg
+                        )
+                    }
+                    showErrorToast(msg)
+                    return@onSuccess
+                }
+
+                // Tải danh sách giỏ hàng đầy đủ và chỉ đánh dấu chọn đúng các sản phẩm thuộc đơn mua lại
+                val fullCart = cartRepository.getCartItems().getOrNull()
+                val reorderIds = reorderedItems.map { it.id }.toSet()
+                val effectiveItems = if (!fullCart.isNullOrEmpty()) {
+                    fullCart.map { item -> item.copy(isSelected = item.id in reorderIds) }
+                } else {
+                    reorderedItems.map { it.copy(isSelected = true) }
+                }
+
+                _uiState.update { state ->
+                    state.copy(
+                        reorderingOrderId = null,
+                        reorderErrorMessage = null,
+                        serverCartItems = effectiveItems,
+                        serverCartCount = effectiveItems.sumOf { it.quantity },
+                        detailedOrderTrackingScreen = null,
+                        activeOrderDetail = null,
+                        showCheckoutScreen = true,
+                        selectedVoucher = null,
+                        orderPreview = null,
+                        isPlacingOrder = false
+                    )
+                }
+
+                val subtotal = _uiState.value.checkoutItemsSubtotal.toDouble()
+                loadAddresses()
+                loadCheckoutPromotions(subtotal)
+                refreshOrderPreview()
+                refreshCartBadgeCount()
+            }.onFailure { err ->
+                val errorMsg = err.message?.takeIf { it.isNotBlank() }
+                    ?: "Sản phẩm trong đơn hàng hiện không còn tồn tại hoặc đã ngừng bán, không thể mua lại."
+                _uiState.update {
+                    it.copy(
+                        reorderingOrderId = null,
+                        reorderErrorMessage = errorMsg
+                    )
+                }
+                showErrorToast(errorMsg)
+            }
+        }
+    }
+
     fun openCheckoutScreen() {
         val subtotal = _uiState.value.checkoutItemsSubtotal.toDouble()
         _uiState.update {
@@ -1683,7 +1951,14 @@ class B2CViewModel : ViewModel() {
         val pending = _uiState.value.pendingVnpayOrder
         _uiState.update { it.copy(showVnpayPaymentScreen = false) }
         if (pending != null) {
-            _uiState.update { it.copy(showCheckoutScreen = false, pendingVnpayOrder = null) }
+            _uiState.update {
+                it.copy(
+                    showCheckoutScreen = false,
+                    pendingVnpayOrder = null,
+                    detailedProductScreen = null,
+                    currentTab = 3
+                )
+            }
             showToast("Đơn hàng #${pending.orderCode ?: pending.id} đã được lưu. Bạn có thể thanh toán sau trong mục Đơn mua.")
             refreshCartBadgeCount()
             loadCartItems()
@@ -1729,6 +2004,7 @@ class B2CViewModel : ViewModel() {
                         selectedVoucher = null,
                         orderPreview = null,
                         pendingVnpayOrder = null,
+                        detailedProductScreen = null,
                         completedOrderSuccess = OrderSuccessInfo(
                             rawOrderId = pending.id,
                             orderId = pending.orderCode ?: "ORD-${pending.id}",
@@ -1815,6 +2091,7 @@ class B2CViewModel : ViewModel() {
                             selectedVoucher = null,
                             orderPreview = null,
                             pendingVnpayOrder = null,
+                            detailedProductScreen = null,
                             completedOrderSuccess = OrderSuccessInfo(
                                 rawOrderId = created.id,
                                 orderId = created.orderCode ?: "ORD-${created.id}",
@@ -1849,6 +2126,7 @@ class B2CViewModel : ViewModel() {
         _uiState.update { state ->
             state.copy(
                 completedOrderSuccess = null,
+                detailedProductScreen = null,
                 detailedOrderTrackingScreen = if (navigateToOrdersTab && !targetOrderKey.isNullOrBlank()) targetOrderKey else null,
                 currentTab = if (navigateToOrdersTab) 3 else 0
             )
@@ -2467,8 +2745,15 @@ class B2CViewModel : ViewModel() {
                 val activeChat = currentState.activeShopChat
                 val isViewingThisConversation = activeChat != null && (
                     activeChat.conversationId == event.conversationId ||
-                    (event.sellerId != null && activeChat.sellerId == event.sellerId)
+                    (event.sellerId != null && activeChat.sellerId == event.sellerId) ||
+                    (event.shopName != null && activeChat.shopName.equals(event.shopName, ignoreCase = true))
                 )
+
+                if (isViewingThisConversation && activeChat?.conversationId == null) {
+                    _uiState.update { state ->
+                        state.copy(activeShopChat = state.activeShopChat?.copy(conversationId = event.conversationId))
+                    }
+                }
 
                 val existingConv = currentState.shopConversations.find { it.numericId == event.conversationId }
                 val resolvedShopName = event.shopName
@@ -2490,9 +2775,7 @@ class B2CViewModel : ViewModel() {
 
                 // Nếu người dùng đang mở đúng màn hình chat này và nhận tin từ Shop -> tự động đánh dấu đã đọc
                 if (isViewingThisConversation && !detailedMsg.isFromUser) {
-                    viewModelScope.launch {
-                        chatRepository.markConversationAsRead(event.conversationId)
-                    }
+                    markShopConversationAsRead(event.conversationId)
                 }
 
                 // Cập nhật danh sách hội thoại (ShopMessagesScreen & Badge ở HomeTopBar / AccountScreen)
@@ -2510,7 +2793,7 @@ class B2CViewModel : ViewModel() {
                         }
                         val updatedConv = existingConv.copy(
                             lastMessage = msgDto.content,
-                            time = "Vừa xong",
+                            time = chatRepository.formatTime(msgDto.createdAt),
                             unreadCount = newUnread,
                             isTimeRed = newUnread > 0,
                             isLastMessageBold = newUnread > 0,

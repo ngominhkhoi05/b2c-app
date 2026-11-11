@@ -1150,10 +1150,22 @@ fun ProductDetailsScreen(
                 initialQuantity = 1,
                 mode = variantSheetMode,
                 onDismissRequest = { showVariantSheet = false },
-                onConfirm = { _, _, _, mode ->
+                onConfirm = { color, size, qty, mode ->
                     showVariantSheet = false
                     if (mode == VariantSheetMode.BUY_NOW) {
-                        viewModel.openCheckoutScreen()
+                        viewModel.buyNow(
+                            product = product,
+                            variant = currentVariant,
+                            quantity = qty,
+                            color = color
+                        )
+                    } else {
+                        viewModel.addProductToCart(
+                            product = product,
+                            color = color,
+                            size = size,
+                            quantity = qty
+                        )
                     }
                 },
                 onConfirmVariant = { chosenVariant, selectedSummary, chosenQuantity, mode ->
@@ -1162,16 +1174,22 @@ fun ProductDetailsScreen(
                             selectedOptionValues[opt.id] = valId
                         }
                     }
-                    viewModel.addProductToCart(
-                        product = product,
-                        color = selectedSummary,
-                        size = "",
-                        quantity = chosenQuantity,
-                        variant = chosenVariant
-                    )
                     showVariantSheet = false
                     if (mode == VariantSheetMode.BUY_NOW) {
-                        viewModel.openCheckoutScreen()
+                        viewModel.buyNow(
+                            product = product,
+                            variant = chosenVariant ?: currentVariant,
+                            quantity = chosenQuantity,
+                            color = selectedSummary
+                        )
+                    } else {
+                        viewModel.addProductToCart(
+                            product = product,
+                            color = selectedSummary,
+                            size = "",
+                            quantity = chosenQuantity,
+                            variant = chosenVariant
+                        )
                     }
                 }
             )

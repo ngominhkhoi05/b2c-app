@@ -1,6 +1,7 @@
 package com.example.b2capp.data.remote.api
 
 import com.example.b2capp.data.remote.dto.ApiResponse
+import com.example.b2capp.data.remote.dto.CartItemDto
 import com.example.b2capp.data.remote.dto.CreateOrderRequestDto
 import com.example.b2capp.data.remote.dto.OrderDetailDto
 import com.example.b2capp.data.remote.dto.OrderPreviewResponseDto
@@ -57,6 +58,11 @@ interface OrderApiService {
     suspend fun retryPayment(
         @Path("id") id: Long
     ): Response<ApiResponse<Map<String, String>>>
+
+    @POST("api/v1/buyer/orders/{id}/reorder")
+    suspend fun reorder(
+        @Path("id") id: Long
+    ): Response<ApiResponse<List<CartItemDto>>>
 
     @PATCH("api/v1/buyer/orders/{id}/complete")
     suspend fun completeOrder(
