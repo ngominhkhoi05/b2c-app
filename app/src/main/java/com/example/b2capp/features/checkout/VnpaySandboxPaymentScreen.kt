@@ -58,6 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,6 +76,9 @@ import com.example.b2capp.core.designsystem.theme.NavySecondary
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.data.remote.dto.shopDisplayName
+import java.text.NumberFormat
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 /**
@@ -128,6 +135,19 @@ fun VnpaySandboxPaymentScreen(
     val minutes = countdownSeconds / 60
     val seconds = countdownSeconds % 60
     val formattedTime = String.format("%02d:%02d", minutes, seconds)
+
+    val context = LocalContext.current
+    val pendingOrder = uiState.pendingVnpayOrder
+    val orderCode = pendingOrder?.orderCode ?: if (pendingOrder != null) "ORD-${pendingOrder.id}" else "ORD-CHỜ XỬ LÝ"
+
+    val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
+    val vnpayTotal = pendingOrder?.totalAmount?.toLong()
+        ?: uiState.orderPreview?.totalAmount?.toLong()
+        ?: (uiState.checkoutItemsSubtotal + 30000L - (uiState.selectedVoucher?.let { viewModel.computeDiscountAmount(it, uiState.checkoutItemsSubtotal.toDouble()).toLong() } ?: 0L)).coerceAtLeast(0L)
+    val firstShopName = pendingOrder?.items?.firstOrNull()?.productName
+        ?: uiState.checkoutCartItems.firstOrNull()?.shopDisplayName
+        ?: "Cửa hàng chính hãng"
+    val avatarLetters = firstShopName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").uppercase().ifBlank { "VN" }
 
     Column(
         modifier = modifier
@@ -227,7 +247,7 @@ fun VnpaySandboxPaymentScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "CM",
+                            text = avatarLetters,
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1F2937)
@@ -239,7 +259,7 @@ fun VnpaySandboxPaymentScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Coolmate Official Store",
+                                text = firstShopName,
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF111827)
@@ -254,7 +274,7 @@ fun VnpaySandboxPaymentScreen(
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Đơn hàng trực tuyến #ORD-20261105",
+                            text = "Đơn hàng trực tuyến #$orderCode",
                             fontSize = 12.sp,
                             color = Color(0xFF6B7280)
                         )
@@ -313,7 +333,7 @@ fun VnpaySandboxPaymentScreen(
                                 color = Color(0xFF6B7280)
                             )
                             Text(
-                                text = "ORD-20261105-0088",
+                                text = orderCode,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF111827)
@@ -354,7 +374,7 @@ fun VnpaySandboxPaymentScreen(
                             }
 
                             Text(
-                                text = "₫388.200",
+                                text = "₫${currencyFormatter.format(vnpayTotal)}",
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Color(0xFFE31B23)
@@ -539,32 +559,78 @@ fun VnpaySandboxPaymentScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Nút lớn "MỞ APP NGÂN HÀNG THANH TOÁN"
+                        // Nút mở trang thanh toán VNPAY trên trình duyệt nếu có paymentUrl
+                        if (!pendingOrder?.paymentUrl.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(1.2.dp, Color(0xFF005BAA), RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFF0F7FF))
+                                    .clickable {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(pendingOrder!!.paymentUrl))
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            viewModel.showErrorToast("Không thể mở trình duyệt: ${e.message}")
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.OpenInNew,
+                                        contentDescription = null,
+                                        tint = Color(0xFF005BAA),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "MỞ CỔNG VNPAY TRÊN TRÌNH DUYỆT",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF005BAA)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        // Nút lớn "XÁC NHẬN ĐÃ THANH TOÁN (VNPAY)"
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(46.dp)
+                                .height(48.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFB82414))
-                                .clickable {
-                                    viewModel.completeVnpayPayment()
+                                .background(if (uiState.isConfirmingVnpayPayment) Color(0xFF888888) else Color(0xFFB82414))
+                                .clickable(enabled = !uiState.isConfirmingVnpayPayment) {
+                                    viewModel.confirmVnpayPayment()
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.OpenInNew,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
+                            if (uiState.isConfirmingVnpayPayment) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    strokeWidth = 2.5.dp,
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "MỞ APP NGÂN HÀNG THANH TOÁN",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "XÁC NHẬN ĐÃ THANH TOÁN VNPAY",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
 

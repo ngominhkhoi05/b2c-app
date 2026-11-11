@@ -122,14 +122,6 @@ fun CartScreen(
     val selectedTotalCount = remember(selectedItems) {
         selectedItems.sumOf { it.quantity }
     }
-    val isAllSelected = remember(cartItems, currentSelectedShopName, selectedItems) {
-        if (currentSelectedShopName != null) {
-            val itemsInCurrentShop = shopGroups[currentSelectedShopName] ?: emptyList()
-            itemsInCurrentShop.isNotEmpty() && itemsInCurrentShop.all { it.isSelected }
-        } else {
-            false
-        }
-    }
     val currentShopLabel = if (currentSelectedShopName != null) {
         "$currentSelectedShopName ($selectedTotalCount)"
     } else {
@@ -422,10 +414,6 @@ fun CartScreen(
                 formattedSavings = formattedSavings,
                 totalItemsCount = selectedTotalCount,
                 isEditMode = isEditMode,
-                isAllSelected = isAllSelected,
-                onSelectAllClick = {
-                    viewModel.toggleAllCartItemsSelection(!isAllSelected)
-                },
                 onCheckoutClick = {
                     if (isEditMode) {
                         viewModel.deleteSelectedCartItems()

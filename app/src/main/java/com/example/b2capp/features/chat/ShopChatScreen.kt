@@ -3,6 +3,10 @@ package com.example.b2capp.features.chat
 import com.example.b2capp.features.chat.components.ShopChatBubble
 import com.example.b2capp.features.chat.components.UserChatBubble
 
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -42,12 +46,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ConfirmationNumber
-import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Straighten
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,8 +62,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import com.example.b2capp.data.repository.ChatRepository
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -71,11 +78,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import java.io.ByteArrayOutputStream
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -101,6 +111,7 @@ import kotlinx.coroutines.launch
  */
 data class DetailedChatMessage(
     val id: String,
+    val senderName: String? = null,
     val text: String,
     val time: String,
     val isFromUser: Boolean,
@@ -125,10 +136,13 @@ fun ShopChatScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
     var showAttachmentSheet by remember { mutableStateOf(false) }
+    var showImageSourceDialog by remember { mutableStateOf(false) }
+    var isUploadingChatImage by remember { mutableStateOf(false) }
     var isLoadingMessages by remember { mutableStateOf(false) }
     var activeConversationId by remember { mutableStateOf(chatInfo.conversationId) }
 
@@ -151,7 +165,8 @@ fun ShopChatScreen(
             }
         }
 
-        // Tải danh sách tin nhắn qua API
+        // Tải danh sách tin nhắn qua API (không dùng mock)
+        messages.clear()
         if (targetConvId != null) {
             val apiMessages = viewModel.loadMessagesForConversation(
                 conversationId = targetConvId,
@@ -160,23 +175,40 @@ fun ShopChatScreen(
                 avatarBg = chatInfo.avatarBg
             )
             if (apiMessages.isNotEmpty()) {
-                messages.clear()
                 messages.addAll(apiMessages)
-                isLoadingMessages = false
-                return@LaunchedEffect
             }
         }
-
-        // Dữ liệu ban đầu tùy biến theo từng Shop nếu offline hoặc cuộc trò chuyện mới
-        messages.clear()
-        messages.addAll(
-            ChatRepository.getDefaultMessagesForShop(
-                shopName = chatInfo.shopName,
-                avatarLetter = chatInfo.avatarLetter,
-                avatarBg = chatInfo.avatarBg
-            )
-        )
         isLoadingMessages = false
+    }
+
+    // Đăng ký lắng nghe STOMP topic của cuộc hội thoại đang mở và nhận tin nhắn realtime
+    DisposableEffect(activeConversationId) {
+        val convId = activeConversationId
+        if (convId != null) {
+            viewModel.subscribeConversationRealtime(convId)
+        }
+        onDispose {
+            if (convId != null) {
+                viewModel.unsubscribeConversationRealtime(convId)
+            }
+        }
+    }
+
+    LaunchedEffect(activeConversationId) {
+        viewModel.incomingChatMessages.collect { (convId, incomingMsg) ->
+            if (activeConversationId == null || convId == activeConversationId) {
+                if (activeConversationId == null) {
+                    activeConversationId = convId
+                }
+                if (!incomingMsg.isFromUser) {
+                    if (messages.none { it.id == incomingMsg.id }) {
+                        messages.add(incomingMsg)
+                    }
+                    // Đang mở trực tiếp cuộc hội thoại với Shop -> tự động đánh dấu đã xem trên cả UI và Backend
+                    viewModel.markShopConversationAsRead(convId)
+                }
+            }
+        }
     }
 
     // Tự động cuộn xuống tin nhắn cuối cùng khi có tin mới
@@ -193,10 +225,13 @@ fun ShopChatScreen(
     ) {
         if (content.isBlank() && productAttachment == null) return
 
+        val tempId = "user_${System.currentTimeMillis()}"
+        val nowTimeStr = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
         val userMsg = DetailedChatMessage(
-            id = "user_${System.currentTimeMillis()}",
+            id = tempId,
             text = content,
-            time = "Vừa xong",
+            time = nowTimeStr,
             isFromUser = true,
             attachedProduct = productAttachment
         )
@@ -214,53 +249,26 @@ fun ShopChatScreen(
             if (activeConversationId == null && sentDto.conversationId != null) {
                 activeConversationId = sentDto.conversationId
             }
-        }
-
-        // Phản hồi tự động thông minh từ Shop sau 1.2s
-        coroutineScope.launch {
-            delay(100)
-            if (messages.isNotEmpty()) {
-                listState.animateScrollToItem(messages.size - 1)
-            }
-            delay(1200)
-
-            val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
-            val replyText = when {
-                content.contains("size", ignoreCase = true) || content.contains("chiều cao", ignoreCase = true) ->
-                    "Dạ sản phẩm may theo bảng size chuẩn. Bạn thích mặc rộng thoải mái có thể tăng lên 1 size nhé ạ!"
-                content.contains("màu", ignoreCase = true) ->
-                    "Dạ kho bên mình hiện đang còn đủ màu và size ạ. Bạn có thể nhấn đặt ngay nhé!"
-                content.contains("giao hàng", ignoreCase = true) || content.contains("bao lâu", ignoreCase = true) ->
-                    "Dạ đơn hàng nội thành Hà Nội & TP.HCM giao hỏa tốc 2-4h hoặc 1-2 ngày, các tỉnh thành khác 2-3 ngày bạn nha!"
-                content.contains("kiểm tra", ignoreCase = true) ->
-                    "Dạ chính sách của shop là khách được đồng kiểm trước khi nhận hàng và đổi trả miễn phí trong 60 ngày ạ!"
-                productAttachment != null ->
-                    "Dạ mẫu sản phẩm ${productAttachment.name} này đang là dòng bán chạy nhất của shop đó ạ, chất lượng cực tốt!"
-                else ->
-                    "Cảm ơn bạn! Chuyên viên tư vấn ${chatInfo.shopName} đã ghi nhận tin nhắn và sẽ phản hồi chi tiết ngay cho bạn nhé ạ! ❤️"
-            }
-
-            messages.add(
-                DetailedChatMessage(
-                    id = "shop_${System.currentTimeMillis()}",
-                    text = replyText,
-                    time = "Vừa xong",
-                    isFromUser = false,
-                    avatarLetter = chatInfo.avatarLetter,
-                    avatarBg = chatInfo.avatarBg,
-                    senderAvatarRes = if (isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null
+            val idx = messages.indexOfFirst { it.id == tempId }
+            if (idx >= 0) {
+                val serverTime = sentDto.createdAt?.takeIf { it.length >= 16 }?.substring(11, 16) ?: messages[idx].time
+                messages[idx] = messages[idx].copy(
+                    id = "msg_${sentDto.id}",
+                    time = serverTime
                 )
-            )
-            listState.animateScrollToItem(messages.size - 1)
+            }
         }
     }
 
     // Hàm gửi hình ảnh đính kèm
     fun sendImageMessage(imageUrl: String) {
+        val tempId = "user_${System.currentTimeMillis()}"
+        val nowTimeStr = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
         val userMsg = DetailedChatMessage(
-            id = "user_${System.currentTimeMillis()}",
+            id = tempId,
             text = "[Hình ảnh]",
-            time = "Vừa xong",
+            time = nowTimeStr,
             isFromUser = true,
             attachmentUrl = imageUrl
         )
@@ -276,29 +284,190 @@ fun ShopChatScreen(
             if (activeConversationId == null && sentDto.conversationId != null) {
                 activeConversationId = sentDto.conversationId
             }
-        }
-
-        coroutineScope.launch {
-            delay(100)
-            if (messages.isNotEmpty()) {
-                listState.animateScrollToItem(messages.size - 1)
-            }
-            delay(1200)
-
-            val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
-            messages.add(
-                DetailedChatMessage(
-                    id = "shop_${System.currentTimeMillis()}",
-                    text = "Dạ hình ảnh rất rõ nét ạ, shop đã tiếp nhận yêu cầu của bạn và đang kiểm tra ngay nhé!",
-                    time = "Vừa xong",
-                    isFromUser = false,
-                    avatarLetter = chatInfo.avatarLetter,
-                    avatarBg = chatInfo.avatarBg,
-                    senderAvatarRes = if (isCoolmate) R.drawable.coolmate_shop_avatar_1793960155632 else null
+            val idx = messages.indexOfFirst { it.id == tempId }
+            if (idx >= 0) {
+                val serverTime = sentDto.createdAt?.takeIf { it.length >= 16 }?.substring(11, 16) ?: messages[idx].time
+                messages[idx] = messages[idx].copy(
+                    id = "msg_${sentDto.id}",
+                    time = serverTime
                 )
-            )
-            listState.animateScrollToItem(messages.size - 1)
+            }
         }
+    }
+
+    // Launcher chọn ảnh có sẵn từ thư viện trên máy
+    val galleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bytes = inputStream?.readBytes()
+                inputStream?.close()
+                if (bytes != null && bytes.isNotEmpty()) {
+                    val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    isUploadingChatImage = true
+                    viewModel.uploadImage(
+                        bytes = bytes,
+                        mimeType = mimeType,
+                        fileName = "chat_${System.currentTimeMillis()}.jpg",
+                        purpose = "chat",
+                        onSuccess = { uploadedUrl ->
+                            isUploadingChatImage = false
+                            if (uploadedUrl.isNotBlank()) {
+                                sendImageMessage(uploadedUrl)
+                            }
+                        },
+                        onError = {
+                            isUploadingChatImage = false
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                isUploadingChatImage = false
+                viewModel.showErrorToast("Không thể đọc ảnh từ thiết bị: ${e.message}")
+            }
+        }
+    }
+
+    // Launcher chụp ảnh trực tiếp bằng Camera
+    val cameraTakePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            try {
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+                val bytes = outputStream.toByteArray()
+                if (bytes.isNotEmpty()) {
+                    isUploadingChatImage = true
+                    viewModel.uploadImage(
+                        bytes = bytes,
+                        mimeType = "image/jpeg",
+                        fileName = "chat_cam_${System.currentTimeMillis()}.jpg",
+                        purpose = "chat",
+                        onSuccess = { uploadedUrl ->
+                            isUploadingChatImage = false
+                            if (uploadedUrl.isNotBlank()) {
+                                sendImageMessage(uploadedUrl)
+                            }
+                        },
+                        onError = {
+                            isUploadingChatImage = false
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                isUploadingChatImage = false
+                viewModel.showErrorToast("Không thể xử lý ảnh chụp: ${e.message}")
+            }
+        }
+    }
+
+    // Dialog cho phép người dùng chọn: Chụp ảnh mới hoặc Chọn ảnh từ máy
+    if (showImageSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceDialog = false },
+            containerColor = SurfaceCard,
+            title = {
+                Text(
+                    text = "Gửi hình ảnh",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFF8FAFC))
+                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
+                            .clickable {
+                                showImageSourceDialog = false
+                                try {
+                                    cameraTakePictureLauncher.launch(null)
+                                } catch (e: Exception) {
+                                    viewModel.showErrorToast("Không thể mở máy ảnh: ${e.message}")
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Chụp ảnh",
+                            tint = CoralPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Chụp ảnh mới",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Sử dụng máy ảnh để chụp trực tiếp",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFF8FAFC))
+                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
+                            .clickable {
+                                showImageSourceDialog = false
+                                galleryPickerLauncher.launch("image/*")
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoLibrary,
+                            contentDescription = "Chọn ảnh từ máy",
+                            tint = NavySecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Chọn ảnh từ thiết bị",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Mở thư viện ảnh có sẵn trong máy",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showImageSourceDialog = false }) {
+                    Text(
+                        text = "Hủy",
+                        color = TextSecondary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
     }
 
     Column(
@@ -336,30 +505,16 @@ fun ShopChatScreen(
                 Spacer(modifier = Modifier.width(4.dp))
 
                 // Avatar Shop tròn kèm badge MALL ở chân avatar
-                val isCoolmate = chatInfo.shopName.contains("Coolmate", ignoreCase = true)
+                val initialLetter = chatInfo.avatarLetter ?: chatInfo.shopName.take(2).uppercase()
+                val bgColor = chatInfo.avatarBg ?: Color(0xFFF0FDF4)
+
                 Box(
                     modifier = Modifier.size(44.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (chatInfo.avatarLetter != null && !isCoolmate) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(chatInfo.avatarBg ?: Color(0xFFF0FDF4))
-                                .border(1.dp, Color(0xFFE5E7EB), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (chatInfo.avatarLetter.length > 3) chatInfo.avatarLetter.take(3) else chatInfo.avatarLetter,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NavySecondary
-                            )
-                        }
-                    } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.coolmate_shop_avatar_1793960155632),
+                    if (!chatInfo.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = chatInfo.avatarUrl,
                             contentDescription = chatInfo.shopName,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
@@ -367,6 +522,22 @@ fun ShopChatScreen(
                                 .clip(CircleShape)
                                 .border(1.dp, Color(0xFFE5E7EB), CircleShape)
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(bgColor)
+                                .border(1.dp, Color(0xFFE5E7EB), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (initialLetter.length > 3) initialLetter.take(3) else initialLetter,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NavySecondary
+                            )
+                        }
                     }
 
                     // Badge MALL đỏ chữ trắng ở dưới cùng avatar
@@ -690,63 +861,119 @@ fun ShopChatScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Mốc ngày "Hôm nay, 14:15"
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE2E8F0))
-                            .padding(horizontal = 12.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = "Hôm nay, 14:15",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF64748B)
-                        )
-                    }
-                }
-            }
-
             if (isLoadingMessages && messages.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 32.dp),
+                            .padding(vertical = 48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = CoralPrimary,
-                            strokeWidth = 2.dp
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(26.dp),
+                                color = CoralPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = "Đang tải tin nhắn...",
+                                fontSize = 12.5.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
-            }
-
-            // Các bong bóng tin nhắn
-            items(messages, key = { it.id }) { msg ->
-                if (msg.isFromUser) {
-                    // Tin nhắn từ phía Người mua (Màu cam đỏ bên phải)
-                    UserChatBubble(
-                        message = msg,
-                        onProductClick = { p -> viewModel.openProductDetailsScreen(p) }
-                    )
-                } else {
-                    // Tin nhắn từ phía Shop (Bong bóng trắng bên trái kèm Avatar)
-                    ShopChatBubble(
-                        message = msg,
-                        onClaimVoucher = {
-                            viewModel.showToast("Đã lưu Voucher ₫20k vào Ví Voucher của bạn!")
+            } else if (messages.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 56.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Text(
+                                text = "Không có dữ liệu tin nhắn",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF334155),
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Bạn chưa có tin nhắn nào với ${chatInfo.shopName}. Hãy gửi tin nhắn hoặc chọn gợi ý bên trên để bắt đầu trò chuyện!",
+                                fontSize = 12.5.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
                         }
-                    )
+                    }
+                }
+            } else {
+                // Mốc ngày "Hôm nay"
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFE2E8F0))
+                                .padding(horizontal = 12.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "Hôm nay",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+
+                // Các bong bóng tin nhắn
+                items(messages, key = { it.id }) { msg ->
+                    if (msg.isFromUser) {
+                        // Tin nhắn từ phía Người mua (Màu cam đỏ bên phải)
+                        UserChatBubble(
+                            message = msg,
+                            onProductClick = { p -> viewModel.openProductDetailsScreen(p) }
+                        )
+                    } else {
+                        // Tin nhắn từ phía Shop (Bong bóng trắng bên trái kèm Avatar)
+                        ShopChatBubble(
+                            message = msg,
+                            onClaimVoucher = {
+                                viewModel.showToast("Đã lưu Voucher ₫20k vào Ví Voucher của bạn!")
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -793,7 +1020,7 @@ fun ShopChatScreen(
                             title = "Ảnh chụp",
                             onClick = {
                                 showAttachmentSheet = false
-                                sendImageMessage("https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80")
+                                showImageSourceDialog = true
                             }
                         )
                     }
@@ -818,37 +1045,32 @@ fun ShopChatScreen(
                         )
                     }
 
-                    // Nút Camera chụp ảnh
+                    // Nút Camera (Chọn ảnh từ máy hoặc chụp ảnh)
                     IconButton(
                         onClick = {
-                            sendImageMessage("https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500&auto=format&fit=crop&q=80")
+                            if (!isUploadingChatImage) {
+                                showImageSourceDialog = true
+                            }
                         },
                         modifier = Modifier.size(36.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CameraAlt,
-                            contentDescription = "Chụp ảnh",
-                            tint = Color(0xFF6B7280),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        if (isUploadingChatImage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = CoralPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Chọn hoặc chụp ảnh",
+                                tint = Color(0xFF6B7280),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
 
-                    // Nút Sticker / Mặt cười
-                    IconButton(
-                        onClick = {
-                            inputText += " 😊"
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SentimentSatisfiedAlt,
-                            contentDescription = "Biểu cảm",
-                            tint = Color(0xFF6B7280),
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     // Ô nhập tin nhắn hình pill
                     Row(

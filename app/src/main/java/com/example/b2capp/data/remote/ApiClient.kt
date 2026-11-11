@@ -121,6 +121,18 @@ object ApiClient {
     }
 
     /**
+     * ReviewApiService công khai (xem đánh giá sản phẩm)
+     */
+    val reviewApiService: com.example.b2capp.data.remote.api.ReviewApiService
+        get() = createService(com.example.b2capp.data.remote.api.ReviewApiService::class.java)
+
+    /**
+     * ReviewApiService có xác thực (gửi đánh giá cho đơn hàng)
+     */
+    val authenticatedReviewApiService: com.example.b2capp.data.remote.api.ReviewApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.ReviewApiService::class.java)
+
+    /**
      * ChatApiService có bảo vệ token (quản lý tin nhắn và hội thoại)
      */
     val chatApiService: com.example.b2capp.data.remote.api.ChatApiService
@@ -131,6 +143,24 @@ object ApiClient {
      */
     val wishlistApiService: com.example.b2capp.data.remote.api.WishlistApiService
         get() = createAuthenticatedService(com.example.b2capp.data.remote.api.WishlistApiService::class.java)
+
+    /**
+     * PromotionApiService có bảo vệ token (quản lý và áp dụng mã giảm giá)
+     */
+    val promotionApiService: com.example.b2capp.data.remote.api.PromotionApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.PromotionApiService::class.java)
+
+    /**
+     * PromotionApiService không cần token (xem danh sách khuyến mãi công khai)
+     */
+    val publicPromotionApiService: com.example.b2capp.data.remote.api.PromotionApiService
+        get() = createService(com.example.b2capp.data.remote.api.PromotionApiService::class.java)
+
+    /**
+     * PaymentApiService (xử lý thanh toán VNPAY và callback giao dịch)
+     */
+    val paymentApiService: com.example.b2capp.data.remote.api.PaymentApiService
+        get() = createAuthenticatedService(com.example.b2capp.data.remote.api.PaymentApiService::class.java)
 
     /**
      * Tạo Service cho bất kỳ endpoint nào cần xác thực (Cart, Order, User...)

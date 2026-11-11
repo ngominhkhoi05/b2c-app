@@ -52,6 +52,7 @@ data class OrderDetailDto(
     @Json(name = "orderCode") val orderCode: String? = null,
     @Json(name = "buyerId") val buyerId: Long? = null,
     @Json(name = "sellerId") val sellerId: Long? = null,
+    @Json(name = "shopName") val shopName: String? = null,
     @Json(name = "receiverName") val receiverName: String? = null,
     @Json(name = "receiverPhone") val receiverPhone: String? = null,
     @Json(name = "shippingAddress") val shippingAddress: String? = null,
@@ -94,3 +95,35 @@ data class CreateOrderRequestDto(
     @Json(name = "note") val note: String? = null,
     @Json(name = "clientIp") val clientIp: String? = null
 )
+
+/**
+ * Request DTO xem trước tổng tiền đơn hàng (POST /api/v1/buyer/orders/preview)
+ */
+@JsonClass(generateAdapter = true)
+data class PreviewOrderRequestDto(
+    @Json(name = "cartItemIds") val cartItemIds: List<Long>,
+    @Json(name = "addressId") val addressId: Long? = null,
+    @Json(name = "voucherCode") val voucherCode: String? = null
+)
+
+/**
+ * Phản hồi tính toán chi phí đơn hàng xem trước
+ */
+@JsonClass(generateAdapter = true)
+data class OrderPreviewResponseDto(
+    @Json(name = "subtotal") val subtotal: Double? = null,
+    @Json(name = "shippingFee") val shippingFee: Double? = null,
+    @Json(name = "discountAmount") val discountAmount: Double? = null,
+    @Json(name = "totalAmount") val totalAmount: Double? = null
+)
+
+/**
+ * Request DTO yêu cầu trả hàng / hoàn tiền (POST /api/v1/buyer/orders/{id}/return-request)
+ */
+@JsonClass(generateAdapter = true)
+data class ReturnOrderRequestDto(
+    @Json(name = "reason") val reason: String,
+    @Json(name = "description") val description: String? = null,
+    @Json(name = "orderItemIds") val orderItemIds: List<Long>? = null
+)
+

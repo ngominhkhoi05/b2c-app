@@ -65,6 +65,7 @@ fun AppButton(
 
     when (variant) {
         ButtonVariant.PRIMARY -> {
+            val contentColor = if (enabled && !isLoading) Color.White else Color.White.copy(alpha = 0.7f)
             Button(
                 onClick = { if (!isLoading) onClick() },
                 modifier = modifier
@@ -74,7 +75,7 @@ fun AppButton(
                 shape = shape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CoralPrimary,
-                    contentColor = Color.White,
+                    contentColor = contentColor,
                     disabledContainerColor = BorderDivider,
                     disabledContentColor = Color.White.copy(alpha = 0.7f)
                 ),
@@ -84,11 +85,13 @@ fun AppButton(
                     text = text,
                     isLoading = isLoading,
                     indicatorColor = Color.White,
-                    leadingIcon = leadingIcon
+                    leadingIcon = leadingIcon,
+                    textColor = contentColor
                 )
             }
         }
         ButtonVariant.SECONDARY -> {
+            val contentColor = if (enabled && !isLoading) Color.White else Color.White.copy(alpha = 0.7f)
             Button(
                 onClick = { if (!isLoading) onClick() },
                 modifier = modifier
@@ -98,7 +101,7 @@ fun AppButton(
                 shape = shape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = NavySecondary,
-                    contentColor = Color.White,
+                    contentColor = contentColor,
                     disabledContainerColor = BorderDivider,
                     disabledContentColor = Color.White.copy(alpha = 0.7f)
                 ),
@@ -108,11 +111,13 @@ fun AppButton(
                     text = text,
                     isLoading = isLoading,
                     indicatorColor = Color.White,
-                    leadingIcon = leadingIcon
+                    leadingIcon = leadingIcon,
+                    textColor = contentColor
                 )
             }
         }
         ButtonVariant.OUTLINED -> {
+            val contentColor = if (enabled && !isLoading) CoralPrimary else Color.Gray
             OutlinedButton(
                 onClick = { if (!isLoading) onClick() },
                 modifier = modifier
@@ -126,7 +131,7 @@ fun AppButton(
                 ),
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = Color.Transparent,
-                    contentColor = CoralPrimary,
+                    contentColor = contentColor,
                     disabledContentColor = Color.Gray
                 ),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
@@ -135,7 +140,8 @@ fun AppButton(
                     text = text,
                     isLoading = isLoading,
                     indicatorColor = CoralPrimary,
-                    leadingIcon = leadingIcon
+                    leadingIcon = leadingIcon,
+                    textColor = contentColor
                 )
             }
         }
@@ -147,7 +153,8 @@ private fun ButtonContent(
     text: String,
     isLoading: Boolean,
     indicatorColor: Color,
-    leadingIcon: (@Composable () -> Unit)?
+    leadingIcon: (@Composable () -> Unit)?,
+    textColor: Color
 ) {
     if (isLoading) {
         CircularProgressIndicator(
@@ -167,6 +174,7 @@ private fun ButtonContent(
             }
             Text(
                 text = text,
+                color = textColor,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.2.sp

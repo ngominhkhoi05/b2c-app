@@ -139,6 +139,8 @@ data class HomeSuggestedProduct(
     val badgeType: HomeBadgeType,
     val rating: Float,
     val soldText: String,
+    val soldCount: Int = 0,
+    val ratingCount: Int = 0,
     val stock: Int = 50,
     val description: String = "",
     val shopName: String = "Coolmate Official Store",
@@ -161,8 +163,9 @@ data class HomeBestSellerItem(
     val price: Long,
     val originalPrice: Long = 0L,
     val discountPercent: Int = 0,
-    val rating: Float = 5.0f,
-    val soldCount: Int = 1000,
+    val rating: Float = 0f,
+    val soldCount: Int = 0,
+    val ratingCount: Int = 0,
     val shopName: String = "Coolmate Official Store",
     val shopLocation: String = "Hà Nội",
     val description: String = ""
@@ -239,90 +242,8 @@ fun HomeScreen(
     // Danh sách Banners khuyến mãi từ ViewModel/API
     val banners = uiState.homeBanners
 
-    // Dữ liệu Gợi ý hôm nay ban đầu dự phòng
-    val initialSuggestedProducts = remember {
-        listOf(
-            HomeSuggestedProduct(
-                id = "sg_1",
-                name = "Balo canvas unisex thời trang cao cấp phong cách Hàn Quốc",
-                imageUrl = "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&auto=format&fit=crop&q=75",
-                price = 245000L,
-                badgeType = HomeBadgeType.FREESHIP_XTRA,
-                rating = 4.9f,
-                soldText = "Đã bán 1.8k",
-                shopName = "Thời Trang Unisex",
-                shopLocation = "Hà Nội",
-                description = "Balo unisex chất vải canvas cao cấp, chống trầy xước, ngăn chứa laptop tiện lợi cho sinh viên và dân văn phòng."
-            ),
-            HomeSuggestedProduct(
-                id = "sg_2",
-                name = "Bộ phễu pha cà phê gốm sứ thủ công kèm bình thủy tinh chịu nhiệt",
-                imageUrl = "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=75",
-                price = 320000L,
-                badgeType = HomeBadgeType.YEU_THICH,
-                rating = 4.8f,
-                soldText = "Đã bán 950",
-                shopName = "Nội Thất Minimalist",
-                shopLocation = "TP. Hồ Chí Minh",
-                description = "Thiết kế gốm sứ tráng men mộc mạc phong cách vintage, tặng kèm giấy lọc cà phê chuyên dụng."
-            ),
-            HomeSuggestedProduct(
-                id = "sg_3",
-                name = "Đế sạc nhanh không dây 3 trong 1 chuẩn Qi đa năng cho điện thoại, đồng hồ",
-                imageUrl = "https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&auto=format&fit=crop&q=75",
-                price = 489000L,
-                badgeType = HomeBadgeType.FREESHIP_XTRA,
-                rating = 4.7f,
-                soldText = "Đã bán 3.4k",
-                shopName = "Anker Audio Flagship",
-                shopLocation = "Hà Nội",
-                description = "Hỗ trợ sạc không dây đồng thời iPhone, Apple Watch và AirPods với công suất lên đến 15W tản nhiệt an toàn."
-            ),
-            HomeSuggestedProduct(
-                id = "sg_4",
-                name = "Tinh chất dưỡng ẩm sáng da Serum Hyaluronic Acid chiết xuất nha đam tự nhiên",
-                imageUrl = "https://images.unsplash.com/photo-1608248597359-242e88a0e9c9?w=400&auto=format&fit=crop&q=75",
-                price = 185000L,
-                badgeType = HomeBadgeType.YEU_THICH,
-                rating = 5.0f,
-                soldText = "Đã bán 5.1k",
-                shopName = "Mỹ Phẩm Centella Mall",
-                shopLocation = "Hà Nội",
-                description = "Cấp ẩm sâu đa tầng, giảm nếp nhăn và phục hồi hàng rào bảo vệ da căng bóng rạng ngời."
-            ),
-            HomeSuggestedProduct(
-                id = "sg_5",
-                name = "Đệm ngồi công thái học cao su non giảm áp lực cột sống thoáng khí",
-                imageUrl = "https://images.unsplash.com/photo-1580481077111-2b0b144fa54a?w=400&auto=format&fit=crop&q=75",
-                price = 210000L,
-                badgeType = HomeBadgeType.FREESHIP_XTRA,
-                rating = 4.8f,
-                soldText = "Đã bán 720",
-                shopName = "Gia Dụng Lock&Lock",
-                shopLocation = "TP. Hồ Chí Minh",
-                description = "Chất liệu cao su non nguyên khối đàn hồi cao, thiết kế rãnh chữ U giảm đau xương cụt khi ngồi làm việc lâu."
-            ),
-            HomeSuggestedProduct(
-                id = "sg_6",
-                name = "Loa bluetooth không dây phong cách Vintage bọc da quai xách cổ điển",
-                imageUrl = "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=400&auto=format&fit=crop&q=75",
-                price = 429000L,
-                badgeType = HomeBadgeType.FREESHIP_XTRA,
-                rating = 4.9f,
-                soldText = "Đã bán 1.2k",
-                shopName = "Logitech Store",
-                shopLocation = "Đà Nẵng",
-                description = "Âm bass trầm ấm đầy nội lực, pin nghe nhạc liên tục 12 tiếng, thiết kế hoài cổ sang trọng trang trí phòng khách."
-            )
-        )
-    }
-
-    // Danh sách Gợi ý hôm nay: ưu tiên từ ViewModel/API; nếu chưa tải thì fallback danh sách ban đầu
-    val suggestedProductsList = if (uiState.homeSuggestedProducts.isNotEmpty()) {
-        uiState.homeSuggestedProducts
-    } else {
-        initialSuggestedProducts
-    }
+    // Danh sách Gợi ý hôm nay: lấy hoàn toàn từ ViewModel/API (không dùng dữ liệu mock)
+    val suggestedProductsList = uiState.homeSuggestedProducts
 
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -353,6 +274,7 @@ fun HomeScreen(
                     viewModel.openSearchResults(query.ifBlank { "áo thun nam" })
                 },
                 cartBadgeCount = uiState.totalCartCount,
+                chatBadgeCount = uiState.shopConversations.sumOf { it.unreadCount },
                 onCartClick = onNavigateToCart,
                 onChatClick = { viewModel.openShopMessages() }
             )
@@ -392,8 +314,8 @@ fun HomeScreen(
                     )
                 }
 
-                // 4. Khối SẢN PHẨM BÁN CHẠY
-                item {
+                // 4. Khối SẢN PHẨM BÁN CHẠY (chỉ hiển thị khi API trả về dữ liệu)
+                if (bestSellerProducts.isNotEmpty()) item {
                     BestSellingSection(
                         items = bestSellerProducts,
                         onItemClick = { item ->
@@ -406,6 +328,7 @@ fun HomeScreen(
                                     originalPrice = item.originalPrice,
                                     rating = item.rating,
                                     soldCount = item.soldCount,
+                                    ratingCount = item.ratingCount,
                                     shopName = item.shopName,
                                     shopLocation = item.shopLocation,
                                     description = item.description
@@ -441,7 +364,8 @@ fun HomeScreen(
                                     imageUrl = product.imageUrl,
                                     price = product.price,
                                     rating = product.rating,
-                                    soldCount = 1800,
+                                    soldCount = product.soldCount,
+                                    ratingCount = product.ratingCount,
                                     isFreeShipping = false,
                                     description = product.description,
                                     shopName = product.shopName,

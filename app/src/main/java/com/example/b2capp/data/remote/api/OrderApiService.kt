@@ -1,10 +1,14 @@
 package com.example.b2capp.data.remote.api
 
 import com.example.b2capp.data.remote.dto.ApiResponse
+import com.example.b2capp.data.remote.dto.CartItemDto
 import com.example.b2capp.data.remote.dto.CreateOrderRequestDto
 import com.example.b2capp.data.remote.dto.OrderDetailDto
+import com.example.b2capp.data.remote.dto.OrderPreviewResponseDto
 import com.example.b2capp.data.remote.dto.OrderSummaryDto
 import com.example.b2capp.data.remote.dto.PageResponse
+import com.example.b2capp.data.remote.dto.PreviewOrderRequestDto
+import com.example.b2capp.data.remote.dto.ReturnOrderRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -27,8 +31,16 @@ interface OrderApiService {
     @GET("api/v1/buyer/orders")
     suspend fun getOrders(
         @Query("status") status: String? = null,
+        @Query("search") search: String? = null,
+        @Query("paymentMethod") paymentMethod: String? = null,
+        @Query("fromDate") fromDate: String? = null,
+        @Query("toDate") toDate: String? = null,
+        @Query("minAmount") minAmount: Double? = null,
+        @Query("maxAmount") maxAmount: Double? = null,
+        @Query("sortBy") sortBy: String? = null,
+        @Query("sortDir") sortDir: String? = null,
         @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20
+        @Query("size") size: Int = 50
     ): Response<ApiResponse<PageResponse<OrderSummaryDto>>>
 
     @GET("api/v1/buyer/orders/{id}")
@@ -46,6 +58,27 @@ interface OrderApiService {
     suspend fun retryPayment(
         @Path("id") id: Long
     ): Response<ApiResponse<Map<String, String>>>
+
+    @POST("api/v1/buyer/orders/{id}/reorder")
+    suspend fun reorder(
+        @Path("id") id: Long
+    ): Response<ApiResponse<List<CartItemDto>>>
+
+    @PATCH("api/v1/buyer/orders/{id}/complete")
+    suspend fun completeOrder(
+        @Path("id") id: Long
+    ): Response<ApiResponse<OrderDetailDto>>
+
+    @POST("api/v1/buyer/orders/{id}/return-request")
+    suspend fun requestReturn(
+        @Path("id") id: Long,
+        @Body request: ReturnOrderRequestDto
+    ): Response<ApiResponse<OrderDetailDto>>
+
+    @POST("api/v1/buyer/orders/preview")
+    suspend fun previewOrder(
+        @Body request: PreviewOrderRequestDto
+    ): Response<ApiResponse<OrderPreviewResponseDto>>
 
     @POST("api/v1/buyer/orders")
     suspend fun createOrder(

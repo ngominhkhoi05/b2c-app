@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -176,15 +177,113 @@ private fun B2CMainScreens(
         return
     }
 
-    // Khi người dùng mở màn hình Tin nhắn với Shop
-    if (uiState.showShopMessages) {
+    // Khi người dùng mở màn hình Cổng thanh toán VNPAY-QR (VnpaySandboxPaymentScreen)
+    if (uiState.showVnpayPaymentScreen) {
         BackHandler {
-            viewModel.closeShopMessages()
+            viewModel.closeVnpayPayment()
         }
-        ShopMessagesScreen(
+        VnpaySandboxPaymentScreen(
             uiState = uiState,
             viewModel = viewModel,
-            onBackClick = { viewModel.closeShopMessages() }
+            onBackClick = { viewModel.closeVnpayPayment() }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Thêm/Sửa địa chỉ giao hàng (AddressEditorScreen)
+    if (uiState.showAddressEditorScreen) {
+        BackHandler {
+            viewModel.closeAddressEditor()
+        }
+        AddressEditorScreen(
+            initialAddress = uiState.editingAddressForScreen,
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeAddressEditor() }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Sổ Địa Chỉ / Địa Chỉ Của Tôi (AddressBookScreen)
+    if (uiState.showAddressBookScreen) {
+        BackHandler {
+            viewModel.closeAddressBook()
+        }
+        AddressBookScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeAddressBook() }
+        )
+        return
+    }
+
+    // Khi đơn hàng đặt thành công (COD hoặc Online VNPAY) -> Hiển thị Màn hình Đặt Hàng Thành Công
+    if (uiState.completedOrderSuccess != null) {
+        BackHandler {
+            viewModel.closeOrderSuccessScreen(navigateToOrdersTab = false)
+        }
+        OrderSuccessScreen(
+            orderInfo = uiState.completedOrderSuccess!!,
+            uiState = uiState,
+            viewModel = viewModel
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Thanh toán (CheckoutScreen) khi ấn Mua ngay hoặc Mua từ giỏ hàng
+    if (uiState.showCheckoutScreen) {
+        BackHandler {
+            viewModel.closeCheckoutScreen()
+        }
+        CheckoutScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeCheckoutScreen() }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Viết Đánh Giá Sản Phẩm (WriteProductReviewScreen)
+    if (uiState.showWriteReviewScreen) {
+        BackHandler {
+            viewModel.closeWriteReview()
+        }
+        WriteProductReviewScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeWriteReview() }
+        )
+        return
+    }
+
+    // Khi người dùng mở màn hình Đánh Giá Sản Phẩm (ProductReviewsScreen)
+    if (uiState.showProductReviewsScreen) {
+        BackHandler {
+            viewModel.closeProductReviewsScreen()
+        }
+        ProductReviewsScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeProductReviewsScreen() }
+        )
+        return
+    }
+
+    // Khi người dùng bấm vào 1 sản phẩm -> Mở toàn màn hình Chi tiết sản phẩm
+    // (Ưu tiên hiển thị đè lên SearchResultsScreen và WishlistScreen; khi bấm Trở về sẽ quay lại đúng danh sách kết quả đang xem)
+    if (uiState.detailedProductScreen != null) {
+        BackHandler {
+            viewModel.closeProductDetailsScreen()
+        }
+        ProductDetailsScreen(
+            product = uiState.detailedProductScreen!!,
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeProductDetailsScreen() },
+            onNavigateToCart = {
+                viewModel.closeProductDetailsScreen()
+                viewModel.selectTab(2)
+            }
         )
         return
     }
@@ -210,6 +309,19 @@ private fun B2CMainScreens(
         return
     }
 
+    // Khi người dùng mở màn hình Tin nhắn với Shop
+    if (uiState.showShopMessages) {
+        BackHandler {
+            viewModel.closeShopMessages()
+        }
+        ShopMessagesScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackClick = { viewModel.closeShopMessages() }
+        )
+        return
+    }
+
     // Khi người dùng mở màn hình Danh Sách Yêu Thích (WishlistScreen)
     if (uiState.showWishlistScreen) {
         BackHandler {
@@ -218,90 +330,10 @@ private fun B2CMainScreens(
         WishlistScreen(
             uiState = uiState,
             viewModel = viewModel,
-            onBackClick = { viewModel.closeWishlist() }
-        )
-        return
-    }
-
-    // Khi người dùng mở màn hình Cổng thanh toán VNPAY-QR (VnpaySandboxPaymentScreen)
-    if (uiState.showVnpayPaymentScreen) {
-        BackHandler {
-            viewModel.closeVnpayPayment()
-        }
-        VnpaySandboxPaymentScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeVnpayPayment() }
-        )
-        return
-    }
-
-    // Khi người dùng mở màn hình Thanh toán (CheckoutScreen) khi ấn Mua ngay hoặc Mua từ giỏ hàng
-    if (uiState.showCheckoutScreen) {
-        BackHandler {
-            viewModel.closeCheckoutScreen()
-        }
-        CheckoutScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeCheckoutScreen() }
-        )
-        return
-    }
-
-    // Khi người dùng mở màn hình Đánh Giá Sản Phẩm (ProductReviewsScreen)
-    if (uiState.showProductReviewsScreen) {
-        BackHandler {
-            viewModel.closeProductReviewsScreen()
-        }
-        ProductReviewsScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeProductReviewsScreen() }
-        )
-        return
-    }
-
-    // Khi người dùng mở màn hình Viết Đánh Giá Sản Phẩm (WriteProductReviewScreen)
-    if (uiState.showWriteReviewScreen) {
-        BackHandler {
-            viewModel.closeWriteReview()
-        }
-        WriteProductReviewScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeWriteReview() }
-        )
-        return
-    }
-
-    // Khi người dùng bấm vào 1 sản phẩm -> Mở toàn màn hình Chi tiết sản phẩm
-    if (uiState.detailedProductScreen != null) {
-        BackHandler {
-            viewModel.closeProductDetailsScreen()
-        }
-        ProductDetailsScreen(
-            product = uiState.detailedProductScreen!!,
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeProductDetailsScreen() },
-            onNavigateToCart = {
-                viewModel.closeProductDetailsScreen()
-                viewModel.selectTab(2)
+            onBackClick = { viewModel.closeWishlist() },
+            onProductClick = { product ->
+                viewModel.openProductDetailsScreen(product)
             }
-        )
-        return
-    }
-
-    // Khi đơn hàng đặt thành công (COD hoặc Online VNPAY) -> Hiển thị Màn hình Đặt Hàng Thành Công
-    if (uiState.completedOrderSuccess != null) {
-        BackHandler {
-            viewModel.closeOrderSuccessScreen(navigateToOrdersTab = false)
-        }
-        OrderSuccessScreen(
-            orderInfo = uiState.completedOrderSuccess!!,
-            uiState = uiState,
-            viewModel = viewModel
         )
         return
     }
@@ -346,32 +378,7 @@ private fun B2CMainScreens(
         return
     }
 
-    // Khi người dùng mở màn hình Thêm/Sửa địa chỉ giao hàng (AddressEditorScreen)
-    if (uiState.showAddressEditorScreen) {
-        BackHandler {
-            viewModel.closeAddressEditor()
-        }
-        AddressEditorScreen(
-            initialAddress = uiState.editingAddressForScreen,
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeAddressEditor() }
-        )
-        return
-    }
 
-    // Khi người dùng mở màn hình Sổ Địa Chỉ / Địa Chỉ Của Tôi (AddressBookScreen)
-    if (uiState.showAddressBookScreen) {
-        BackHandler {
-            viewModel.closeAddressBook()
-        }
-        AddressBookScreen(
-            uiState = uiState,
-            viewModel = viewModel,
-            onBackClick = { viewModel.closeAddressBook() }
-        )
-        return
-    }
 
     // Xử lý nút Back hệ thống
     if (uiState.currentTab != 0) {
@@ -387,11 +394,14 @@ private fun B2CMainScreens(
             // 1. Trang chủ | 2. Danh mục | 3. Giỏ hàng (badge 3) | 4. Đơn hàng | 5. Tài khoản
             AppBottomBar(
                 selectedTab = uiState.currentTab,
-                onTabSelected = { tabId -> viewModel.selectTab(tabId) },
+                // Bấm bất kỳ tab nào ở BottomBar đều reload lại toàn bộ trang của tab đó
+                onTabSelected = { tabId -> viewModel.reloadTab(tabId) },
                 cartBadgeCount = uiState.totalCartCount
             )
         }
     ) { innerPadding ->
+        // key(tabReloadKey): mỗi lần bấm tab ở BottomBar, màn hình được dựng lại từ đầu (reload toàn trang)
+        key(uiState.tabReloadKey) {
         when (uiState.currentTab) {
             0 -> HomeScreen(
                 uiState = uiState,
@@ -424,6 +434,7 @@ private fun B2CMainScreens(
                 onNavigateToOrders = { viewModel.selectTab(3) },
                 modifier = Modifier.padding(innerPadding)
             )
+        }
         }
     }
 }

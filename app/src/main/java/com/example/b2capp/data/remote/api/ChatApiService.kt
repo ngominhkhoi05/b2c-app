@@ -77,5 +77,13 @@ interface ChatApiService {
     suspend fun sendMessageDirect(
         @Body request: SendMessageRequestDto
     ): Response<ApiResponse<ChatMessageDto>>
+
+    /**
+     * Đánh dấu toàn bộ tin nhắn trong cuộc hội thoại là đã đọc (POST /api/v1/conversations/{id}/read)
+     */
+    @POST("api/v1/conversations/{id}/read")
+    suspend fun markAsRead(
+        @Path("id") id: Long
+    ): Response<ApiResponse<Unit>>
 }
 

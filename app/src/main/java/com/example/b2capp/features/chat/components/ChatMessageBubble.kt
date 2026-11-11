@@ -117,10 +117,13 @@ fun UserChatBubble(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Nếu có đính kèm hình ảnh
-            message.attachmentUrl?.let { url ->
+            // Nếu có đính kèm hình ảnh hợp lệ
+            val validUserAttachmentUrl = message.attachmentUrl
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+            if (validUserAttachmentUrl != null) {
                 AsyncImage(
-                    model = url,
+                    model = validUserAttachmentUrl,
                     contentDescription = "Ảnh đính kèm",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -132,7 +135,7 @@ fun UserChatBubble(
             }
 
             // Văn bản tin nhắn
-            if (message.text.isNotBlank() && (message.attachmentUrl == null || message.text != "[Hình ảnh]")) {
+            if (message.text.isNotBlank() && (validUserAttachmentUrl == null || message.text != "[Hình ảnh]")) {
                 Text(
                     text = message.text,
                     fontSize = 13.5.sp,
@@ -179,7 +182,18 @@ fun ShopChatBubble(
         verticalAlignment = Alignment.Top
     ) {
         // Avatar Shop hoặc Nhân viên CSKH
-        if (message.avatarLetter != null) {
+        if (message.senderAvatarRes != null) {
+            Image(
+                painter = painterResource(id = message.senderAvatarRes),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .border(0.8.dp, Color(0xFFE2E8F0), CircleShape)
+            )
+        } else {
+            val letter = message.avatarLetter ?: "S"
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -189,23 +203,12 @@ fun ShopChatBubble(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (message.avatarLetter.length > 3) message.avatarLetter.take(3) else message.avatarLetter,
+                    text = if (letter.length > 3) letter.take(3) else letter,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = com.example.b2capp.core.designsystem.theme.NavySecondary
                 )
             }
-        } else {
-            val avatarRes = message.senderAvatarRes ?: R.drawable.coolmate_shop_avatar_1793960155632
-            Image(
-                painter = painterResource(id = avatarRes),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .border(0.8.dp, Color(0xFFE2E8F0), CircleShape)
-            )
         }
 
         Spacer(modifier = Modifier.width(8.dp))
@@ -218,10 +221,27 @@ fun ShopChatBubble(
                 .border(0.8.dp, Color(0xFFE2E8F0), RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            // Nếu Shop gửi hình ảnh
-            message.attachmentUrl?.let { url ->
+            // Tên người gửi (Tên Shop)
+            val displayName = message.senderName?.takeIf { it.isNotBlank() }
+            if (displayName != null) {
+                Text(
+                    text = displayName,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = com.example.b2capp.core.designsystem.theme.NavySecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // Nếu Shop gửi hình ảnh hợp lệ
+            val validShopAttachmentUrl = message.attachmentUrl
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+            if (validShopAttachmentUrl != null) {
                 AsyncImage(
-                    model = url,
+                    model = validShopAttachmentUrl,
                     contentDescription = "Ảnh đính kèm từ Shop",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -233,7 +253,7 @@ fun ShopChatBubble(
             }
 
             // Văn bản tin nhắn
-            if (message.text.isNotBlank() && (message.attachmentUrl == null || message.text != "[Hình ảnh]")) {
+            if (message.text.isNotBlank() && (validShopAttachmentUrl == null || message.text != "[Hình ảnh]")) {
                 Text(
                     text = message.text,
                     fontSize = 13.5.sp,

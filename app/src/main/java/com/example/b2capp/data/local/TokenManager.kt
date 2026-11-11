@@ -24,6 +24,9 @@ class TokenManager private constructor(context: Context?) {
     private val _isLoggedInState = MutableStateFlow(isLoggedIn())
     val isLoggedInState: StateFlow<Boolean> = _isLoggedInState.asStateFlow()
 
+    private val _accessTokenState = MutableStateFlow(getAccessToken())
+    val accessTokenState: StateFlow<String?> = _accessTokenState.asStateFlow()
+
     init {
         // Khôi phục custom Base URL nếu đã từng lưu trước đó
         val savedBaseUrl = getString(KEY_CUSTOM_BASE_URL)
@@ -81,6 +84,7 @@ class TokenManager private constructor(context: Context?) {
         putString(KEY_USER_FULL_NAME, auth.fullName ?: "")
         putString(KEY_USER_ROLE, auth.role ?: "")
         putStringSet(KEY_USER_ROLES, auth.roles?.toSet() ?: emptySet())
+        _accessTokenState.value = auth.accessToken
         _isLoggedInState.value = true
     }
 
@@ -90,6 +94,7 @@ class TokenManager private constructor(context: Context?) {
     fun updateTokens(accessToken: String, refreshToken: String) {
         putString(KEY_ACCESS_TOKEN, accessToken)
         putString(KEY_REFRESH_TOKEN, refreshToken)
+        _accessTokenState.value = accessToken
         _isLoggedInState.value = true
     }
 
@@ -117,7 +122,7 @@ class TokenManager private constructor(context: Context?) {
     /**
      * Kiểm tra xem Token (mặc định là Access Token) có bị hết hạn theo claim "exp" trong JWT payload không
      */
-    fun isTokenExpired(token: String? = getAccessToken()): Boolean {
+    fun isTokenExpired(token: String? = getAccessToken(), leewaySeconds: Long = 0L): Boolean {
         if (token.isNullOrBlank()) return true
         val parts = token.split(".")
         if (parts.size < 2) return true
@@ -131,7 +136,7 @@ class TokenManager private constructor(context: Context?) {
             val expMatch = Regex("\"exp\"\\s*:\\s*([0-9]+)").find(payloadString)
             if (expMatch != null) {
                 val expSeconds = expMatch.groupValues[1].toLong()
-                val expMillis = expSeconds * 1000L
+                val expMillis = (expSeconds - leewaySeconds) * 1000L
                 System.currentTimeMillis() >= expMillis
             } else {
                 false
@@ -195,6 +200,7 @@ class TokenManager private constructor(context: Context?) {
         remove(KEY_USER_BIRTH_DATE)
         remove(KEY_USER_ROLE)
         remove(KEY_USER_ROLES)
+        _accessTokenState.value = null
         _isLoggedInState.value = false
     }
 

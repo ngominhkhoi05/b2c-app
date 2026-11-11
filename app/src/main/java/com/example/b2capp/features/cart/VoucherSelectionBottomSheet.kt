@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -20,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -31,8 +30,11 @@ import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ConfirmationNumber
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -64,72 +66,55 @@ import com.example.b2capp.core.designsystem.theme.NavySecondary
 import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
+import com.example.b2capp.data.remote.dto.PromotionDto
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 /**
- * Model biểu diễn voucher trong màn hình chọn
- */
-data class SelectedVoucherState(
-    val hasOrderVoucher: Boolean = true,
-    val orderVoucherDiscount: Long = 39800L,
-    val orderVoucherCode: String = "B2C COOL",
-    val hasFreeshipVoucher: Boolean = true,
-    val freeshipDiscount: Long = 30000L
-) {
-    val totalVouchersCount: Int
-        get() = (if (hasOrderVoucher) 1 else 0) + (if (hasFreeshipVoucher) 1 else 0)
-
-    val totalSavingsAmount: Long
-        get() = (if (hasOrderVoucher) orderVoucherDiscount else 0L) + (if (hasFreeshipVoucher) freeshipDiscount else 0L)
-}
-
-/**
- * BottomSheet Chọn Mã Giảm Giá / Voucher (Voucher Selection Screen)
- * Thiết kế chính xác 100% theo VoucherSelectionScreen_b82f3992.png:
- * 1. Header:
- *    - Thanh gạch xám kéo thả
- *    - Tiêu đề "Chọn Mã Giảm Giá", phụ đề "Chọn tối đa 1 Voucher Giảm giá & 1 Voucher Vận chuyển"
- *    - Nút đóng (X) bên phải
- * 2. Ô nhập mã voucher:
- *    - Trường nhập với icon vé "Nhập mã voucher..."
- *    - Nút "Áp dụng" màu xanh Navy
- * 3. Mục 1: Mã Giảm Giá Đơn Hàng (Chọn 1) - 1 mã phù hợp:
- *    - Thẻ vé viền cam đỏ
- *    - Cuống vé đỏ mận "% GIẢM 10%", nhãn "B2C COOL"
- *    - Nội dung: "GIẢM 10% TỐI ĐA 50K", "Đơn tối thiểu ₫200.000", tag "Đã áp dụng", HSD: 15/11/2026
- *    - RadioButton cam đỏ
- * 4. Mục 2: Mã Miễn Phí Vận Chuyển (Freeship) - Tự động chọn:
- *    - Thẻ vé viền xanh ngọc
- *    - Cuống vé xanh rêu đậm, icon xe tải "FREESHIP", nhãn "ĐƠN ĐẦU"
- *    - Nội dung: "Miễn phí vận chuyển ₫30.000", "Đơn tối thiểu ₫150.000", tag "Freeship Xtra", HSD: 20/11/2026
- *    - RadioButton xanh ngọc
- * 5. Thanh xác nhận cố định đáy:
- *    - "Đã chọn: 2 voucher"
- *    - Badge "Tiết kiệm ₫69.800"
- *    - Nút lớn "XÁC NHẬN ÁP DỤNG" kèm icon tích tròn (✓)
+ * BottomSheet Chọn Mã Giảm Giá / Voucher (Voucher Selection BottomSheet)
+ * Gắn kết 100% dữ liệu API Khuyến mãi từ Backend:
+ * - Hiển thị danh sách Voucher thực tế từ server
+ * - Nhập mã voucher bất kỳ và xác thực qua API
+ * - Tự động nhận diện và làm nổi bật voucher "Giảm sâu nhất"
+ * - Tính toán số tiền giảm thực tế dựa theo giá trị đơn hàng
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoucherSelectionBottomSheet(
-    initialState: SelectedVoucherState = SelectedVoucherState(),
+    promotions: List<PromotionDto>,
+    selectedVoucher: PromotionDto?,
+    orderSubtotal: Double,
+    isLoading: Boolean = false,
     onDismissRequest: () -> Unit,
-    onConfirmSelection: (SelectedVoucherState) -> Unit,
+    onSelectVoucher: (PromotionDto?) -> Unit,
+    onApplyCustomCode: (String) -> Unit,
+    calculateDiscount: (PromotionDto, Double) -> Double,
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
 
     var inputCode by remember { mutableStateOf("") }
-    var hasOrderVoucher by remember { mutableStateOf(initialState.hasOrderVoucher) }
-    var hasFreeshipVoucher by remember { mutableStateOf(initialState.hasFreeshipVoucher) }
+    var currentSelected by remember { mutableStateOf(selectedVoucher) }
 
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
 
-    // Tính toán số lượng voucher đã chọn và số tiền tiết kiệm
-    val selectedCount = (if (hasOrderVoucher) 1 else 0) + (if (hasFreeshipVoucher) 1 else 0)
-    val totalSavings = (if (hasOrderVoucher) 39800L else 0L) + (if (hasFreeshipVoucher) 30000L else 0L)
+    // Tìm voucher có mức giảm sâu nhất
+    val bestVoucher = remember(promotions, orderSubtotal) {
+        promotions
+            .filter { promo ->
+                val isActive = promo.status == null || promo.status.equals("ACTIVE", ignoreCase = true)
+                val minOrder = promo.minOrderValue ?: 0.0
+                isActive && orderSubtotal >= minOrder
+            }
+            .map { promo -> Pair(promo, calculateDiscount(promo, orderSubtotal)) }
+            .filter { it.second > 0.0 }
+            .maxByOrNull { it.second }
+            ?.first
+    }
+
+    val currentSavings = currentSelected?.let { calculateDiscount(it, orderSubtotal) } ?: 0.0
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -151,7 +136,6 @@ fun VoucherSelectionBottomSheet(
                     .padding(top = 10.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Thanh gạch xám kéo thả
                 Box(
                     modifier = Modifier
                         .size(width = 44.dp, height = 4.dp)
@@ -161,7 +145,6 @@ fun VoucherSelectionBottomSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Hàng Tiêu đề & Nút đóng
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -172,20 +155,18 @@ fun VoucherSelectionBottomSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Chọn Mã Giảm Giá",
-                            fontSize = 16.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF111827)
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Chọn tối đa 1 Voucher Giảm giá & 1 Voucher Vận chuyển",
+                            text = "Áp dụng voucher để tiết kiệm chi phí tối đa",
                             fontSize = 12.5.sp,
-                            color = Color(0xFF6B7280),
-                            lineHeight = 16.5.sp
+                            color = Color(0xFF6B7280)
                         )
                     }
 
-                    // Nút X đóng
                     IconButton(
                         onClick = {
                             coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -213,7 +194,7 @@ fun VoucherSelectionBottomSheet(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp),
                 contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // 2. Ô nhập mã voucher & Nút Áp dụng
                 item {
@@ -221,12 +202,11 @@ fun VoucherSelectionBottomSheet(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Khung nhập liệu
                         Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp)
-                                .clip(RoundedCornerShape(6.dp))
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFF1F5F9))
                                 .padding(horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -245,6 +225,7 @@ fun VoucherSelectionBottomSheet(
                                 singleLine = true,
                                 textStyle = TextStyle(
                                     fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = TextPrimary
                                 ),
                                 decorationBox = { innerTextField ->
@@ -260,413 +241,315 @@ fun VoucherSelectionBottomSheet(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                        // Nút Áp dụng màu xanh Navy
-                        Box(
-                            modifier = Modifier
-                                .height(42.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF335C85))
-                                .clickable {
-                                    if (inputCode.isNotBlank()) {
-                                        hasOrderVoucher = true
-                                        inputCode = ""
-                                    }
+                        Button(
+                            onClick = {
+                                if (inputCode.isNotBlank()) {
+                                    onApplyCustomCode(inputCode)
                                 }
-                                .padding(horizontal = 18.dp),
-                            contentAlignment = Alignment.Center
+                            },
+                            enabled = inputCode.isNotBlank(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = NavySecondary,
+                                disabledContainerColor = Color(0xFFE2E8F0)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            modifier = Modifier.height(44.dp)
                         ) {
                             Text(
                                 text = "Áp dụng",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (inputCode.isNotBlank()) Color.White else Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+                }
+
+                // Trạng thái đang tải
+                if (isLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = CoralPrimary,
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 2.5.dp
+                            )
+                        }
+                    }
+                }
+
+                // Khi danh sách voucher trống
+                if (!isLoading && promotions.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ConfirmationNumber,
+                                    contentDescription = null,
+                                    tint = Color(0xFF9CA3AF),
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Hiện chưa có mã giảm giá nào",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF4B5563)
+                                )
+                                Text(
+                                    text = "Bạn có thể nhập trực tiếp mã ưu đãi ở ô phía trên",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF9CA3AF)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Hiển thị danh sách các mã giảm giá từ API
+                items(promotions) { promo ->
+                    val isBest = bestVoucher?.id == promo.id
+                    val isSelected = currentSelected?.id == promo.id
+                    val minOrder = promo.minOrderValue ?: 0.0
+                    val isEligible = orderSubtotal >= minOrder
+                    val discountAmount = calculateDiscount(promo, orderSubtotal)
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = isEligible) {
+                                currentSelected = if (isSelected) null else promo
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (!isEligible) Color(0xFFFAFAFA) else Color.White
+                        ),
+                        border = BorderStroke(
+                            width = if (isSelected) 1.5.dp else 0.8.dp,
+                            color = when {
+                                isSelected -> CoralPrimary
+                                isBest -> Color(0xFFE53935).copy(alpha = 0.5f)
+                                else -> Color(0xFFE5E7EB)
+                            }
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Cột icon / cuống vé
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        when {
+                                            promo.discountType.equals("FREESHIP", ignoreCase = true) -> Color(0xFFE6F7F5)
+                                            isBest -> Color(0xFFFFEBE7)
+                                            else -> Color(0xFFF3F4F6)
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (promo.discountType.equals("FREESHIP", ignoreCase = true)) {
+                                        Icons.Default.LocalShipping
+                                    } else {
+                                        Icons.Default.ConfirmationNumber
+                                    },
+                                    contentDescription = null,
+                                    tint = when {
+                                        promo.discountType.equals("FREESHIP", ignoreCase = true) -> Color(0xFF00897B)
+                                        isBest -> CoralPrimary
+                                        else -> NavySecondary
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // Thông tin voucher
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = promo.code.orEmpty(),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isEligible) Color(0xFF111827) else Color(0xFF9CA3AF)
+                                    )
+
+                                    if (isBest) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFFFEF2F2))
+                                                .border(0.5.dp, Color(0xFFFCA5A5), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = "🔥 Giảm sâu nhất",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFB91C1C)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    text = promo.name.orEmpty(),
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isEligible) Color(0xFF374151) else Color(0xFF9CA3AF),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                if (isEligible && discountAmount > 0) {
+                                    Text(
+                                        text = "Tiết kiệm: ₫${currencyFormatter.format(discountAmount.toLong())}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CoralPrimary
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Đơn tối thiểu: ₫${currencyFormatter.format(minOrder.toLong())}",
+                                        fontSize = 11.5.sp,
+                                        color = if (isEligible) Color(0xFF6B7280) else Color(0xFFDC2626)
+                                    )
+                                }
+
+                                if (!isEligible) {
+                                    val needMore = (minOrder - orderSubtotal).toLong()
+                                    Text(
+                                        text = "Mua thêm ₫${currencyFormatter.format(needMore)} để áp dụng mã này",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFDC2626)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = {
+                                    if (isEligible) {
+                                        currentSelected = if (isSelected) null else promo
+                                    }
+                                },
+                                enabled = isEligible,
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = CoralPrimary,
+                                    unselectedColor = Color(0xFFD1D5DB)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Thanh xác nhận cố định đáy
+            Surface(
+                color = SurfaceCard,
+                shadowElevation = 4.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        if (currentSelected != null && currentSavings > 0) {
+                            Text(
+                                text = "Mã: ${currentSelected?.code}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NavySecondary
+                            )
+                            Text(
+                                text = "Tiết kiệm ₫${currencyFormatter.format(currentSavings.toLong())}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = CoralPrimary
+                            )
+                        } else {
+                            Text(
+                                text = "Chưa chọn mã nào",
+                                fontSize = 13.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (currentSelected != null) {
+                            Button(
+                                onClick = {
+                                    currentSelected = null
+                                    onSelectVoucher(null)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF3F4F6)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp)
+                            ) {
+                                Text(
+                                    text = "Bỏ chọn",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF4B5563)
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                onSelectVoucher(currentSelected)
+                                coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                                    onDismissRequest()
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+                            contentPadding = PaddingValues(horizontal = 18.dp)
+                        ) {
+                            Text(
+                                text = "XÁC NHẬN",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                         }
-                    }
-                }
-
-                // 3. Mục 1: Mã Giảm Giá Đơn Hàng
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Mã Giảm Giá Đơn Hàng",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "(Chọn 1)",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF6B7280)
-                                )
-                            }
-
-                            Text(
-                                text = "1 mã phù hợp",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFB82414)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Thẻ vé Voucher Đơn Hàng (GIẢM 10% TỐI ĐA 50K)
-                        VoucherCouponCard(
-                            stubColor = Color(0xFFB82414),
-                            stubTitle = "GIẢM 10%",
-                            stubSubtitle = "B2C COOL",
-                            stubIsPercentage = true,
-                            title = "GIẢM 10% TỐI ĐA 50K",
-                            minOrderText = "Đơn tối thiểu ₫200.000",
-                            tagText = "Đã áp dụng",
-                            tagBg = Color(0xFFFFEBE7),
-                            tagColor = Color(0xFFB82414),
-                            expiryText = "HSD: 15/11/2026",
-                            isSelected = hasOrderVoucher,
-                            accentColor = Color(0xFFB82414),
-                            onClick = { hasOrderVoucher = !hasOrderVoucher }
-                        )
-                    }
-                }
-
-                // 4. Mục 2: Mã Miễn Phí Vận Chuyển
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Mã Miễn Phí Vận Chuyển",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF111827)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "(Freeship)",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF6B7280)
-                                )
-                            }
-
-                            Text(
-                                text = "Tự động\nchọn",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF00897B),
-                                lineHeight = 14.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Thẻ vé Voucher Vận Chuyển (Miễn phí vận chuyển ₫30.000)
-                        VoucherCouponCard(
-                            stubColor = Color(0xFF09584F),
-                            stubTitle = "FREESHIP",
-                            stubSubtitle = "ĐƠN ĐẦU",
-                            stubIsTruck = true,
-                            title = "Miễn phí vận chuyển ₫30.000",
-                            minOrderText = "Đơn tối thiểu ₫150.000",
-                            tagText = "Freeship Xtra",
-                            tagBg = Color(0xFFE6F7F5),
-                            tagColor = Color(0xFF00897B),
-                            expiryText = "HSD: 20/11/2026",
-                            isSelected = hasFreeshipVoucher,
-                            accentColor = Color(0xFF00897B),
-                            onClick = { hasFreeshipVoucher = !hasFreeshipVoucher }
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 0.8.dp)
-
-            // 5. Thanh tóm tắt & Xác nhận cố định đáy
-            Surface(
-                color = SurfaceCard,
-                shadowElevation = 8.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                ) {
-                    // Hàng đếm voucher & Số tiền tiết kiệm
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Đã chọn: ",
-                                fontSize = 13.5.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                            Text(
-                                text = "$selectedCount voucher",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF111827)
-                            )
-                        }
-
-                        // Tag "Tiết kiệm ₫69.800"
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFE6F7F5))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Savings,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00897B),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Tiết kiệm ₫${currencyFormatter.format(totalSavings)}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00897B)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Nút lớn "XÁC NHẬN ÁP DỤNG ✓"
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFB82414))
-                            .clickable {
-                                val result = SelectedVoucherState(
-                                    hasOrderVoucher = hasOrderVoucher,
-                                    orderVoucherDiscount = if (hasOrderVoucher) 39800L else 0L,
-                                    hasFreeshipVoucher = hasFreeshipVoucher,
-                                    freeshipDiscount = if (hasFreeshipVoucher) 30000L else 0L
-                                )
-                                coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
-                                    onConfirmSelection(result)
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "XÁC NHẬN ÁP DỤNG",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                letterSpacing = 0.5.sp
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Outlined.CheckCircle,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Thẻ Voucher dạng cuống vé chuẩn B2C e-commerce
- */
-@Composable
-private fun VoucherCouponCard(
-    stubColor: Color,
-    stubTitle: String,
-    stubSubtitle: String,
-    stubIsPercentage: Boolean = false,
-    stubIsTruck: Boolean = false,
-    title: String,
-    minOrderText: String,
-    tagText: String,
-    tagBg: Color,
-    tagColor: Color,
-    expiryText: String,
-    isSelected: Boolean,
-    accentColor: Color,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) accentColor else Color(0xFFE5E7EB)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Cuống vé bên trái
-            Box(
-                modifier = Modifier
-                    .width(88.dp)
-                    .fillMaxHeight()
-                    .background(stubColor)
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    if (stubIsPercentage) {
-                        Text(
-                            text = "%",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                    }
-                    if (stubIsTruck) {
-                        Icon(
-                            imageVector = Icons.Default.LocalShipping,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                    }
-
-                    Text(
-                        text = stubTitle,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(Color.White.copy(alpha = 0.2f))
-                            .padding(horizontal = 5.dp, vertical = 1.dp)
-                    ) {
-                        Text(
-                            text = stubSubtitle,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            // Nội dung chi tiết bên phải
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF111827),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = minOrderText,
-                    fontSize = 11.5.sp,
-                    color = Color(0xFF6B7280)
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(tagBg)
-                            .padding(horizontal = 5.dp, vertical = 1.5.dp)
-                    ) {
-                        Text(
-                            text = tagText,
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = tagColor
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    Text(
-                        text = expiryText,
-                        fontSize = 10.5.sp,
-                        color = Color(0xFF9CA3AF)
-                    )
-                }
-            }
-
-            // Radio Button bên góc phải
-            Box(
-                modifier = Modifier.padding(end = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                // Radio button tùy biến theo màu accent
-                Box(
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .border(
-                            1.5.dp,
-                            if (isSelected) accentColor else Color(0xFFD1D5DB),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .clip(CircleShape)
-                                .background(accentColor)
-                        )
                     }
                 }
             }

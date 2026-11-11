@@ -80,6 +80,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.example.R
 import com.example.b2capp.viewmodel.B2CUiState
 import com.example.b2capp.viewmodel.B2CViewModel
@@ -233,7 +234,7 @@ fun EditProfileScreen(
                         }
                     ) {
                         if (!currentProfile.avatarUrl.isNullOrBlank()) {
-                            AsyncImage(
+                            SubcomposeAsyncImage(
                                 model = currentProfile.avatarUrl,
                                 contentDescription = "Ảnh đại diện",
                                 contentScale = ContentScale.Crop,
@@ -241,19 +242,22 @@ fun EditProfileScreen(
                                     .size(96.dp)
                                     .clip(RoundedCornerShape(18.dp))
                                     .border(1.5.dp, Color(0xFFE5E7EB), RoundedCornerShape(18.dp)),
-                                placeholder = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
-                                error = painterResource(id = R.drawable.user_profile_avatar_1793954281058)
+                                loading = {
+                                    DefaultGrayAvatar(iconSize = 48.dp)
+                                },
+                                error = {
+                                    DefaultGrayAvatar(iconSize = 48.dp)
+                                }
                             )
                         } else {
-                            Image(
-                                painter = painterResource(id = R.drawable.user_profile_avatar_1793954281058),
-                                contentDescription = "Ảnh đại diện",
-                                contentScale = ContentScale.Crop,
+                            Box(
                                 modifier = Modifier
                                     .size(96.dp)
                                     .clip(RoundedCornerShape(18.dp))
                                     .border(1.5.dp, Color(0xFFE5E7EB), RoundedCornerShape(18.dp))
-                            )
+                            ) {
+                                DefaultGrayAvatar(iconSize = 48.dp)
+                            }
                         }
 
                         if (uiState.isUploadingAvatar) {

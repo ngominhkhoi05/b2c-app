@@ -16,7 +16,9 @@ object NetworkConfig {
      * Base URL mặc định cho môi trường Android Emulator kết nối Spring Boot Backend.
      * Lưu ý: Retrofit bắt buộc Base URL phải kết thúc bằng dấu gạch chéo '/'.
      */
-    const val EMULATOR_BASE_URL = "http://10.0.2.2:8080/"
+
+    // const val EMULATOR_BASE_URL = "http://10.0.2.2:8080/"
+    const val EMULATOR_BASE_URL = "https://panther-flatness-unzip.ngrok-free.dev/"
 
     /**
      * Base URL đang hoạt động hiện tại.

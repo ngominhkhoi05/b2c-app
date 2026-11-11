@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material.icons.outlined.Weekend
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.b2capp.B2CApplication
 import com.example.b2capp.core.model.ProductItem
 import com.example.b2capp.data.local.TokenManager
 import com.example.b2capp.data.remote.ApiClient
@@ -180,7 +181,9 @@ class HomeRepository(
     }
 
     /**
-     * Tìm kiếm sản phẩm theo từ khóa (LIKE) và bộ lọc từ backend
+     * Tìm kiếm sản phẩm kết hợp Online Backend và Local Room FTS4:
+     * - Khi có mạng: Gọi API backend, đồng thời tự động index kết quả vào Room FTS4 và lưu lịch sử tìm kiếm.
+     * - Khi mất mạng / lỗi: Tự động fallback tìm kiếm trong SQLite FTS4 cục bộ, hỗ trợ tiếng Việt không dấu.
      */
     suspend fun searchProducts(
         query: String?,
@@ -194,6 +197,13 @@ class HomeRepository(
         brand: String? = null,
         minRating: Float? = null
     ): Pair<List<ProductItem>, Long> {
+        val localRepo = B2CApplication.getLocalSearchRepo()
+
+        // Lưu từ khóa tìm kiếm vào lịch sử FTS
+        if (!query.isNullOrBlank()) {
+            localRepo?.saveSearchQuery(query)
+        }
+
         return try {
             val response = homeApiService.searchProducts(
                 query = query?.ifBlank { null },
@@ -210,12 +220,30 @@ class HomeRepository(
             if (response.isSuccessful && response.body()?.data != null) {
                 val pageData = response.body()!!.data!!
                 val items = pageData.content.map { it.toProductItem() }
+                // Tự động nạp vào Room FTS cache
+                localRepo?.indexProducts(items)
                 Pair(items, pageData.totalElements)
             } else {
-                Pair(emptyList(), 0L)
+                // Backend trả về lỗi -> Fallback sang Room FTS4 cục bộ
+                val localItems = localRepo?.searchLocalProducts(
+                    query = query,
+                    categoryId = categoryId,
+                    minPrice = minPrice,
+                    maxPrice = maxPrice,
+                    minRating = minRating
+                ) ?: emptyList()
+                Pair(localItems, localItems.size.toLong())
             }
         } catch (_: Exception) {
-            Pair(emptyList(), 0L)
+            // Mất mạng / Timeout -> Fallback sang Room FTS4 cục bộ
+            val localItems = localRepo?.searchLocalProducts(
+                query = query,
+                categoryId = categoryId,
+                minPrice = minPrice,
+                maxPrice = maxPrice,
+                minRating = minRating
+            ) ?: emptyList()
+            Pair(localItems, localItems.size.toLong())
         }
     }
 
@@ -244,16 +272,12 @@ class HomeRepository(
             val response = homeApiService.getFeaturedProducts(page = 0, size = 10)
             if (response.isSuccessful && response.body()?.data != null) {
                 val pageData = response.body()!!.data!!
-                if (pageData.content.isNotEmpty()) {
-                    pageData.content.map { it.toHomeBestSellerItem() }
-                } else {
-                    getDefaultBestSellers()
-                }
+                pageData.content.map { it.toHomeBestSellerItem() }
             } else {
-                getDefaultBestSellers()
+                emptyList()
             }
         } catch (_: Exception) {
-            getDefaultBestSellers()
+            emptyList()
         }
     }
 
@@ -395,8 +419,9 @@ class HomeRepository(
             price = priceLong,
             originalPrice = origPriceLong,
             discountPercent = discount,
-            rating = (ratingAvg ?: 5.0).toFloat(),
+            rating = (ratingAvg ?: 0.0).toFloat(),
             soldCount = soldCount ?: 0,
+            ratingCount = ratingCount ?: 0,
             shopName = shopName ?: "Coolmate Official Store",
             shopLocation = "Việt Nam",
             description = "Sản phẩm chính hãng, bảo hành đổi trả trong 7 ngày."
@@ -405,7 +430,7 @@ class HomeRepository(
 
     private fun ProductSummaryDto.toHomeSuggestedProduct(): HomeSuggestedProduct {
         val priceLong = (minPrice ?: 0.0).toLong()
-        val ratingVal = (ratingAvg ?: 5.0).toFloat()
+        val ratingVal = (ratingAvg ?: 0.0).toFloat()
         val sold = soldCount ?: 0
 
         val soldStr = if (sold >= 1000) {
@@ -428,6 +453,8 @@ class HomeRepository(
             badgeType = badge,
             rating = ratingVal,
             soldText = soldStr,
+            soldCount = sold,
+            ratingCount = ratingCount ?: 0,
             stock = 50,
             description = "Sản phẩm phân phối chính hãng.",
             shopName = shopName ?: "Coolmate Official Store",
@@ -586,7 +613,7 @@ fun ProductSummaryDto.toProductItem(): ProductItem {
             ?: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80",
         price = priceLong,
         originalPrice = if (origPriceLong > priceLong) origPriceLong else null,
-        rating = (ratingAvg ?: 5.0).toFloat(),
+        rating = (ratingAvg ?: 0.0).toFloat(),
         soldCount = soldCount ?: 0,
         isFreeShipping = true,
         stock = 99,
@@ -595,7 +622,8 @@ fun ProductSummaryDto.toProductItem(): ProductItem {
         shopName = shopName ?: "Coolmate Official Store",
         shopLocation = "Việt Nam",
         images = listOfNotNull(thumbnailUrl),
-        sellerId = sellerId
+        sellerId = sellerId,
+        ratingCount = ratingCount ?: 0
     )
 }
 

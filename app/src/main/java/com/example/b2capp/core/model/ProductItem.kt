@@ -65,7 +65,7 @@ data class ProductItem(
     val imageUrl: String,
     val price: Long,
     val originalPrice: Long? = null,
-    val rating: Float = 5.0f,
+    val rating: Float = 0f,
     val soldCount: Int = 0,
     val isFreeShipping: Boolean = true,
     val stock: Int = 99,
@@ -76,7 +76,8 @@ data class ProductItem(
     val images: List<String> = emptyList(),
     val options: List<ProductOptionItem> = emptyList(),
     val variants: List<ProductVariantItem> = emptyList(),
-    val sellerId: Long? = null
+    val sellerId: Long? = null,
+    val ratingCount: Int = 0
 ) {
     val formattedPrice: String
         get() {

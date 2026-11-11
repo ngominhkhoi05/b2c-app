@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -33,9 +32,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.CheckCircleOutline
-import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.RemoveRedEye
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.Button
@@ -110,6 +107,7 @@ fun WishlistScreen(
     uiState: B2CUiState,
     viewModel: B2CViewModel,
     onBackClick: () -> Unit = {},
+    onProductClick: (ProductItem) -> Unit = { product -> viewModel.openProductDetailsScreen(product) },
     modifier: Modifier = Modifier
 ) {
     var selectedFilter by remember { mutableStateOf("Tất cả") }
@@ -734,14 +732,15 @@ fun WishlistScreen(
                                             if (isSelected1) selectedProductIds.remove(item1.productId)
                                             else selectedProductIds.add(item1.productId)
                                         } else {
-                                            viewModel.openProductDetailsScreen(
+                                            onProductClick(
                                                 ProductItem(
                                                     id = item1.productId.toString(),
                                                     name = item1.name,
                                                     imageUrl = item1.imageUrl,
                                                     price = item1.price,
+                                                    originalPrice = if (item1.originalPrice > item1.price) item1.originalPrice else null,
                                                     rating = item1.rating,
-                                                    soldCount = 1000
+                                                    soldCount = item1.soldCount.filter { it.isDigit() }.toIntOrNull() ?: 100
                                                 )
                                             )
                                         }
@@ -781,14 +780,15 @@ fun WishlistScreen(
                                                 if (isSelected2) selectedProductIds.remove(item2.productId)
                                                 else selectedProductIds.add(item2.productId)
                                             } else {
-                                                viewModel.openProductDetailsScreen(
+                                                onProductClick(
                                                     ProductItem(
                                                         id = item2.productId.toString(),
                                                         name = item2.name,
                                                         imageUrl = item2.imageUrl,
                                                         price = item2.price,
+                                                        originalPrice = if (item2.originalPrice > item2.price) item2.originalPrice else null,
                                                         rating = item2.rating,
-                                                        soldCount = 1000
+                                                        soldCount = item2.soldCount.filter { it.isDigit() }.toIntOrNull() ?: 100
                                                     )
                                                 )
                                             }
@@ -799,85 +799,6 @@ fun WishlistScreen(
                                     Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-            // 6. Mục "🔥 Gợi ý dành riêng cho bạn"
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.ThumbUp,
-                                contentDescription = null,
-                                tint = Color(0xFFBA2211),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Gợi ý dành riêng cho bạn",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                        }
-
-                        Text(
-                            text = "Xem thêm",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFBA2211),
-                            modifier = Modifier.clickable {
-                                onBackClick()
-                                viewModel.selectTab(0)
-                            }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Hàng cuộn ngang gợi ý
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
-                    ) {
-                        item {
-                            RecommendedWishlistCard(
-                                name = "Máy xông tinh dầu gốm vân gỗ cao cấp",
-                                price = "199.000đ",
-                                discount = "-20%",
-                                imageRes = R.drawable.socks_sport_pack_1793957699009,
-                                onSave = { viewModel.showToast("Đã lưu vào Wishlist!") }
-                            )
-                        }
-                        item {
-                            RecommendedWishlistCard(
-                                name = "Giá đỡ laptop nhôm tản nhiệt 6 góc gập",
-                                price = "165.000đ",
-                                discount = "-15%",
-                                imageRes = R.drawable.anker_gan_charger_1793957714558,
-                                onSave = { viewModel.showToast("Đã lưu vào Wishlist!") }
-                            )
-                        }
-                        item {
-                            RecommendedWishlistCard(
-                                name = "Đế sạc không dây nam châm MagSafe 15W",
-                                price = "320.000đ",
-                                discount = "-30%",
-                                imageRes = R.drawable.headphones_anker_space_one_1793957334650,
-                                onSave = { viewModel.showToast("Đã lưu vào Wishlist!") }
-                            )
                         }
                     }
                 }
@@ -976,102 +897,6 @@ fun WishlistProductCard(
                             .size(16.dp)
                             .border(1.5.dp, Color(0xFF9CA3AF), CircleShape)
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun RecommendedWishlistCard(
-    name: String,
-    price: String,
-    discount: String,
-    imageRes: Int,
-    onSave: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .width(140.dp)
-            .clip(RoundedCornerShape(8.dp)),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(105.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = imageRes),
-                    contentDescription = name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .background(Color(0xFFBA2211), RoundedCornerShape(bottomEnd = 4.dp))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = discount,
-                        color = Color.White,
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Column(modifier = Modifier.padding(8.dp)) {
-                Text(
-                    text = name,
-                    fontSize = 11.5.sp,
-                    color = TextPrimary,
-                    minLines = 2,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 16.sp
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = price,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFBA2211)
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(26.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFF3F4F6))
-                        .clickable { onSave() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.FavoriteBorder,
-                            contentDescription = null,
-                            tint = Color(0xFF374151),
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Lưu lại",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF374151)
-                        )
-                    }
                 }
             }
         }
