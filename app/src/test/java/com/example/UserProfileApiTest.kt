@@ -18,6 +18,7 @@ import com.example.b2capp.data.repository.UserRepository
 import kotlinx.coroutines.runBlocking
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody.Companion.toResponseBody
+import com.squareup.moshi.Types
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -25,6 +26,53 @@ import org.junit.Test
 import retrofit2.Response
 
 class UserProfileApiTest {
+
+    @Test
+    fun testApiResponseUnitAdapter() {
+        val moshi = ApiClient.moshi
+        val type = Types.newParameterizedType(ApiResponse::class.java, Unit::class.java)
+        val adapter = moshi.adapter<ApiResponse<Unit>>(type)
+
+        // Case 1: Backend trả về data: null
+        val jsonNullData = """
+            {
+                "code": 200,
+                "message": "Đổi mật khẩu thành công",
+                "data": null,
+                "timestamp": "2026-11-12T10:00:00"
+            }
+        """.trimIndent()
+        val res1 = adapter.fromJson(jsonNullData)
+        assertNotNull(res1)
+        assertEquals(200, res1?.code)
+        assertEquals("Đổi mật khẩu thành công", res1?.message)
+
+        // Case 2: Backend không trả trường data
+        val jsonNoData = """
+            {
+                "code": 200,
+                "message": "Thao tác thành công",
+                "timestamp": "2026-11-12T10:00:00"
+            }
+        """.trimIndent()
+        val res2 = adapter.fromJson(jsonNoData)
+        assertNotNull(res2)
+        assertEquals(200, res2?.code)
+
+        // Case 3: Backend trả data dạng object/string rỗng
+        val jsonObjectData = """
+            {
+                "code": 200,
+                "message": "Thao tác thành công",
+                "data": "SUCCESS",
+                "timestamp": "2026-11-12T10:00:00"
+            }
+        """.trimIndent()
+        val res3 = adapter.fromJson(jsonObjectData)
+        assertNotNull(res3)
+        assertEquals(200, res3?.code)
+        assertEquals(Unit, res3?.data)
+    }
 
     @Test
     fun testUpdateProfileRequestDtoSerialization() {
@@ -216,8 +264,8 @@ class UserProfileApiTest {
                 return Response.success(ApiResponse(data = uploadResponse))
             }
 
-            override suspend fun changePassword(request: ChangePasswordRequestDto): Response<ApiResponse<Void>> {
-                return Response.success(ApiResponse(data = null))
+            override suspend fun changePassword(request: ChangePasswordRequestDto): Response<ApiResponse<Unit>> {
+                return Response.success(ApiResponse(data = Unit))
             }
 
             override suspend fun getMyAddresses() = throw NotImplementedError()
@@ -325,7 +373,7 @@ class UserProfileApiTest {
                 return Response.error(400, "{\"message\":\"Upload failed\"}".toResponseBody())
             }
 
-            override suspend fun changePassword(request: ChangePasswordRequestDto): Response<ApiResponse<Void>> {
+            override suspend fun changePassword(request: ChangePasswordRequestDto): Response<ApiResponse<Unit>> {
                 return Response.error(400, "{\"message\":\"Wrong current password\"}".toResponseBody())
             }
 

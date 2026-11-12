@@ -149,6 +149,8 @@ fun EditProfileScreen(
         viewModel.loadUserProfile()
     }
 
+    var isAvatarImageLoading by remember { mutableStateOf(false) }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -158,15 +160,21 @@ fun EditProfileScreen(
                 val bytes = inputStream?.use { it.readBytes() }
                 val mimeType = context.contentResolver.getType(selectedUri) ?: "image/jpeg"
                 if (bytes != null && bytes.isNotEmpty()) {
+                    isAvatarImageLoading = true
                     viewModel.uploadAvatar(
                         bytes = bytes,
                         mimeType = mimeType,
                         fileName = "avatar_${System.currentTimeMillis()}.jpg"
-                    )
+                    ) { success ->
+                        if (!success) {
+                            isAvatarImageLoading = false
+                        }
+                    }
                 } else {
                     viewModel.showErrorToast("Không thể đọc tệp ảnh đã chọn")
                 }
             } catch (e: Exception) {
+                isAvatarImageLoading = false
                 viewModel.showErrorToast("Lỗi khi đọc tệp ảnh: ${e.localizedMessage}")
             }
         }
@@ -242,6 +250,12 @@ fun EditProfileScreen(
                                     .size(96.dp)
                                     .clip(RoundedCornerShape(18.dp))
                                     .border(1.5.dp, Color(0xFFE5E7EB), RoundedCornerShape(18.dp)),
+                                onSuccess = {
+                                    isAvatarImageLoading = false
+                                },
+                                onError = {
+                                    isAvatarImageLoading = false
+                                },
                                 loading = {
                                     DefaultGrayAvatar(iconSize = 48.dp)
                                 },
@@ -708,12 +722,15 @@ fun EditProfileScreen(
             item {
                 Spacer(modifier = Modifier.height(6.dp))
 
+                val isWaitingForAvatar = uiState.isUploadingAvatar || isAvatarImageLoading
+                val canSubmitProfile = !uiState.isUpdatingProfile && !isWaitingForAvatar
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Button(
-                        enabled = !uiState.isUpdatingProfile,
+                        enabled = canSubmitProfile,
                         onClick = {
                             if (fullName.isBlank()) {
                                 viewModel.showErrorToast("Vui lòng nhập họ và tên")
@@ -748,7 +765,7 @@ fun EditProfileScreen(
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFBA2211),
-                            disabledContainerColor = Color(0xFFBA2211).copy(alpha = 0.6f)
+                            disabledContainerColor = Color(0xFFBA2211).copy(alpha = 0.5f)
                         )
                     ) {
                         if (uiState.isUpdatingProfile) {
@@ -761,6 +778,20 @@ fun EditProfileScreen(
                             Text(
                                 text = "ĐANG LƯU...",
                                 fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                letterSpacing = 0.5.sp
+                            )
+                        } else if (isWaitingForAvatar) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "ĐANG TẢI ẢNH LÊN...",
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 letterSpacing = 0.5.sp

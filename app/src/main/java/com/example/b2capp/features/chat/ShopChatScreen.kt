@@ -615,7 +615,10 @@ fun ShopChatScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .border(1.2.dp, NavySecondary, RoundedCornerShape(16.dp))
                         .clickable {
-                            viewModel.showToast("Đang mở trang chủ gian hàng ${chatInfo.shopName}")
+                            viewModel.openShopScreen(
+                                shopName = chatInfo.shopName,
+                                sellerId = chatInfo.sellerId
+                            )
                         }
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
@@ -1128,23 +1131,31 @@ fun ShopChatScreen(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // Nút Gửi hình tròn màu Cam đỏ
+                    // Nút Gửi hình tròn màu Cam đỏ (khóa khi đang tải ảnh lên)
                     Box(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(CoralPrimary)
-                            .clickable {
+                            .background(if (isUploadingChatImage) Color(0xFFCBD5E1) else CoralPrimary)
+                            .clickable(enabled = !isUploadingChatImage) {
                                 sendMessage(inputText)
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Gửi",
-                            tint = Color.White,
-                            modifier = Modifier.size(19.dp)
-                        )
+                        if (isUploadingChatImage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Gửi",
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
                     }
                 }
             }

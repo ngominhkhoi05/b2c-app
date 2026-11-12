@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.b2capp.core.designsystem.theme.B2CAppTheme
 import com.example.b2capp.core.ui.navigation.AppBottomBar
 import com.example.b2capp.features.auth.ForgotPasswordScreen
+import com.example.b2capp.features.auth.ResetPasswordScreen
 import com.example.b2capp.features.auth.SignInScreen
 import com.example.b2capp.features.auth.SignUpScreen
 import com.example.b2capp.features.cart.CartScreen
@@ -51,6 +52,7 @@ import com.example.b2capp.features.profile.AddressEditorScreen
 import com.example.b2capp.features.profile.ChangePasswordScreen
 import com.example.b2capp.features.profile.EditProfileScreen
 import com.example.b2capp.features.profile.WishlistScreen
+import com.example.b2capp.features.shop.ShopScreen
 import com.example.b2capp.viewmodel.B2CViewModel
 
 class MainActivity : ComponentActivity() {
@@ -135,6 +137,21 @@ private fun B2CMainScreens(
             viewModel = viewModel,
             onBackToSignIn = {
                 viewModel.closeForgotPassword()
+            }
+        )
+        return
+    }
+
+    // Khi người dùng xác thực OTP thành công, mở màn hình Đặt lại Mật Khẩu (ResetPasswordScreen)
+    if (uiState.showResetPasswordScreen) {
+        BackHandler {
+            viewModel.closeResetPassword()
+        }
+        ResetPasswordScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackToSignIn = {
+                viewModel.closeResetPassword()
             }
         )
         return
@@ -270,7 +287,7 @@ private fun B2CMainScreens(
     }
 
     // Khi người dùng bấm vào 1 sản phẩm -> Mở toàn màn hình Chi tiết sản phẩm
-    // (Ưu tiên hiển thị đè lên SearchResultsScreen và WishlistScreen; khi bấm Trở về sẽ quay lại đúng danh sách kết quả đang xem)
+    // (Ưu tiên hiển thị đè lên ShopScreen, SearchResultsScreen và WishlistScreen; khi bấm Trở về sẽ quay lại đúng danh sách đang xem)
     if (uiState.detailedProductScreen != null) {
         BackHandler {
             viewModel.closeProductDetailsScreen()
@@ -283,6 +300,36 @@ private fun B2CMainScreens(
             onNavigateToCart = {
                 viewModel.closeProductDetailsScreen()
                 viewModel.selectTab(2)
+            }
+        )
+        return
+    }
+
+    // Khi người dùng mở trang chủ gian hàng (ShopScreen)
+    if (uiState.activeShopInfo != null) {
+        BackHandler {
+            viewModel.closeShopScreen()
+        }
+        ShopScreen(
+            shopInfo = uiState.activeShopInfo,
+            uiState = uiState,
+            onProductClick = { product ->
+                viewModel.openProductDetailsScreen(product)
+            },
+            onChatClick = {
+                viewModel.openShopChat(
+                    shopName = uiState.activeShopInfo.shopName,
+                    sellerId = uiState.activeShopInfo.sellerId
+                )
+            },
+            onBackClick = {
+                viewModel.closeShopScreen()
+            },
+            onRefresh = {
+                viewModel.loadShopProducts(
+                    shopName = uiState.activeShopInfo.shopName,
+                    sellerId = uiState.activeShopInfo.sellerId
+                )
             }
         )
         return

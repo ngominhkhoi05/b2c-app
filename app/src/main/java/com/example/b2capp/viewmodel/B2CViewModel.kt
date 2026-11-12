@@ -2,6 +2,7 @@ package com.example.b2capp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import com.example.b2capp.B2CApplication
 import com.example.b2capp.core.model.CartItem
 import com.example.b2capp.core.model.OrderSuccessInfo
@@ -12,6 +13,7 @@ import com.example.b2capp.core.model.ProductOptionValueItem
 import com.example.b2capp.core.model.ProductVariantItem
 import com.example.b2capp.core.model.ReviewItem
 import com.example.b2capp.core.model.ShopChatInfo
+import com.example.b2capp.core.model.ShopInfo
 import com.example.b2capp.core.model.UserAddress
 import com.example.b2capp.core.model.UserProfile
 import com.example.b2capp.core.model.toDomain
@@ -22,6 +24,7 @@ import com.example.b2capp.core.ui.components.ToastType
 import com.example.b2capp.core.ui.components.createToastData
 import com.example.b2capp.data.SampleData
 import com.example.b2capp.data.local.TokenManager
+import com.example.b2capp.data.local.search.VietnameseNormalizer
 import com.example.b2capp.data.remote.dto.CategoryDto
 import com.example.b2capp.data.remote.dto.CartItemDto
 import com.example.b2capp.data.remote.dto.shopDisplayName
@@ -43,6 +46,7 @@ import com.example.b2capp.data.repository.OrderRepository
 import com.example.b2capp.data.repository.PaymentRepository
 import com.example.b2capp.data.repository.PromotionRepository
 import com.example.b2capp.data.repository.ReviewRepository
+import com.example.b2capp.data.repository.ShopRepository
 import com.example.b2capp.data.repository.UserRepository
 import com.example.b2capp.data.repository.WishlistRepository
 import com.example.b2capp.core.network.RealtimeChatEvent
@@ -102,6 +106,9 @@ data class B2CUiState(
     val isShopConversationsLoading: Boolean = false,
     val shopConversationsError: String? = null,
     val activeShopChat: ShopChatInfo? = null,
+    val activeShopInfo: ShopInfo? = null,
+    val shopProducts: List<ProductItem> = emptyList(),
+    val isShopProductsLoading: Boolean = false,
     val showCheckoutScreen: Boolean = false,
     val showVnpayPaymentScreen: Boolean = false,
     val pendingVnpayOrder: OrderDetailDto? = null,
@@ -116,6 +123,12 @@ data class B2CUiState(
     val showSignInScreen: Boolean = true,
     val showSignUpScreen: Boolean = false,
     val showForgotPasswordScreen: Boolean = false,
+    val showResetPasswordScreen: Boolean = false,
+    val resetPasswordEmail: String = "",
+    val resetPasswordToken: String = "",
+    val isSendingForgotOtp: Boolean = false,
+    val isVerifyingForgotOtp: Boolean = false,
+    val isResettingPassword: Boolean = false,
     val showProductReviewsScreen: Boolean = false,
     val productReviews: List<ReviewItem> = emptyList(),
     val isProductReviewsLoading: Boolean = false,
@@ -267,6 +280,7 @@ class B2CViewModel : ViewModel() {
     private val chatRepository: ChatRepository by lazy { ChatRepository() }
     private val wishlistRepository: WishlistRepository by lazy { WishlistRepository() }
     private val reviewRepository: ReviewRepository by lazy { ReviewRepository() }
+    private val shopRepository: ShopRepository by lazy { ShopRepository() }
     private val tokenManager: TokenManager by lazy { TokenManager.getInstance() }
     private val _uiState = MutableStateFlow(B2CUiState())
     val uiState: StateFlow<B2CUiState> = _uiState.asStateFlow()
@@ -817,7 +831,20 @@ class B2CViewModel : ViewModel() {
     fun selectTab(tabIndex: Int) {
         _uiState.update { it.copy(currentTab = tabIndex) }
         if (tabIndex == 1) {
-            loadBrowserCategories()
+            val currentSelected = _uiState.value.selectedBrowserCategory
+            if (currentSelected != null) {
+                // Đã có danh mục được chọn (ví dụ từ HomeScreen) -> giữ nguyên và tải sản phẩm nếu danh sách còn trống
+                if (_uiState.value.browserProducts.isEmpty()) {
+                    loadBrowserProducts(currentSelected.id)
+                }
+            } else {
+                val firstCat = _uiState.value.browserCategories.firstOrNull()
+                if (firstCat != null) {
+                    selectBrowserCategory(firstCat)
+                } else {
+                    loadBrowserCategories(autoSelectFirst = true)
+                }
+            }
         } else if (tabIndex == 2) {
             loadCartItems()
         } else if (tabIndex == 3) {
@@ -838,13 +865,16 @@ class B2CViewModel : ViewModel() {
         _uiState.update { state ->
             val base = state.copy(currentTab = tabIndex, tabReloadKey = state.tabReloadKey + 1)
             when (tabIndex) {
-                // Danh mục: xóa lựa chọn hiện tại -> CategoriesScreen tự tải lại danh mục và chọn danh mục đầu tiên
-                1 -> base.copy(
-                    selectedBrowserCategory = null,
-                    selectedBrowserSubCategoryId = null,
-                    browserProducts = emptyList(),
-                    browserCategoryErrorMessage = null
-                )
+                // Danh mục: khi người dùng ấn vào tab "Danh mục" ở BottomBar -> tự mở danh mục đầu tiên và xóa danh sách sản phẩm cũ
+                1 -> {
+                    val firstCat = state.browserCategories.firstOrNull()
+                    base.copy(
+                        selectedBrowserCategory = firstCat,
+                        selectedBrowserSubCategoryId = null,
+                        browserProducts = emptyList(),
+                        browserCategoryErrorMessage = null
+                    )
+                }
                 // Đơn mua: đặt lại tab trạng thái về "Tất cả" và xóa bộ lọc nâng cao
                 3 -> base.copy(
                     selectedOrdersTab = "Tất cả",
@@ -856,8 +886,16 @@ class B2CViewModel : ViewModel() {
         }
         when (tabIndex) {
             0 -> loadHomeData(isRefresh = true) // HomeScreen chỉ tự tải khi chưa có dữ liệu
+            1 -> {
+                val firstCat = _uiState.value.browserCategories.firstOrNull()
+                if (firstCat != null) {
+                    loadBrowserProducts(firstCat.id)
+                } else {
+                    loadBrowserCategories(autoSelectFirst = true)
+                }
+            }
             4 -> loadAddresses()                 // AccountScreen tự tải hồ sơ + tổng hợp đơn hàng
-            // 1, 2, 3: màn hình tự gọi API trong LaunchedEffect khi được dựng lại
+            // 2, 3: màn hình tự gọi API trong LaunchedEffect khi được dựng lại
         }
     }
 
@@ -865,12 +903,132 @@ class B2CViewModel : ViewModel() {
         _uiState.update { it.copy(pageState = state) }
     }
 
+    /**
+     * Tìm danh mục phù hợp trong danh sách CategoryDto dựa trên id, fallback key, tên hoặc slug
+     */
+    fun findCategoryMatch(
+        categories: List<CategoryDto>,
+        idStr: String?,
+        name: String?,
+        slug: String? = null
+    ): CategoryDto? {
+        if (categories.isEmpty()) return null
+
+        // 1. Khớp theo ID số thực tế từ DB
+        val numericId = idStr?.toLongOrNull()
+        if (numericId != null) {
+            val byId = categories.find { it.id == numericId }
+            if (byId != null) return byId
+        }
+
+        // 2. Khớp theo ID key fallback mẫu (qc_tech, qc_fashion, qc_home, ...)
+        if (idStr != null) {
+            val byFallbackKey = when (idStr) {
+                "qc_fashion" -> categories.find { it.slug.contains("thoi-trang") || it.name.contains("thời trang", ignoreCase = true) }
+                "qc_tech" -> categories.find { it.slug.contains("dien-tu") || it.slug.contains("cong-nghe") || it.name.contains("điện tử", ignoreCase = true) }
+                "qc_home" -> categories.find { it.slug.contains("gia-dung") || it.name.contains("gia dụng", ignoreCase = true) }
+                "qc_beauty" -> categories.find { it.slug.contains("lam-dep") || it.name.contains("làm đẹp", ignoreCase = true) }
+                "qc_shoes" -> categories.find { it.slug.contains("giay") || it.name.contains("giày", ignoreCase = true) }
+                "qc_watches" -> categories.find { it.slug.contains("dong-ho") || it.name.contains("đồng hồ", ignoreCase = true) }
+                "qc_baby" -> categories.find { it.slug.contains("me-va-be") || it.slug.contains("me-be") || it.name.contains("mẹ", ignoreCase = true) }
+                else -> null
+            }
+            if (byFallbackKey != null) return byFallbackKey
+        }
+
+        // 3. Khớp theo Tên (chính xác, bỏ dấu, hoặc chứa một phần)
+        if (!name.isNullOrBlank()) {
+            val cleanName = name.trim()
+            val exactName = categories.find { it.name.trim().equals(cleanName, ignoreCase = true) }
+            if (exactName != null) return exactName
+
+            val cleanNormalized = VietnameseNormalizer.removeAccents(cleanName)
+            val normalizedName = categories.find {
+                VietnameseNormalizer.removeAccents(it.name).equals(cleanNormalized, ignoreCase = true) ||
+                it.slug.replace("-", " ").equals(cleanNormalized, ignoreCase = true) ||
+                it.slug.contains(cleanNormalized.replace(" ", "-"), ignoreCase = true)
+            }
+            if (normalizedName != null) return normalizedName
+
+            val partialName = categories.find {
+                it.name.contains(cleanName, ignoreCase = true) || cleanName.contains(it.name, ignoreCase = true)
+            }
+            if (partialName != null) return partialName
+        }
+
+        // 4. Khớp theo slug nếu có
+        if (!slug.isNullOrBlank()) {
+            val bySlug = categories.find { it.slug.equals(slug, ignoreCase = true) || it.slug.contains(slug, ignoreCase = true) }
+            if (bySlug != null) return bySlug
+        }
+
+        return null
+    }
+
+    /**
+     * Người dùng ở trang chủ bấm vào 1 danh mục nhanh:
+     * - Chuyển sang tab Danh mục (tab 1)
+     * - Tùy vào người dùng ấn danh mục nào thì danh mục đó sẽ được chọn và sáng lên
+     * - Nạp danh sách sản phẩm của danh mục được chọn
+     * - Nếu ấn "Xem tất cả" thì mở danh mục đầu tiên
+     */
+    fun openCategoryFromHome(quickCategory: QuickCategoryItem) {
+        val isAll = quickCategory.id == "qc_all" || 
+                    quickCategory.title.equals("Xem tất cả", ignoreCase = true) || 
+                    quickCategory.title.equals("Tất cả", ignoreCase = true)
+
+        if (isAll) {
+            val firstCat = _uiState.value.browserCategories.firstOrNull()
+            _uiState.update {
+                it.copy(
+                    currentTab = 1,
+                    selectedCategory = "Tất cả",
+                    selectedBrowserCategory = firstCat,
+                    selectedBrowserSubCategoryId = null
+                )
+            }
+            if (firstCat != null) {
+                loadBrowserProducts(firstCat.id)
+            } else {
+                loadBrowserCategories(autoSelectFirst = true)
+            }
+            return
+        }
+
+        // Tìm danh mục khớp trong browserCategories
+        val match = findCategoryMatch(_uiState.value.browserCategories, quickCategory.id, quickCategory.title)
+
+        _uiState.update {
+            it.copy(
+                currentTab = 1,
+                selectedCategory = quickCategory.title,
+                selectedBrowserCategory = match ?: it.selectedBrowserCategory,
+                selectedBrowserSubCategoryId = null
+            )
+        }
+
+        if (match != null) {
+            loadBrowserProducts(match.id)
+        } else {
+            // Trường hợp browserCategories chưa nạp xong từ DB hoặc chưa khớp, nạp danh mục và ưu tiên chọn mục này
+            loadBrowserCategories(
+                autoSelectFirst = false,
+                preferredCategoryId = quickCategory.id.toLongOrNull(),
+                preferredCategoryName = quickCategory.title
+            )
+        }
+    }
+
     fun selectCategory(category: String) {
         _uiState.update { it.copy(selectedCategory = category) }
-        val match = _uiState.value.browserCategories.find {
-            it.name.equals(category, ignoreCase = true) ||
-            it.slug.contains(category, ignoreCase = true)
+        if (category == "Tất cả") {
+            val firstCat = _uiState.value.browserCategories.firstOrNull()
+            if (firstCat != null) {
+                selectBrowserCategory(firstCat)
+            }
+            return
         }
+        val match = findCategoryMatch(_uiState.value.browserCategories, null, category)
         if (match != null) {
             selectBrowserCategory(match)
         }
@@ -879,17 +1037,34 @@ class B2CViewModel : ViewModel() {
     /**
      * Nạp danh sách danh mục từ Database qua API cho Màn hình Duyệt danh mục (Cột trái)
      */
-    fun loadBrowserCategories(autoSelectFirst: Boolean = true) {
+    fun loadBrowserCategories(
+        autoSelectFirst: Boolean = true,
+        preferredCategoryId: Long? = null,
+        preferredCategoryName: String? = null
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isBrowserCategoriesLoading = true, browserCategoryErrorMessage = null) }
             val categories = homeRepository.getCategoriesForBrowser()
             val currentSelected = _uiState.value.selectedBrowserCategory
+            val targetName = preferredCategoryName ?: currentSelected?.name ?: _uiState.value.selectedCategory.takeIf { it != "Tất cả" }
+            val targetId = preferredCategoryId ?: currentSelected?.id
+
+            val matchedCategory = findCategoryMatch(
+                categories = categories,
+                idStr = targetId?.toString(),
+                name = targetName,
+                slug = currentSelected?.slug
+            )
+
             val toSelect = when {
+                matchedCategory != null -> matchedCategory
                 currentSelected != null && categories.any { it.id == currentSelected.id } ->
                     categories.first { it.id == currentSelected.id }
                 autoSelectFirst && categories.isNotEmpty() ->
                     categories.first()
-                else -> currentSelected
+                categories.isNotEmpty() ->
+                    categories.first()
+                else -> null
             }
 
             _uiState.update {
@@ -901,7 +1076,7 @@ class B2CViewModel : ViewModel() {
                 )
             }
 
-            if (toSelect != null && _uiState.value.browserProducts.isEmpty()) {
+            if (toSelect != null) {
                 loadBrowserProducts(toSelect.id)
             }
         }
@@ -972,7 +1147,7 @@ class B2CViewModel : ViewModel() {
     ) {
         val effectiveQuery = query.trim()
         val safeSortBy = when (sortBy.lowercase().trim()) {
-            "price", "sold", "rating", "created", "name" -> sortBy.lowercase().trim()
+            "price", "sold", "rating", "created", "name", "relevance" -> sortBy.lowercase().trim()
             else -> "created"
         }
         val safeSortDir = if (sortDir.equals("asc", ignoreCase = true)) "asc" else "desc"
@@ -1025,7 +1200,7 @@ class B2CViewModel : ViewModel() {
         // Chuẩn hóa và đặt giá trị mặc định để tránh lỗi khi thiếu trường
         val safeQuery = query?.trim()?.ifBlank { null }
         val safeSortBy = when (sortBy.lowercase().trim()) {
-            "price", "sold", "rating", "created", "name" -> sortBy.lowercase().trim()
+            "price", "sold", "rating", "created", "name", "relevance" -> sortBy.lowercase().trim()
             else -> "created"
         }
         val safeSortDir = if (sortDir.equals("asc", ignoreCase = true)) "asc" else "desc"
@@ -1558,7 +1733,9 @@ class B2CViewModel : ViewModel() {
                                     images = parsedImages,
                                     options = parsedOptions,
                                     variants = parsedVariants,
-                                    sellerId = detail.sellerId ?: product.sellerId
+                                    sellerId = detail.sellerId ?: product.sellerId,
+                                    shopSlug = detail.shopSlug ?: product.shopSlug,
+                                    shopLogoUrl = detail.shopLogoUrl ?: product.shopLogoUrl
                                 )
                                 state.copy(detailedProductScreen = enriched, isProductDetailLoading = false)
                             } else {
@@ -2030,6 +2207,87 @@ class B2CViewModel : ViewModel() {
                 val errorMsg = error.message ?: "Xác nhận thanh toán VNPAY không thành công!"
                 showErrorToast(errorMsg)
             }
+        }
+    }
+
+    /**
+     * Tự động kiểm tra trạng thái đơn hàng VNPay xem backend đã cập nhật PAID chưa.
+     * Dùng cho auto-polling khi người dùng quét mã QR hoặc thanh toán ngoài.
+     */
+    suspend fun checkPendingVnpayPaymentStatus(): Boolean {
+        val pending = _uiState.value.pendingVnpayOrder ?: return false
+        val result = orderRepository.getOrderDetail(pending.id)
+        val detail = result.getOrNull() ?: return false
+        if ("PAID".equals(detail.paymentStatus, ignoreCase = true) || "PAID".equals(detail.status, ignoreCase = true)) {
+            val recipient = detail.receiverName ?: pending.receiverName ?: _uiState.value.activeCheckoutAddress?.recipientName ?: ""
+            val phone = detail.receiverPhone ?: pending.receiverPhone ?: _uiState.value.activeCheckoutAddress?.phoneNumber ?: ""
+            val addressStr = detail.shippingAddress ?: pending.shippingAddress ?: _uiState.value.activeCheckoutAddress?.fullAddress ?: ""
+
+            _uiState.update { state ->
+                state.copy(
+                    isConfirmingVnpayPayment = false,
+                    showVnpayPaymentScreen = false,
+                    showCheckoutScreen = false,
+                    selectedVoucher = null,
+                    orderPreview = null,
+                    pendingVnpayOrder = null,
+                    detailedProductScreen = null,
+                    completedOrderSuccess = OrderSuccessInfo(
+                        rawOrderId = detail.id,
+                        orderId = detail.orderCode ?: "ORD-${detail.id}",
+                        paymentMethodName = "Cổng VNPAY",
+                        isOnlinePaid = true,
+                        orderTime = detail.createdAt ?: pending.createdAt ?: "",
+                        expectedDelivery = "Nhận hàng sau 2-4 ngày (Đồng kiểm khi nhận)",
+                        totalAmount = detail.totalAmount?.toLong() ?: pending.totalAmount?.toLong() ?: 0L,
+                        recipientName = recipient,
+                        recipientPhoneMasked = phone,
+                        deliveryAddress = addressStr,
+                        paymentUrl = detail.paymentUrl ?: pending.paymentUrl
+                    )
+                )
+            }
+            showToast("Thanh toán đơn hàng #${detail.orderCode ?: detail.id} thành công!")
+            refreshCartBadgeCount()
+            loadCartItems()
+            loadOrders()
+            loadAccountOrderSummary()
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Kiểm tra trạng thái thanh toán VNPay theo yêu cầu thủ công của người dùng (Không dùng mock).
+     */
+    fun checkVnpayPaymentStatusManual() {
+        val pending = _uiState.value.pendingVnpayOrder ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isConfirmingVnpayPayment = true) }
+            val isPaid = checkPendingVnpayPaymentStatus()
+            _uiState.update { it.copy(isConfirmingVnpayPayment = false) }
+            if (!isPaid) {
+                showToast("Hệ thống chưa ghi nhận thanh toán cho đơn hàng #${pending.orderCode ?: pending.id}. Vui lòng hoàn tất thanh toán trên cổng VNPAY.")
+            }
+        }
+    }
+
+    /**
+     * Gọi khi WebView trong app bắt được URL hoàn tất thanh toán từ VNPay
+     */
+    fun onVnpayReturnUrlReceived(status: String) {
+        if (status.equals("success", ignoreCase = true) || status.equals("00", ignoreCase = true)) {
+            viewModelScope.launch {
+                // Đợi 1-2 giây để đảm bảo Backend đã xử lý xong callback từ VNPay
+                delay(1200)
+                val isPaid = checkPendingVnpayPaymentStatus()
+                if (!isPaid) {
+                    delay(2000)
+                    checkPendingVnpayPaymentStatus()
+                }
+            }
+        } else {
+            showErrorToast("Giao dịch VNPAY đã bị hủy hoặc không thành công")
         }
     }
 
@@ -2519,6 +2777,71 @@ class B2CViewModel : ViewModel() {
     }
 
     /**
+     * Đăng nhập hoặc đăng ký bằng Google ID Token qua API Backend
+     */
+    fun loginWithGoogle(
+        idToken: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        if (idToken.isBlank()) {
+            showErrorToast("Google ID Token không hợp lệ")
+            return
+        }
+
+        _uiState.update { it.copy(isAuthLoading = true, authErrorMessage = null) }
+
+        viewModelScope.launch {
+            val result = authRepository.loginWithGoogle(idToken.trim())
+            result.fold(
+                onSuccess = { auth ->
+                    val displayName = auth.fullName?.ifBlank { null } ?: auth.email ?: "Người dùng"
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = true,
+                            isAuthLoading = false,
+                            authErrorMessage = null,
+                            showSignInScreen = false,
+                            showSignUpScreen = false,
+                            showForgotPasswordScreen = false,
+                            userProfile = state.userProfile.copy(
+                                fullName = auth.fullName ?: state.userProfile.fullName,
+                                email = auth.email ?: state.userProfile.email
+                            ),
+                            toastMessage = "Đăng nhập Google thành công! Chào mừng $displayName.",
+                            currentToast = createToastData(
+                                "Đăng nhập Google thành công! Chào mừng $displayName.",
+                                ToastType.SUCCESS
+                            )
+                        )
+                    }
+                    refreshCartBadgeCount()
+                    loadCartItems()
+                    loadOrders()
+                    loadAccountOrderSummary()
+                    loadUserProfile()
+                    loadAddresses()
+                    refreshWishlistCount()
+                    loadWishlist()
+                    loadShopConversations(forceRefresh = true)
+                    connectRealtimeWebSocket()
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    val errorMsg = error.message ?: "Đăng nhập bằng Google thất bại"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAuthLoading = false,
+                            authErrorMessage = errorMsg,
+                            toastMessage = errorMsg,
+                            currentToast = createToastData(errorMsg, ToastType.ERROR)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
      * Đăng ký tài khoản người mua mới qua API Backend
      */
     fun registerWithApi(
@@ -2854,7 +3177,7 @@ class B2CViewModel : ViewModel() {
     }
 
     fun openForgotPassword() {
-        _uiState.update { it.copy(showForgotPasswordScreen = true, showSignInScreen = false, showSignUpScreen = false) }
+        _uiState.update { it.copy(showForgotPasswordScreen = true, showSignInScreen = false, showSignUpScreen = false, showResetPasswordScreen = false) }
     }
 
     fun closeForgotPassword() {
@@ -2863,6 +3186,118 @@ class B2CViewModel : ViewModel() {
                 showForgotPasswordScreen = false,
                 showSignInScreen = !state.isLoggedIn
             )
+        }
+    }
+
+    fun openResetPassword(email: String, resetToken: String) {
+        _uiState.update {
+            it.copy(
+                showResetPasswordScreen = true,
+                showForgotPasswordScreen = false,
+                showSignInScreen = false,
+                resetPasswordEmail = email,
+                resetPasswordToken = resetToken
+            )
+        }
+    }
+
+    fun closeResetPassword() {
+        _uiState.update { state ->
+            state.copy(
+                showResetPasswordScreen = false,
+                resetPasswordEmail = "",
+                resetPasswordToken = "",
+                showSignInScreen = !state.isLoggedIn
+            )
+        }
+    }
+
+    /**
+     * Gửi mã OTP 6 số đến email để quên mật khẩu
+     */
+    fun sendForgotPasswordOtp(email: String, onSuccess: () -> Unit = {}) {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
+            showToast("Vui lòng nhập địa chỉ email hợp lệ!")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSendingForgotOtp = true) }
+            val result = authRepository.sendForgotPasswordOtp(cleanEmail)
+            _uiState.update { it.copy(isSendingForgotOtp = false) }
+            result.onSuccess {
+                showToast("Đã gửi mã xác nhận 6 chữ số tới $cleanEmail!")
+                onSuccess()
+            }.onFailure { err ->
+                showToast(err.message ?: "Không thể gửi mã OTP. Vui lòng thử lại!")
+            }
+        }
+    }
+
+    /**
+     * Xác thực mã OTP 6 số
+     */
+    fun verifyForgotPasswordOtp(email: String, otp: String, onSuccess: () -> Unit = {}) {
+        val cleanEmail = email.trim()
+        val cleanOtp = otp.trim()
+        if (cleanOtp.length != 6) {
+            showToast("Mã OTP phải gồm 6 chữ số!")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isVerifyingForgotOtp = true) }
+            val result = authRepository.verifyForgotPasswordOtp(cleanEmail, cleanOtp)
+            _uiState.update { it.copy(isVerifyingForgotOtp = false) }
+            result.onSuccess { response ->
+                showToast("Mã OTP hợp lệ! Đang chuyển đến màn hình đặt mật khẩu mới.")
+                openResetPassword(cleanEmail, response.resetToken)
+                onSuccess()
+            }.onFailure { err ->
+                showToast(err.message ?: "Mã OTP không hợp lệ hoặc đã hết hạn!")
+            }
+        }
+    }
+
+    /**
+     * Đặt lại mật khẩu mới
+     */
+    fun resetPasswordWithOtp(
+        newPass: String,
+        confirmPass: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val email = _uiState.value.resetPasswordEmail
+        val resetToken = _uiState.value.resetPasswordToken
+
+        if (email.isBlank() || resetToken.isBlank()) {
+            showToast("Phiên xác thực không hợp lệ. Vui lòng thực hiện lại từ đầu.")
+            closeResetPassword()
+            openForgotPassword()
+            return
+        }
+
+        if (newPass.length < 8) {
+            showToast("Mật khẩu mới phải có tối thiểu 8 ký tự!")
+            return
+        }
+
+        if (newPass != confirmPass) {
+            showToast("Xác nhận mật khẩu mới không trùng khớp!")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isResettingPassword = true) }
+            val result = authRepository.resetPassword(email, resetToken, newPass)
+            _uiState.update { it.copy(isResettingPassword = false) }
+            result.onSuccess {
+                showToast("Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.")
+                closeResetPassword()
+                openSignIn()
+                onSuccess()
+            }.onFailure { err ->
+                showToast(err.message ?: "Không thể đặt lại mật khẩu. Vui lòng thử lại!")
+            }
         }
     }
 
@@ -3266,25 +3701,29 @@ class B2CViewModel : ViewModel() {
             return
         }
 
-        if (oldPass.isBlank()) {
+        val cleanOld = oldPass.trim()
+        val cleanNew = newPass.trim()
+        val cleanConfirm = confirmPass.trim()
+
+        if (cleanOld.isBlank()) {
             showErrorToast("Vui lòng nhập mật khẩu hiện tại")
             onComplete?.invoke(false)
             return
         }
 
-        if (newPass.length < 8) {
+        if (cleanNew.length < 8) {
             showErrorToast("Mật khẩu mới phải có tối thiểu 8 ký tự")
             onComplete?.invoke(false)
             return
         }
 
-        if (newPass == oldPass) {
+        if (cleanNew == cleanOld) {
             showErrorToast("Mật khẩu mới không được trùng với mật khẩu hiện tại")
             onComplete?.invoke(false)
             return
         }
 
-        if (newPass != confirmPass) {
+        if (cleanNew != cleanConfirm) {
             showErrorToast("Mật khẩu xác nhận không khớp")
             onComplete?.invoke(false)
             return
@@ -3293,13 +3732,14 @@ class B2CViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isChangingPassword = true) }
             val request = ChangePasswordRequestDto(
-                currentPassword = oldPass,
-                newPassword = newPass,
-                confirmPassword = confirmPass
+                currentPassword = cleanOld,
+                newPassword = cleanNew,
+                confirmPassword = cleanConfirm
             )
             val result = userRepository.changePassword(request)
             result.onSuccess {
                 val msg = "Đổi mật khẩu thành công!"
+                showSuccessToast(msg)
                 _uiState.update {
                     it.copy(
                         isChangingPassword = false,
@@ -3312,11 +3752,15 @@ class B2CViewModel : ViewModel() {
             }.onFailure { error ->
                 val rawMsg = error.message ?: "Đổi mật khẩu thất bại"
                 val errorMsg = when {
-                    rawMsg.contains("Current password is incorrect", ignoreCase = true) -> "Mật khẩu hiện tại không chính xác"
-                    rawMsg.contains("New password must be different", ignoreCase = true) -> "Mật khẩu mới không được trùng với mật khẩu hiện tại"
-                    rawMsg.contains("do not match", ignoreCase = true) -> "Mật khẩu xác nhận không khớp"
+                    rawMsg.contains("Current password is incorrect", ignoreCase = true) ||
+                    rawMsg.contains("hiện tại không chính xác", ignoreCase = true) -> "Mật khẩu hiện tại không chính xác"
+                    rawMsg.contains("New password must be different", ignoreCase = true) ||
+                    rawMsg.contains("phải khác", ignoreCase = true) -> "Mật khẩu mới phải khác mật khẩu hiện tại"
+                    rawMsg.contains("do not match", ignoreCase = true) ||
+                    rawMsg.contains("không khớp", ignoreCase = true) -> "Mật khẩu xác nhận không khớp"
                     else -> rawMsg
                 }
+                showErrorToast(errorMsg)
                 _uiState.update {
                     it.copy(
                         isChangingPassword = false,
@@ -3839,5 +4283,120 @@ class B2CViewModel : ViewModel() {
 
     fun clearToast() {
         _uiState.update { it.copy(toastMessage = null, currentToast = null) }
+    }
+
+    fun openShopScreen(
+        shopName: String,
+        sellerId: Long? = null,
+        shopLogoUrl: String? = null,
+        shopLocation: String = "Việt Nam",
+        rating: Float = 4.9f,
+        shopSlug: String? = null
+    ) {
+        val closingConvId = _uiState.value.activeShopChat?.conversationId
+        val initialInfo = ShopInfo(
+            shopName = shopName,
+            sellerId = sellerId,
+            shopSlug = shopSlug,
+            shopLogoUrl = shopLogoUrl,
+            shopLocation = shopLocation,
+            rating = rating
+        )
+        _uiState.update {
+            it.copy(
+                activeShopInfo = initialInfo,
+                shopProducts = emptyList(),
+                isShopProductsLoading = true,
+                detailedProductScreen = null,
+                activeShopChat = null
+            )
+        }
+        if (closingConvId != null) {
+            viewModelScope.launch {
+                chatRepository.markConversationAsRead(closingConvId)
+            }
+        }
+        loadShopProfileAndProducts(
+            shopName = shopName,
+            sellerId = sellerId,
+            shopSlug = shopSlug
+        )
+    }
+
+    fun closeShopScreen() {
+        _uiState.update { it.copy(activeShopInfo = null, shopProducts = emptyList()) }
+    }
+
+    fun loadShopProfileAndProducts(
+        shopName: String,
+        sellerId: Long?,
+        shopSlug: String? = null,
+        sort: String? = null
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isShopProductsLoading = true) }
+
+            val identifier = shopSlug?.ifBlank { null }
+                ?: sellerId?.toString()
+                ?: shopName
+
+            // 1. Tải thông tin hồ sơ Shop từ API Backend (GET /api/v1/public/shops/{slugOrId})
+            launch {
+                val profileResult = shopRepository.getShopProfile(identifier)
+                profileResult.onSuccess { shopInfo ->
+                    _uiState.update { state ->
+                        if (state.activeShopInfo != null &&
+                            (state.activeShopInfo.sellerId == sellerId ||
+                             state.activeShopInfo.shopName.equals(shopName, ignoreCase = true) ||
+                             state.activeShopInfo.shopSlug == shopSlug)) {
+                            state.copy(activeShopInfo = shopInfo)
+                        } else {
+                            state
+                        }
+                    }
+                }
+            }
+
+            // 2. Tải danh sách sản phẩm thực tế của Shop từ API Backend (KHÔNG dùng Mock)
+            try {
+                val productsResult = shopRepository.getShopProducts(
+                    slug = shopSlug,
+                    sellerId = sellerId,
+                    page = 0,
+                    size = 50,
+                    sort = sort
+                )
+
+                productsResult.onSuccess { products ->
+                    _uiState.update {
+                        it.copy(
+                            shopProducts = products,
+                            isShopProductsLoading = false
+                        )
+                    }
+                }.onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            shopProducts = emptyList(),
+                            isShopProductsLoading = false
+                        )
+                    }
+                    showErrorToast("Không thể tải sản phẩm của Shop: ${error.localizedMessage ?: "Lỗi kết nối"}")
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        shopProducts = emptyList(),
+                        isShopProductsLoading = false
+                    )
+                }
+                showErrorToast("Lỗi khi tải sản phẩm của shop: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun loadShopProducts(shopName: String, sellerId: Long?) {
+        val currentSlug = _uiState.value.activeShopInfo?.shopSlug
+        loadShopProfileAndProducts(shopName = shopName, sellerId = sellerId, shopSlug = currentSlug)
     }
 }

@@ -1086,30 +1086,7 @@ fun OrdersScreen(
                 }
             }
 
-            // 8. Footer cuối trang
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Inventory2,
-                        contentDescription = null,
-                        tint = Color(0xFFD1D5DB),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Bạn đã xem hết các đơn mua gần đây",
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-            }
+
         }
     }
 

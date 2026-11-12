@@ -126,6 +126,10 @@ fun WriteProductReviewScreen(
 
     // Danh sách URL ảnh thực tế đính kèm
     val attachedImageUrls = remember { mutableStateListOf<String>() }
+    // Danh sách ảnh đã hoàn tất hiển thị lên giao diện
+    val renderedImageUrls = remember { mutableStateListOf<String>() }
+    // Đếm số ảnh đang trong quá trình upload lên máy chủ
+    var pendingUploadCount by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     // Dialog dán URL ảnh / chọn ảnh mẫu
     var showAddUrlDialog by remember { mutableStateOf(false) }
@@ -135,25 +139,33 @@ fun WriteProductReviewScreen(
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
-        uris.take(5 - attachedImageUrls.size).forEach { uri ->
-            try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                val bytes = inputStream?.readBytes()
-                inputStream?.close()
-                if (bytes != null) {
-                    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-                    viewModel.uploadReviewImage(
-                        bytes = bytes,
-                        mimeType = mime,
-                        fileName = "review_${System.currentTimeMillis()}.jpg"
-                    ) { uploadedUrl ->
-                        if (uploadedUrl.isNotBlank() && !attachedImageUrls.contains(uploadedUrl)) {
-                            attachedImageUrls.add(uploadedUrl)
+        val chosen = uris.take(5 - attachedImageUrls.size)
+        if (chosen.isNotEmpty()) {
+            pendingUploadCount += chosen.size
+            chosen.forEach { uri ->
+                try {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val bytes = inputStream?.readBytes()
+                    inputStream?.close()
+                    if (bytes != null) {
+                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                        viewModel.uploadReviewImage(
+                            bytes = bytes,
+                            mimeType = mime,
+                            fileName = "review_${System.currentTimeMillis()}.jpg"
+                        ) { uploadedUrl ->
+                            pendingUploadCount = (pendingUploadCount - 1).coerceAtLeast(0)
+                            if (uploadedUrl.isNotBlank() && !attachedImageUrls.contains(uploadedUrl)) {
+                                attachedImageUrls.add(uploadedUrl)
+                            }
                         }
+                    } else {
+                        pendingUploadCount = (pendingUploadCount - 1).coerceAtLeast(0)
                     }
+                } catch (e: Exception) {
+                    pendingUploadCount = (pendingUploadCount - 1).coerceAtLeast(0)
+                    viewModel.showErrorToast("Không thể đọc ảnh: ${e.message}")
                 }
-            } catch (e: Exception) {
-                viewModel.showErrorToast("Không thể đọc ảnh: ${e.message}")
             }
         }
     }
@@ -162,8 +174,10 @@ fun WriteProductReviewScreen(
     LaunchedEffect(selectedItem?.id) {
         reviewText = ""
         generalRating = 5
-        attachedImageUrls.clear()
         isAnonymous = false
+        attachedImageUrls.clear()
+        renderedImageUrls.clear()
+        pendingUploadCount = 0
     }
 
     // Tên gian hàng đại diện
@@ -232,9 +246,14 @@ fun WriteProductReviewScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
+                    val isAnyImageUploadingOrLoading = pendingUploadCount > 0 ||
+                            uiState.isReviewImageUploading ||
+                            attachedImageUrls.any { !renderedImageUrls.contains(it) }
+
                     val canSubmit = !uiState.isSubmittingReview &&
                             !uiState.isReviewOrderLoading &&
                             !isCurrentItemReviewed &&
+                            !isAnyImageUploadingOrLoading &&
                             selectedItem?.id != null
 
                     Button(
@@ -258,7 +277,7 @@ fun WriteProductReviewScreen(
                                 rating = generalRating,
                                 comment = reviewText,
                                 imageUrls = attachedImageUrls.toList(),
-                                isAnonymous = isAnonymous,
+                                isAnonymous = false,
                                 onSuccess = {
                                     // Kiểm tra xem đơn hàng còn item nào chưa đánh giá không
                                     val remainingUnreviewed = targetOrder?.items?.filter {
@@ -291,6 +310,19 @@ fun WriteProductReviewScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "ĐANG GỬI...",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        } else if (isAnyImageUploadingOrLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "ĐANG TẢI ẢNH LÊN...",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -982,6 +1014,16 @@ fun WriteProductReviewScreen(
                                             contentDescription = "Ảnh đính kèm ${index + 1}",
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize(),
+                                            onSuccess = {
+                                                if (!renderedImageUrls.contains(imgUrl)) {
+                                                    renderedImageUrls.add(imgUrl)
+                                                }
+                                            },
+                                            onError = {
+                                                if (!renderedImageUrls.contains(imgUrl)) {
+                                                    renderedImageUrls.add(imgUrl)
+                                                }
+                                            },
                                             loading = {
                                                 Box(
                                                     modifier = Modifier
@@ -1037,7 +1079,10 @@ fun WriteProductReviewScreen(
                                                     .padding(3.dp)
                                                     .size(20.dp)
                                                     .background(Color.Black.copy(alpha = 0.65f), CircleShape)
-                                                    .clickable { attachedImageUrls.removeAt(index) },
+                                                    .clickable {
+                                                        val removed = attachedImageUrls.removeAt(index)
+                                                        renderedImageUrls.remove(removed)
+                                                    },
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
@@ -1051,49 +1096,6 @@ fun WriteProductReviewScreen(
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-
-                // 6. Thẻ ĐÁNH GIÁ ẨN DANH
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Đánh giá ẩn danh",
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Tên tài khoản sẽ hiển thị dạng K*** trên trang công khai",
-                                    fontSize = 11.5.sp,
-                                    color = TextSecondary
-                                )
-                            }
-
-                            Switch(
-                                checked = isAnonymous,
-                                onCheckedChange = { if (!isCurrentItemReviewed) isAnonymous = it },
-                                enabled = !isCurrentItemReviewed,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = Color(0xFFBA2211)
-                                )
-                            )
                         }
                     }
                 }

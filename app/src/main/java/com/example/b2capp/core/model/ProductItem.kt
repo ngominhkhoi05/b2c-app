@@ -77,6 +77,8 @@ data class ProductItem(
     val options: List<ProductOptionItem> = emptyList(),
     val variants: List<ProductVariantItem> = emptyList(),
     val sellerId: Long? = null,
+    val shopSlug: String? = null,
+    val shopLogoUrl: String? = null,
     val ratingCount: Int = 0
 ) {
     val formattedPrice: String
@@ -121,7 +123,7 @@ data class ProductItem(
             // hoặc danh sách đã chọn chứa tất cả optionValueIds của biến thể
             variant.optionValueIds.isNotEmpty() &&
                 selectedOptionValueIds.containsAll(variant.optionValueIds)
-        } ?: variants.firstOrNull()
+        }
     }
 }
 

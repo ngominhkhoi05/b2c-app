@@ -2,6 +2,7 @@ package com.example.b2capp.data.remote.api
 
 import com.example.b2capp.data.remote.dto.ApiResponse
 import com.example.b2capp.data.remote.dto.AuthResponseDto
+import com.example.b2capp.data.remote.dto.GoogleLoginRequestDto
 import com.example.b2capp.data.remote.dto.LoginRequestDto
 import com.example.b2capp.data.remote.dto.RefreshTokenRequestDto
 import com.example.b2capp.data.remote.dto.RegisterRequestDto
@@ -19,6 +20,12 @@ interface AuthApiService {
         @Body request: LoginRequestDto
     ): Response<ApiResponse<AuthResponseDto>>
 
+    // Đăng nhập / đăng ký bằng Google ID Token
+    @POST("api/v1/auth/google")
+    suspend fun loginWithGoogle(
+        @Body request: GoogleLoginRequestDto
+    ): Response<ApiResponse<AuthResponseDto>>
+
     // Đăng ký tài khoản người mua (BUYER) mới
     @POST("api/v1/auth/register")
     suspend fun register(
@@ -34,4 +41,22 @@ interface AuthApiService {
     // Đăng xuất khỏi hệ thống
     @POST("api/v1/auth/logout")
     suspend fun logout(): Response<ApiResponse<Unit>>
+
+    // Gửi mã OTP 6 số qua email cho Mobile App
+    @POST("api/v1/auth/mobile/forgot-password")
+    suspend fun sendMobileForgotPasswordOtp(
+        @Body request: com.example.b2capp.data.remote.dto.MobileForgotPasswordRequestDto
+    ): Response<ApiResponse<Unit>>
+
+    // Xác thực mã OTP 6 số cho Mobile App
+    @POST("api/v1/auth/mobile/verify-otp")
+    suspend fun verifyMobileOtp(
+        @Body request: com.example.b2capp.data.remote.dto.MobileVerifyOtpRequestDto
+    ): Response<ApiResponse<com.example.b2capp.data.remote.dto.MobileVerifyOtpResponseDto>>
+
+    // Đặt lại mật khẩu mới bằng resetToken cho Mobile App
+    @POST("api/v1/auth/mobile/reset-password")
+    suspend fun resetMobilePassword(
+        @Body request: com.example.b2capp.data.remote.dto.MobileResetPasswordRequestDto
+    ): Response<ApiResponse<Unit>>
 }

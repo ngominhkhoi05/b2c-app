@@ -1,6 +1,5 @@
 package com.example.b2capp.features.profile
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,10 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Security
@@ -39,10 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -103,8 +96,6 @@ fun ChangePasswordScreen(
     var oldPasswordVisible by remember { mutableStateOf(false) }
     var newPasswordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
-
-    var logoutOtherDevices by remember { mutableStateOf(true) }
 
     // Kiểm tra tiêu chuẩn mật khẩu mới
     val hasMinLength = newPassword.length >= 8
@@ -278,7 +269,17 @@ fun ChangePasswordScreen(
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Medium
                                 ),
-                                cursorBrush = SolidColor(Color(0xFFBA2211))
+                                cursorBrush = SolidColor(Color(0xFFBA2211)),
+                                decorationBox = { innerTextField ->
+                                    if (oldPassword.isEmpty()) {
+                                        Text(
+                                            text = "Nhập mật khẩu hiện tại",
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
                             )
 
                             IconButton(
@@ -334,7 +335,17 @@ fun ChangePasswordScreen(
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Medium
                                 ),
-                                cursorBrush = SolidColor(Color(0xFFBA2211))
+                                cursorBrush = SolidColor(Color(0xFFBA2211)),
+                                decorationBox = { innerTextField ->
+                                    if (newPassword.isEmpty()) {
+                                        Text(
+                                            text = "Nhập mật khẩu mới (tối thiểu 8 ký tự)",
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
                             )
 
                             IconButton(
@@ -499,7 +510,17 @@ fun ChangePasswordScreen(
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Medium
                                 ),
-                                cursorBrush = SolidColor(Color(0xFFBA2211))
+                                cursorBrush = SolidColor(Color(0xFFBA2211)),
+                                decorationBox = { innerTextField ->
+                                    if (confirmPassword.isEmpty()) {
+                                        Text(
+                                            text = "Nhập lại mật khẩu mới",
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
                             )
 
                             IconButton(
@@ -518,50 +539,7 @@ fun ChangePasswordScreen(
                 }
             }
 
-            // 4. Thẻ Tùy chọn Đăng xuất các thiết bị khác
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Checkbox(
-                            checked = logoutOtherDevices,
-                            onCheckedChange = { logoutOtherDevices = it },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = Color(0xFFBA2211)
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        Column {
-                            Text(
-                                text = "Đăng xuất trên các thiết bị khác",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Khuyên dùng nếu bạn nghi ngờ tài khoản bị lộ hoặc đăng nhập trên thiết bị công cộng.",
-                                fontSize = 11.5.sp,
-                                color = TextSecondary,
-                                lineHeight = 16.sp
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 5. Nút Cập Nhật Mật Khẩu
+            // 4. Nút Cập Nhật Mật Khẩu
             item {
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -572,34 +550,38 @@ fun ChangePasswordScreen(
                     Button(
                         enabled = !uiState.isChangingPassword,
                         onClick = {
-                            if (oldPassword.isBlank()) {
+                            val cleanOld = oldPassword.trim()
+                            val cleanNew = newPassword.trim()
+                            val cleanConfirm = confirmPassword.trim()
+
+                            if (cleanOld.isBlank()) {
                                 viewModel.showErrorToast("Vui lòng nhập mật khẩu hiện tại")
                                 return@Button
                             }
-                            if (newPassword.isBlank()) {
+                            if (cleanNew.isBlank()) {
                                 viewModel.showErrorToast("Vui lòng nhập mật khẩu mới")
                                 return@Button
                             }
-                            if (newPassword.length < 8) {
+                            if (cleanNew.length < 8) {
                                 viewModel.showErrorToast("Mật khẩu mới phải có tối thiểu 8 ký tự")
                                 return@Button
                             }
-                            if (newPassword == oldPassword) {
+                            if (cleanNew == cleanOld) {
                                 viewModel.showErrorToast("Mật khẩu mới không được trùng với mật khẩu hiện tại")
                                 return@Button
                             }
-                            if (confirmPassword.isBlank()) {
+                            if (cleanConfirm.isBlank()) {
                                 viewModel.showErrorToast("Vui lòng xác nhận mật khẩu mới")
                                 return@Button
                             }
-                            if (!isPasswordMatching) {
+                            if (cleanNew != cleanConfirm) {
                                 viewModel.showErrorToast("Mật khẩu xác nhận không khớp!")
                                 return@Button
                             }
                             viewModel.changePassword(
-                                oldPass = oldPassword,
-                                newPass = newPassword,
-                                confirmPass = confirmPassword
+                                oldPass = cleanOld,
+                                newPass = cleanNew,
+                                confirmPass = cleanConfirm
                             ) { success ->
                                 if (success) {
                                     onBackClick()

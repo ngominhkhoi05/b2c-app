@@ -41,7 +41,7 @@ fun CartBottomSummaryBar(
     formattedTotalPrice: String,
     formattedSavings: String = "",
     totalItemsCount: Int,
-    isEditMode: Boolean,
+    isEditMode: Boolean = false,
     onCheckoutClick: () -> Unit,
     modifier: Modifier = Modifier,
     isAllSelected: Boolean = true,

@@ -55,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -801,18 +802,15 @@ fun SignUpScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Nút Google
+                    // Nút Google (đã làm mờ và vô hiệu hoá)
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(46.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White)
+                            .background(Color(0xFFF3F4F6))
                             .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(10.dp))
-                            .clickable {
-                                viewModel.login("google_user@gmail.com")
-                                onSignUpSuccess()
-                            },
+                            .alpha(0.4f),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -822,23 +820,20 @@ fun SignUpScreen(
                                 text = "Google",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
+                                color = TextSecondary
                             )
                         }
                     }
 
-                    // Nút Apple
+                    // Nút Apple (đã làm mờ và vô hiệu hoá)
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(46.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White)
+                            .background(Color(0xFFF3F4F6))
                             .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(10.dp))
-                            .clickable {
-                                viewModel.login("apple_user@icloud.com")
-                                onSignUpSuccess()
-                            },
+                            .alpha(0.4f),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -848,7 +843,7 @@ fun SignUpScreen(
                                 text = "Apple",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
+                                color = TextSecondary
                             )
                         }
                     }

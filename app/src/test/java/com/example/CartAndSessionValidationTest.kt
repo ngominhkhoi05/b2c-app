@@ -2,17 +2,21 @@ package com.example
 
 import com.example.b2capp.data.local.TokenManager
 import com.example.b2capp.data.remote.ApiClient
+import com.example.b2capp.data.remote.api.CartApiService
+import com.example.b2capp.data.remote.dto.ApiResponse
 import com.example.b2capp.data.remote.dto.BulkDeleteCartItemRequestDto
 import com.example.b2capp.data.remote.dto.CartItemDto
 import com.example.b2capp.data.remote.dto.shopDisplayName
 import com.example.b2capp.data.remote.dto.UpdateCartItemRequestDto
 import com.example.b2capp.data.remote.dto.UserProfileDto
 import com.example.b2capp.viewmodel.B2CUiState
+import com.squareup.moshi.Types
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import retrofit2.Retrofit
 import java.util.Base64
 
 class CartAndSessionValidationTest {
@@ -231,5 +235,49 @@ class CartAndSessionValidationTest {
         assertTrue(selectAllShopBCart.first { it.id == itemShopB1.id }.isSelected)
         assertTrue(selectAllShopBCart.first { it.id == itemShopB2.id }.isSelected)
         assertFalse(selectAllShopBCart.first { it.id == itemShopA1.id }.isSelected)
+    }
+
+    @Test
+    fun testApiResponseUnitConverterAndDeserialization() {
+        val moshi = ApiClient.moshi
+        val type = Types.newParameterizedType(ApiResponse::class.java, Unit::class.java)
+        val adapter = moshi.adapter<ApiResponse<Unit>>(type)
+        assertNotNull(adapter)
+
+        val json = """
+            {
+                "code": 200,
+                "message": "Item removed",
+                "data": null,
+                "timestamp": "2026-11-12T10:00:00"
+            }
+        """.trimIndent()
+
+        val parsed = adapter.fromJson(json)
+        assertNotNull(parsed)
+        assertEquals(200, parsed?.code)
+        assertEquals("Item removed", parsed?.message)
+    }
+
+    @Test
+    fun testApiResponseVoidConverterAndDeserialization() {
+        val moshi = ApiClient.moshi
+        val type = Types.newParameterizedType(ApiResponse::class.java, Void::class.java)
+        val adapter = moshi.adapter<ApiResponse<Void>>(type)
+        assertNotNull(adapter)
+
+        val json = """
+            {
+                "code": 200,
+                "message": "Item removed",
+                "data": null,
+                "timestamp": "2026-11-12T10:00:00"
+            }
+        """.trimIndent()
+
+        val parsed = adapter.fromJson(json)
+        assertNotNull(parsed)
+        assertEquals(200, parsed?.code)
+        assertEquals("Item removed", parsed?.message)
     }
 }

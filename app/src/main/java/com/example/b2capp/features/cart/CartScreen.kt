@@ -58,6 +58,8 @@ import com.example.b2capp.core.ui.components.EmptyStateView
 import com.example.b2capp.data.remote.dto.shopDisplayName
 import com.example.b2capp.features.cart.components.CartBottomSummaryBar
 import com.example.b2capp.features.cart.components.CartProductItemRow
+import com.example.b2capp.features.cart.components.SwipeableCartProductItem
+import androidx.compose.runtime.key
 import com.example.b2capp.features.cart.components.RoundCheckbox
 import com.example.b2capp.viewmodel.B2CUiState
 import com.example.b2capp.viewmodel.B2CViewModel
@@ -79,7 +81,7 @@ data class SwitchShopConfirmation(
  * - Tự động nhóm sản phẩm theo từng Shop / Người bán
  * - Chọn / Bỏ chọn từng sản phẩm hoặc toàn bộ sản phẩm trong shop / toàn giỏ hàng
  * - Thay đổi số lượng sản phẩm (PATCH /api/v1/cart/items/{id})
- * - Xóa sản phẩm đơn lẻ hoặc xóa hàng loạt trong chế độ "Sửa" (DELETE /api/v1/cart/items)
+ * - Xóa sản phẩm đơn lẻ bằng cách quẹt thẻ sản phẩm (DELETE /api/v1/cart/items/{id})
  * - Hiển thị trạng thái Giỏ hàng trống khi không có sản phẩm
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -90,7 +92,6 @@ fun CartScreen(
     onNavigateToHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isEditMode by remember { mutableStateOf(false) }
     var pendingSwitchDialog by remember { mutableStateOf<SwitchShopConfirmation?>(null) }
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN")) }
 
@@ -172,32 +173,16 @@ fun CartScreen(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (cartItems.isNotEmpty()) {
-                        Text(
-                            text = if (isEditMode) "Xong" else "Sửa",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CoralPrimary,
-                            modifier = Modifier
-                                .clickable { isEditMode = !isEditMode }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(2.dp))
-
-                    IconButton(
-                        onClick = { viewModel.openShopMessages() },
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.ChatBubbleOutline,
-                            contentDescription = "Tin nhắn với Shop",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(23.dp)
-                        )
-                    }
+                IconButton(
+                    onClick = { viewModel.openShopMessages() },
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ChatBubbleOutline,
+                        contentDescription = "Tin nhắn với Shop",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(23.dp)
+                    )
                 }
             }
         }
@@ -352,43 +337,51 @@ fun CartScreen(
                                             "Chỉ còn $stock"
                                         } else null
 
-                                        CartProductItemRow(
-                                            isChecked = item.isSelected,
-                                            onCheckChange = {
-                                                val willSelect = !item.isSelected
-                                                if (!willSelect) {
-                                                    viewModel.toggleCartItemSelection(item.id, false)
-                                                } else {
-                                                    val targetShop = item.shopDisplayName
-                                                    val selectedFromOtherShops = cartItems.filter { other ->
-                                                        other.isSelected && other.shopDisplayName != targetShop
-                                                    }
-                                                    if (selectedFromOtherShops.isNotEmpty()) {
-                                                        val currentShop = selectedFromOtherShops.first().shopDisplayName
-                                                        pendingSwitchDialog = SwitchShopConfirmation(
-                                                            currentShopName = currentShop,
-                                                            targetShopName = targetShop,
-                                                            onConfirm = {
-                                                                viewModel.switchSelectedCartItem(item.id)
-                                                            }
-                                                        )
-                                                    } else {
-                                                        viewModel.toggleCartItemSelection(item.id, true)
-                                                    }
+                                        key(item.id) {
+                                            SwipeableCartProductItem(
+                                                onDelete = {
+                                                    viewModel.removeCartItem(item.id)
                                                 }
-                                            },
-                                            imageUrl = item.thumbnailUrl,
-                                            name = item.productName ?: "Sản phẩm",
-                                            variantText = item.variantName?.let { "Phân loại: $it" } ?: "Mặc định",
-                                            price = price,
-                                            quantity = item.quantity,
-                                            subtotalText = "Tạm tính:\n₫${currencyFormatter.format(lineTotal)}",
-                                            stockAlert = alert,
-                                            isPriceActive = item.isSelected,
-                                            onQuantityChange = { newQty ->
-                                                viewModel.updateCartItemQuantity(item.id, newQty)
+                                            ) {
+                                                CartProductItemRow(
+                                                    isChecked = item.isSelected,
+                                                    onCheckChange = {
+                                                        val willSelect = !item.isSelected
+                                                        if (!willSelect) {
+                                                            viewModel.toggleCartItemSelection(item.id, false)
+                                                        } else {
+                                                            val targetShop = item.shopDisplayName
+                                                            val selectedFromOtherShops = cartItems.filter { other ->
+                                                                other.isSelected && other.shopDisplayName != targetShop
+                                                            }
+                                                            if (selectedFromOtherShops.isNotEmpty()) {
+                                                                val currentShop = selectedFromOtherShops.first().shopDisplayName
+                                                                pendingSwitchDialog = SwitchShopConfirmation(
+                                                                    currentShopName = currentShop,
+                                                                    targetShopName = targetShop,
+                                                                    onConfirm = {
+                                                                        viewModel.switchSelectedCartItem(item.id)
+                                                                    }
+                                                                )
+                                                            } else {
+                                                                viewModel.toggleCartItemSelection(item.id, true)
+                                                            }
+                                                        }
+                                                    },
+                                                    imageUrl = item.thumbnailUrl,
+                                                    name = item.productName ?: "Sản phẩm",
+                                                    variantText = item.variantName?.let { "Phân loại: $it" } ?: "Mặc định",
+                                                    price = price,
+                                                    quantity = item.quantity,
+                                                    subtotalText = "Tạm tính:\n₫${currencyFormatter.format(lineTotal)}",
+                                                    stockAlert = alert,
+                                                    isPriceActive = item.isSelected,
+                                                    onQuantityChange = { newQty ->
+                                                        viewModel.updateCartItemQuantity(item.id, newQty)
+                                                    }
+                                                )
                                             }
-                                        )
+                                        }
 
                                         if (index < shopItems.size - 1) {
                                             HorizontalDivider(color = Color(0xFFF9FAFB), thickness = 0.8.dp)
@@ -413,16 +406,11 @@ fun CartScreen(
                 formattedTotalPrice = formattedTotalPrice,
                 formattedSavings = formattedSavings,
                 totalItemsCount = selectedTotalCount,
-                isEditMode = isEditMode,
                 onCheckoutClick = {
-                    if (isEditMode) {
-                        viewModel.deleteSelectedCartItems()
+                    if (selectedTotalCount == 0) {
+                        viewModel.showErrorToast("Vui lòng chọn ít nhất 1 sản phẩm để thanh toán")
                     } else {
-                        if (selectedTotalCount == 0) {
-                            viewModel.showErrorToast("Vui lòng chọn ít nhất 1 sản phẩm để thanh toán")
-                        } else {
-                            viewModel.openCheckoutScreen()
-                        }
+                        viewModel.openCheckoutScreen()
                     }
                 }
             )
