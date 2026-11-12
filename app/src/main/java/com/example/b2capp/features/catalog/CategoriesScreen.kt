@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -109,10 +110,15 @@ fun CategoriesScreen(
 ) {
     var searchInput by remember { mutableStateOf("") }
 
-    // Tự động tải danh mục và lập tức load sản phẩm của danh mục đầu tiên khi vào màn hình
+    // Tự động tải danh mục và lập tức load sản phẩm của danh mục đang chọn (hoặc mục đầu tiên nếu chưa chọn)
     LaunchedEffect(Unit) {
         if (uiState.browserCategories.isEmpty()) {
-            viewModel.loadBrowserCategories(autoSelectFirst = true)
+            val pendingCategory = uiState.selectedCategory.takeIf { it != "Tất cả" }
+            viewModel.loadBrowserCategories(
+                autoSelectFirst = (uiState.selectedBrowserCategory == null && pendingCategory == null),
+                preferredCategoryId = uiState.selectedBrowserCategory?.id,
+                preferredCategoryName = uiState.selectedBrowserCategory?.name ?: pendingCategory
+            )
         } else {
             val targetCategory = uiState.selectedBrowserCategory ?: uiState.browserCategories.first()
             if (uiState.selectedBrowserCategory?.id != targetCategory.id || uiState.browserProducts.isEmpty()) {
@@ -376,7 +382,17 @@ private fun LeftCategorySidebar(
                 )
             }
         } else {
+            val listState = rememberLazyListState()
+
+            LaunchedEffect(selectedCategory?.id) {
+                val selectedIndex = categories.indexOfFirst { it.id == selectedCategory?.id }
+                if (selectedIndex >= 0) {
+                    listState.animateScrollToItem(selectedIndex)
+                }
+            }
+
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(categories, key = { it.id }) { cat ->

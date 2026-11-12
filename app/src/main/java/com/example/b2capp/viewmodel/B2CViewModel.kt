@@ -23,6 +23,7 @@ import com.example.b2capp.core.ui.components.ToastType
 import com.example.b2capp.core.ui.components.createToastData
 import com.example.b2capp.data.SampleData
 import com.example.b2capp.data.local.TokenManager
+import com.example.b2capp.data.local.search.VietnameseNormalizer
 import com.example.b2capp.data.remote.dto.CategoryDto
 import com.example.b2capp.data.remote.dto.CartItemDto
 import com.example.b2capp.data.remote.dto.shopDisplayName
@@ -823,11 +824,19 @@ class B2CViewModel : ViewModel() {
     fun selectTab(tabIndex: Int) {
         _uiState.update { it.copy(currentTab = tabIndex) }
         if (tabIndex == 1) {
-            val firstCat = _uiState.value.browserCategories.firstOrNull()
-            if (firstCat != null) {
-                selectBrowserCategory(firstCat)
+            val currentSelected = _uiState.value.selectedBrowserCategory
+            if (currentSelected != null) {
+                // Đã có danh mục được chọn (ví dụ từ HomeScreen) -> giữ nguyên và tải sản phẩm nếu danh sách còn trống
+                if (_uiState.value.browserProducts.isEmpty()) {
+                    loadBrowserProducts(currentSelected.id)
+                }
             } else {
-                loadBrowserCategories(autoSelectFirst = true)
+                val firstCat = _uiState.value.browserCategories.firstOrNull()
+                if (firstCat != null) {
+                    selectBrowserCategory(firstCat)
+                } else {
+                    loadBrowserCategories(autoSelectFirst = true)
+                }
             }
         } else if (tabIndex == 2) {
             loadCartItems()
@@ -849,7 +858,7 @@ class B2CViewModel : ViewModel() {
         _uiState.update { state ->
             val base = state.copy(currentTab = tabIndex, tabReloadKey = state.tabReloadKey + 1)
             when (tabIndex) {
-                // Danh mục: lập tức mở danh mục đầu tiên và xóa danh sách sản phẩm cũ
+                // Danh mục: khi người dùng ấn vào tab "Danh mục" ở BottomBar -> tự mở danh mục đầu tiên và xóa danh sách sản phẩm cũ
                 1 -> {
                     val firstCat = state.browserCategories.firstOrNull()
                     base.copy(
@@ -887,12 +896,132 @@ class B2CViewModel : ViewModel() {
         _uiState.update { it.copy(pageState = state) }
     }
 
+    /**
+     * Tìm danh mục phù hợp trong danh sách CategoryDto dựa trên id, fallback key, tên hoặc slug
+     */
+    fun findCategoryMatch(
+        categories: List<CategoryDto>,
+        idStr: String?,
+        name: String?,
+        slug: String? = null
+    ): CategoryDto? {
+        if (categories.isEmpty()) return null
+
+        // 1. Khớp theo ID số thực tế từ DB
+        val numericId = idStr?.toLongOrNull()
+        if (numericId != null) {
+            val byId = categories.find { it.id == numericId }
+            if (byId != null) return byId
+        }
+
+        // 2. Khớp theo ID key fallback mẫu (qc_tech, qc_fashion, qc_home, ...)
+        if (idStr != null) {
+            val byFallbackKey = when (idStr) {
+                "qc_fashion" -> categories.find { it.slug.contains("thoi-trang") || it.name.contains("thời trang", ignoreCase = true) }
+                "qc_tech" -> categories.find { it.slug.contains("dien-tu") || it.slug.contains("cong-nghe") || it.name.contains("điện tử", ignoreCase = true) }
+                "qc_home" -> categories.find { it.slug.contains("gia-dung") || it.name.contains("gia dụng", ignoreCase = true) }
+                "qc_beauty" -> categories.find { it.slug.contains("lam-dep") || it.name.contains("làm đẹp", ignoreCase = true) }
+                "qc_shoes" -> categories.find { it.slug.contains("giay") || it.name.contains("giày", ignoreCase = true) }
+                "qc_watches" -> categories.find { it.slug.contains("dong-ho") || it.name.contains("đồng hồ", ignoreCase = true) }
+                "qc_baby" -> categories.find { it.slug.contains("me-va-be") || it.slug.contains("me-be") || it.name.contains("mẹ", ignoreCase = true) }
+                else -> null
+            }
+            if (byFallbackKey != null) return byFallbackKey
+        }
+
+        // 3. Khớp theo Tên (chính xác, bỏ dấu, hoặc chứa một phần)
+        if (!name.isNullOrBlank()) {
+            val cleanName = name.trim()
+            val exactName = categories.find { it.name.trim().equals(cleanName, ignoreCase = true) }
+            if (exactName != null) return exactName
+
+            val cleanNormalized = VietnameseNormalizer.removeAccents(cleanName)
+            val normalizedName = categories.find {
+                VietnameseNormalizer.removeAccents(it.name).equals(cleanNormalized, ignoreCase = true) ||
+                it.slug.replace("-", " ").equals(cleanNormalized, ignoreCase = true) ||
+                it.slug.contains(cleanNormalized.replace(" ", "-"), ignoreCase = true)
+            }
+            if (normalizedName != null) return normalizedName
+
+            val partialName = categories.find {
+                it.name.contains(cleanName, ignoreCase = true) || cleanName.contains(it.name, ignoreCase = true)
+            }
+            if (partialName != null) return partialName
+        }
+
+        // 4. Khớp theo slug nếu có
+        if (!slug.isNullOrBlank()) {
+            val bySlug = categories.find { it.slug.equals(slug, ignoreCase = true) || it.slug.contains(slug, ignoreCase = true) }
+            if (bySlug != null) return bySlug
+        }
+
+        return null
+    }
+
+    /**
+     * Người dùng ở trang chủ bấm vào 1 danh mục nhanh:
+     * - Chuyển sang tab Danh mục (tab 1)
+     * - Tùy vào người dùng ấn danh mục nào thì danh mục đó sẽ được chọn và sáng lên
+     * - Nạp danh sách sản phẩm của danh mục được chọn
+     * - Nếu ấn "Xem tất cả" thì mở danh mục đầu tiên
+     */
+    fun openCategoryFromHome(quickCategory: QuickCategoryItem) {
+        val isAll = quickCategory.id == "qc_all" || 
+                    quickCategory.title.equals("Xem tất cả", ignoreCase = true) || 
+                    quickCategory.title.equals("Tất cả", ignoreCase = true)
+
+        if (isAll) {
+            val firstCat = _uiState.value.browserCategories.firstOrNull()
+            _uiState.update {
+                it.copy(
+                    currentTab = 1,
+                    selectedCategory = "Tất cả",
+                    selectedBrowserCategory = firstCat,
+                    selectedBrowserSubCategoryId = null
+                )
+            }
+            if (firstCat != null) {
+                loadBrowserProducts(firstCat.id)
+            } else {
+                loadBrowserCategories(autoSelectFirst = true)
+            }
+            return
+        }
+
+        // Tìm danh mục khớp trong browserCategories
+        val match = findCategoryMatch(_uiState.value.browserCategories, quickCategory.id, quickCategory.title)
+
+        _uiState.update {
+            it.copy(
+                currentTab = 1,
+                selectedCategory = quickCategory.title,
+                selectedBrowserCategory = match ?: it.selectedBrowserCategory,
+                selectedBrowserSubCategoryId = null
+            )
+        }
+
+        if (match != null) {
+            loadBrowserProducts(match.id)
+        } else {
+            // Trường hợp browserCategories chưa nạp xong từ DB hoặc chưa khớp, nạp danh mục và ưu tiên chọn mục này
+            loadBrowserCategories(
+                autoSelectFirst = false,
+                preferredCategoryId = quickCategory.id.toLongOrNull(),
+                preferredCategoryName = quickCategory.title
+            )
+        }
+    }
+
     fun selectCategory(category: String) {
         _uiState.update { it.copy(selectedCategory = category) }
-        val match = _uiState.value.browserCategories.find {
-            it.name.equals(category, ignoreCase = true) ||
-            it.slug.contains(category, ignoreCase = true)
+        if (category == "Tất cả") {
+            val firstCat = _uiState.value.browserCategories.firstOrNull()
+            if (firstCat != null) {
+                selectBrowserCategory(firstCat)
+            }
+            return
         }
+        val match = findCategoryMatch(_uiState.value.browserCategories, null, category)
         if (match != null) {
             selectBrowserCategory(match)
         }
@@ -901,16 +1030,31 @@ class B2CViewModel : ViewModel() {
     /**
      * Nạp danh sách danh mục từ Database qua API cho Màn hình Duyệt danh mục (Cột trái)
      */
-    fun loadBrowserCategories(autoSelectFirst: Boolean = true) {
+    fun loadBrowserCategories(
+        autoSelectFirst: Boolean = true,
+        preferredCategoryId: Long? = null,
+        preferredCategoryName: String? = null
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isBrowserCategoriesLoading = true, browserCategoryErrorMessage = null) }
             val categories = homeRepository.getCategoriesForBrowser()
             val currentSelected = _uiState.value.selectedBrowserCategory
+            val targetName = preferredCategoryName ?: currentSelected?.name ?: _uiState.value.selectedCategory.takeIf { it != "Tất cả" }
+            val targetId = preferredCategoryId ?: currentSelected?.id
+
+            val matchedCategory = findCategoryMatch(
+                categories = categories,
+                idStr = targetId?.toString(),
+                name = targetName,
+                slug = currentSelected?.slug
+            )
+
             val toSelect = when {
-                autoSelectFirst && categories.isNotEmpty() ->
-                    categories.first()
+                matchedCategory != null -> matchedCategory
                 currentSelected != null && categories.any { it.id == currentSelected.id } ->
                     categories.first { it.id == currentSelected.id }
+                autoSelectFirst && categories.isNotEmpty() ->
+                    categories.first()
                 categories.isNotEmpty() ->
                     categories.first()
                 else -> null

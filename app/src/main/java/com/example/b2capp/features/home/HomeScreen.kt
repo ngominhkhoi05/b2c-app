@@ -304,12 +304,7 @@ fun HomeScreen(
                     QuickCategoriesGrid(
                         categories = quickCategories,
                         onCategoryClick = { cat ->
-                            if (cat.id == "qc_all") {
-                                viewModel.selectCategory("Tất cả")
-                            } else {
-                                viewModel.selectCategory(cat.title)
-                            }
-                            viewModel.selectTab(1) // Chuyển sang tab Danh mục
+                            viewModel.openCategoryFromHome(cat)
                         }
                     )
                 }

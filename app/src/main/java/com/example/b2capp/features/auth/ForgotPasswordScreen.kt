@@ -32,13 +32,11 @@ import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -100,9 +98,7 @@ fun ForgotPasswordScreen(
     onBackToSignIn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isPhoneAuthMode by remember { mutableStateOf(false) }
     var inputEmail by remember { mutableStateOf("nguyenvana@gmail.com") }
-    var inputPhone by remember { mutableStateOf("0987654321") }
 
     // Trạng thái đếm ngược OTP
     var isOtpSent by remember { mutableStateOf(false) }
@@ -224,11 +220,7 @@ fun ForgotPasswordScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = if (isPhoneAuthMode) {
-                        "Nhập số điện thoại đã đăng ký của bạn. Chúng tôi sẽ gửi mã OTP SMS để đặt lại mật khẩu mới."
-                    } else {
-                        "Nhập địa chỉ email đã đăng ký của bạn. Chúng tôi sẽ gửi mã xác nhận để đặt lại mật khẩu mới."
-                    },
+                    text = "Nhập địa chỉ email đã đăng ký của bạn. Chúng tôi sẽ gửi mã OTP xác thực để đặt lại mật khẩu mới.",
                     fontSize = 13.sp,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
@@ -254,7 +246,7 @@ fun ForgotPasswordScreen(
                             .padding(18.dp)
                     ) {
                         Text(
-                            text = if (isPhoneAuthMode) "Số điện thoại đã đăng ký" else "Email đã đăng ký",
+                            text = "Email đã đăng ký",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -274,7 +266,7 @@ fun ForgotPasswordScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = if (isPhoneAuthMode) Icons.Outlined.Phone else Icons.Outlined.Email,
+                                imageVector = Icons.Outlined.Email,
                                 contentDescription = null,
                                 tint = Color(0xFF9CA3AF),
                                 modifier = Modifier.size(18.dp)
@@ -283,27 +275,20 @@ fun ForgotPasswordScreen(
                             Spacer(modifier = Modifier.width(10.dp))
 
                             Box(modifier = Modifier.weight(1f)) {
-                                val currentInput = if (isPhoneAuthMode) inputPhone else inputEmail
-                                val placeholder = if (isPhoneAuthMode) "0987 654 321" else "name@example.com"
-
-                                if (currentInput.isEmpty()) {
+                                if (inputEmail.isEmpty()) {
                                     Text(
-                                        text = placeholder,
+                                        text = "name@example.com",
                                         fontSize = 14.sp,
                                         color = Color(0xFF9CA3AF)
                                     )
                                 }
 
                                 BasicTextField(
-                                    value = currentInput,
-                                    onValueChange = {
-                                        if (isPhoneAuthMode) inputPhone = it else inputEmail = it
-                                    },
+                                    value = inputEmail,
+                                    onValueChange = { inputEmail = it },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = if (isPhoneAuthMode) KeyboardType.Phone else KeyboardType.Email
-                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                                     textStyle = TextStyle(
                                         fontSize = 14.sp,
                                         color = TextPrimary,
@@ -313,12 +298,9 @@ fun ForgotPasswordScreen(
                                 )
                             }
 
-                            val activeVal = if (isPhoneAuthMode) inputPhone else inputEmail
-                            if (activeVal.isNotEmpty()) {
+                            if (inputEmail.isNotEmpty()) {
                                 IconButton(
-                                    onClick = {
-                                        if (isPhoneAuthMode) inputPhone = "" else inputEmail = ""
-                                    },
+                                    onClick = { inputEmail = "" },
                                     modifier = Modifier.size(20.dp)
                                 ) {
                                     Icon(
@@ -413,15 +395,18 @@ fun ForgotPasswordScreen(
                         // Nút GỬI MÃ XÁC NHẬN →
                         Button(
                             onClick = {
-                                val destination = if (isPhoneAuthMode) inputPhone else inputEmail
-                                if (destination.isBlank()) {
-                                    viewModel.showToast("Vui lòng nhập email hoặc SĐT hợp lệ!")
+                                if (inputEmail.isBlank()) {
+                                    viewModel.showToast("Vui lòng nhập địa chỉ email hợp lệ!")
                                     return@Button
                                 }
                                 if (!isOtpSent) {
                                     isOtpSent = true
-                                    viewModel.showToast("Đã gửi mã xác nhận 6 chữ số tới $destination!")
+                                    viewModel.showToast("Đã gửi mã xác nhận 6 chữ số tới $inputEmail!")
                                 } else {
+                                    if (otpCodeInput.length < 6) {
+                                        viewModel.showToast("Vui lòng nhập đủ mã OTP 6 chữ số!")
+                                        return@Button
+                                    }
                                     viewModel.showToast("Mã OTP hợp lệ! Đang chuyển đến màn hình Đổi Mật Khẩu.")
                                     viewModel.openChangePassword()
                                 }
@@ -452,41 +437,6 @@ fun ForgotPasswordScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 0.8.dp)
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Gợi ý chuyển đổi SĐT/Email
-                        Text(
-                            text = "Không nhận được mã hoặc đổi số điện thoại?",
-                            fontSize = 12.sp,
-                            color = Color(0xFF6B7280),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    isPhoneAuthMode = !isPhoneAuthMode
-                                    isOtpSent = false
-                                },
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isPhoneAuthMode) "✉ Thử xác thực bằng Email" else "📱 Thử xác thực bằng Số điện thoại",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NavySecondary
-                            )
                         }
                     }
                 }
