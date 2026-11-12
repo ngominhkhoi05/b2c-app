@@ -37,6 +37,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -392,50 +393,62 @@ fun ForgotPasswordScreen(
 
                         Spacer(modifier = Modifier.height(18.dp))
 
+                        val isLoading = uiState.isSendingForgotOtp || uiState.isVerifyingForgotOtp
+
                         // Nút GỬI MÃ XÁC NHẬN →
                         Button(
                             onClick = {
+                                if (isLoading) return@Button
                                 if (inputEmail.isBlank()) {
                                     viewModel.showToast("Vui lòng nhập địa chỉ email hợp lệ!")
                                     return@Button
                                 }
                                 if (!isOtpSent) {
-                                    isOtpSent = true
-                                    viewModel.showToast("Đã gửi mã xác nhận 6 chữ số tới $inputEmail!")
+                                    viewModel.sendForgotPasswordOtp(inputEmail) {
+                                        isOtpSent = true
+                                    }
                                 } else {
                                     if (otpCodeInput.length < 6) {
                                         viewModel.showToast("Vui lòng nhập đủ mã OTP 6 chữ số!")
                                         return@Button
                                     }
-                                    viewModel.showToast("Mã OTP hợp lệ! Đang chuyển đến màn hình Đổi Mật Khẩu.")
-                                    viewModel.openChangePassword()
+                                    viewModel.verifyForgotPasswordOtp(inputEmail, otpCodeInput)
                                 }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp)
                                 .testTag("send_otp_button"),
+                            enabled = !isLoading,
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA2211))
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    text = if (isOtpSent) "XÁC NHẬN MÃ OTP" else "GỬI MÃ XÁC NHẬN",
-                                    fontSize = 14.5.sp,
-                                    fontWeight = FontWeight.Bold,
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
                                     color = Color.White,
-                                    letterSpacing = 0.5.sp
+                                    strokeWidth = 2.5.dp
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = if (isOtpSent) "XÁC NHẬN MÃ OTP" else "GỬI MÃ XÁC NHẬN",
+                                        fontSize = 14.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }

@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.b2capp.core.designsystem.theme.B2CAppTheme
 import com.example.b2capp.core.ui.navigation.AppBottomBar
 import com.example.b2capp.features.auth.ForgotPasswordScreen
+import com.example.b2capp.features.auth.ResetPasswordScreen
 import com.example.b2capp.features.auth.SignInScreen
 import com.example.b2capp.features.auth.SignUpScreen
 import com.example.b2capp.features.cart.CartScreen
@@ -136,6 +137,21 @@ private fun B2CMainScreens(
             viewModel = viewModel,
             onBackToSignIn = {
                 viewModel.closeForgotPassword()
+            }
+        )
+        return
+    }
+
+    // Khi người dùng xác thực OTP thành công, mở màn hình Đặt lại Mật Khẩu (ResetPasswordScreen)
+    if (uiState.showResetPasswordScreen) {
+        BackHandler {
+            viewModel.closeResetPassword()
+        }
+        ResetPasswordScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBackToSignIn = {
+                viewModel.closeResetPassword()
             }
         )
         return

@@ -73,3 +73,39 @@ data class ApiFieldError(
     @Json(name = "message") val message: String? = null
 )
 
+/**
+ * Yêu cầu gửi OTP quên mật khẩu mobile (POST /api/v1/auth/mobile/forgot-password)
+ */
+@JsonClass(generateAdapter = true)
+data class MobileForgotPasswordRequestDto(
+    @Json(name = "email") val email: String
+)
+
+/**
+ * Yêu cầu xác thực OTP mobile (POST /api/v1/auth/mobile/verify-otp)
+ */
+@JsonClass(generateAdapter = true)
+data class MobileVerifyOtpRequestDto(
+    @Json(name = "email") val email: String,
+    @Json(name = "otp") val otp: String
+)
+
+/**
+ * Phản hồi xác thực OTP mobile
+ */
+@JsonClass(generateAdapter = true)
+data class MobileVerifyOtpResponseDto(
+    @Json(name = "resetToken") val resetToken: String
+)
+
+/**
+ * Yêu cầu đặt lại mật khẩu mới mobile (POST /api/v1/auth/mobile/reset-password)
+ */
+@JsonClass(generateAdapter = true)
+data class MobileResetPasswordRequestDto(
+    @Json(name = "email") val email: String,
+    @Json(name = "resetToken") val resetToken: String,
+    @Json(name = "newPassword") val newPassword: String
+)
+
+

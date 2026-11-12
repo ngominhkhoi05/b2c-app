@@ -122,6 +122,12 @@ data class B2CUiState(
     val showSignInScreen: Boolean = true,
     val showSignUpScreen: Boolean = false,
     val showForgotPasswordScreen: Boolean = false,
+    val showResetPasswordScreen: Boolean = false,
+    val resetPasswordEmail: String = "",
+    val resetPasswordToken: String = "",
+    val isSendingForgotOtp: Boolean = false,
+    val isVerifyingForgotOtp: Boolean = false,
+    val isResettingPassword: Boolean = false,
     val showProductReviewsScreen: Boolean = false,
     val productReviews: List<ReviewItem> = emptyList(),
     val isProductReviewsLoading: Boolean = false,
@@ -3089,7 +3095,7 @@ class B2CViewModel : ViewModel() {
     }
 
     fun openForgotPassword() {
-        _uiState.update { it.copy(showForgotPasswordScreen = true, showSignInScreen = false, showSignUpScreen = false) }
+        _uiState.update { it.copy(showForgotPasswordScreen = true, showSignInScreen = false, showSignUpScreen = false, showResetPasswordScreen = false) }
     }
 
     fun closeForgotPassword() {
@@ -3098,6 +3104,118 @@ class B2CViewModel : ViewModel() {
                 showForgotPasswordScreen = false,
                 showSignInScreen = !state.isLoggedIn
             )
+        }
+    }
+
+    fun openResetPassword(email: String, resetToken: String) {
+        _uiState.update {
+            it.copy(
+                showResetPasswordScreen = true,
+                showForgotPasswordScreen = false,
+                showSignInScreen = false,
+                resetPasswordEmail = email,
+                resetPasswordToken = resetToken
+            )
+        }
+    }
+
+    fun closeResetPassword() {
+        _uiState.update { state ->
+            state.copy(
+                showResetPasswordScreen = false,
+                resetPasswordEmail = "",
+                resetPasswordToken = "",
+                showSignInScreen = !state.isLoggedIn
+            )
+        }
+    }
+
+    /**
+     * Gửi mã OTP 6 số đến email để quên mật khẩu
+     */
+    fun sendForgotPasswordOtp(email: String, onSuccess: () -> Unit = {}) {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
+            showToast("Vui lòng nhập địa chỉ email hợp lệ!")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSendingForgotOtp = true) }
+            val result = authRepository.sendForgotPasswordOtp(cleanEmail)
+            _uiState.update { it.copy(isSendingForgotOtp = false) }
+            result.onSuccess {
+                showToast("Đã gửi mã xác nhận 6 chữ số tới $cleanEmail!")
+                onSuccess()
+            }.onFailure { err ->
+                showToast(err.message ?: "Không thể gửi mã OTP. Vui lòng thử lại!")
+            }
+        }
+    }
+
+    /**
+     * Xác thực mã OTP 6 số
+     */
+    fun verifyForgotPasswordOtp(email: String, otp: String, onSuccess: () -> Unit = {}) {
+        val cleanEmail = email.trim()
+        val cleanOtp = otp.trim()
+        if (cleanOtp.length != 6) {
+            showToast("Mã OTP phải gồm 6 chữ số!")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isVerifyingForgotOtp = true) }
+            val result = authRepository.verifyForgotPasswordOtp(cleanEmail, cleanOtp)
+            _uiState.update { it.copy(isVerifyingForgotOtp = false) }
+            result.onSuccess { response ->
+                showToast("Mã OTP hợp lệ! Đang chuyển đến màn hình đặt mật khẩu mới.")
+                openResetPassword(cleanEmail, response.resetToken)
+                onSuccess()
+            }.onFailure { err ->
+                showToast(err.message ?: "Mã OTP không hợp lệ hoặc đã hết hạn!")
+            }
+        }
+    }
+
+    /**
+     * Đặt lại mật khẩu mới
+     */
+    fun resetPasswordWithOtp(
+        newPass: String,
+        confirmPass: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val email = _uiState.value.resetPasswordEmail
+        val resetToken = _uiState.value.resetPasswordToken
+
+        if (email.isBlank() || resetToken.isBlank()) {
+            showToast("Phiên xác thực không hợp lệ. Vui lòng thực hiện lại từ đầu.")
+            closeResetPassword()
+            openForgotPassword()
+            return
+        }
+
+        if (newPass.length < 8) {
+            showToast("Mật khẩu mới phải có tối thiểu 8 ký tự!")
+            return
+        }
+
+        if (newPass != confirmPass) {
+            showToast("Xác nhận mật khẩu mới không trùng khớp!")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isResettingPassword = true) }
+            val result = authRepository.resetPassword(email, resetToken, newPass)
+            _uiState.update { it.copy(isResettingPassword = false) }
+            result.onSuccess {
+                showToast("Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.")
+                closeResetPassword()
+                openSignIn()
+                onSuccess()
+            }.onFailure { err ->
+                showToast(err.message ?: "Không thể đặt lại mật khẩu. Vui lòng thử lại!")
+            }
         }
     }
 
