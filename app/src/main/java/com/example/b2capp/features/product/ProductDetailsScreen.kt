@@ -124,11 +124,18 @@ fun ProductDetailsScreen(
 ) {
     val hasDynamicOptions = product.options.isNotEmpty()
 
-    val selectedOptionValues = remember(product.id, product.options) {
+    val selectedOptionValues = remember(product.id, product.options, product.variants) {
         val map = mutableStateMapOf<Long, Long>()
+        val targetVariant = product.variants.firstOrNull { it.stockQuantity > 0 && it.optionValueIds.isNotEmpty() }
+            ?: product.variants.firstOrNull()
+
         product.options.forEach { opt ->
-            opt.values.firstOrNull()?.id?.let { firstId ->
-                map[opt.id] = firstId
+            val matchingFromTarget = targetVariant?.optionValueIds?.let { ids ->
+                opt.values.find { ids.contains(it.id) }?.id
+            }
+            val fallback = matchingFromTarget ?: opt.values.firstOrNull()?.id
+            if (fallback != null) {
+                map[opt.id] = fallback
             }
         }
         map
@@ -139,6 +146,54 @@ fun ProductDetailsScreen(
             product.findVariantByOptionValues(selectedOptionValues.values)
         } else {
             product.variants.firstOrNull()
+        }
+    }
+
+    fun isOptionValueSelectable(optionId: Long, valueId: Long): Boolean {
+        val hasAnyStock = product.variants.any { v ->
+            v.stockQuantity > 0 && v.optionValueIds.contains(valueId)
+        }
+        if (!hasAnyStock) return false
+        if (product.options.size <= 1) return true
+
+        val firstOption = product.options.firstOrNull()
+        if (firstOption != null && firstOption.id != optionId) {
+            val selectedFirstValId = selectedOptionValues[firstOption.id]
+            if (selectedFirstValId != null) {
+                val hasCombinationStock = product.variants.any { v ->
+                    v.stockQuantity > 0 &&
+                        v.optionValueIds.contains(selectedFirstValId) &&
+                        v.optionValueIds.contains(valueId)
+                }
+                if (!hasCombinationStock) return false
+            }
+        }
+        return true
+    }
+
+    fun onSelectOptionValue(optionId: Long, valueId: Long) {
+        selectedOptionValues[optionId] = valueId
+        product.options.forEach { otherOpt ->
+            if (otherOpt.id != optionId) {
+                val currentOtherValId = selectedOptionValues[otherOpt.id]
+                val combinationHasStock = product.variants.any { v ->
+                    v.stockQuantity > 0 &&
+                        v.optionValueIds.contains(valueId) &&
+                        v.optionValueIds.contains(currentOtherValId)
+                }
+                if (!combinationHasStock) {
+                    val fallbackVal = otherOpt.values.firstOrNull { valItem ->
+                        product.variants.any { v ->
+                            v.stockQuantity > 0 &&
+                                v.optionValueIds.contains(valueId) &&
+                                v.optionValueIds.contains(valItem.id)
+                        }
+                    }
+                    if (fallbackVal != null) {
+                        selectedOptionValues[otherOpt.id] = fallbackVal.id
+                    }
+                }
+            }
         }
     }
 
@@ -537,17 +592,28 @@ fun ProductDetailsScreen(
                             ) {
                                 option.values.forEach { optionValue ->
                                     val isValSelected = optionValue.id == selectedValId
+                                    val isValSelectable = isOptionValueSelectable(option.id, optionValue.id)
 
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isValSelected) Color(0xFFFFF3F0) else Color(0xFFF0F2F5))
+                                            .background(
+                                                when {
+                                                    isValSelected -> Color(0xFFFFF3F0)
+                                                    !isValSelectable -> Color(0xFFF0F2F5).copy(alpha = 0.5f)
+                                                    else -> Color(0xFFF0F2F5)
+                                                }
+                                            )
                                             .border(
-                                                width = if (isValSelected) 1.dp else 0.dp,
-                                                color = if (isValSelected) Color(0xFFD32F2F) else Color.Transparent,
+                                                width = if (isValSelected) 1.dp else if (!isValSelectable) 1.dp else 0.dp,
+                                                color = when {
+                                                    isValSelected -> Color(0xFFD32F2F)
+                                                    !isValSelectable -> Color(0xFFE5E7EB).copy(alpha = 0.6f)
+                                                    else -> Color.Transparent
+                                                },
                                                 shape = RoundedCornerShape(8.dp)
                                             )
-                                            .clickable { selectedOptionValues[option.id] = optionValue.id }
+                                            .clickable(enabled = isValSelectable) { onSelectOptionValue(option.id, optionValue.id) }
                                             .padding(horizontal = 10.dp, vertical = 7.dp)
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -565,7 +631,12 @@ fun ProductDetailsScreen(
                                                 text = optionValue.value,
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isValSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isValSelected) Color(0xFFD32F2F) else TextPrimary
+                                                color = when {
+                                                    !isValSelectable -> Color(0xFF9CA3AF)
+                                                    isValSelected -> Color(0xFFD32F2F)
+                                                    else -> TextPrimary
+                                                },
+                                                textDecoration = if (!isValSelectable) TextDecoration.LineThrough else TextDecoration.None
                                             )
                                         }
                                     }

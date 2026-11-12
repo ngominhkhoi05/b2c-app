@@ -36,6 +36,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -96,14 +97,31 @@ fun ProductVariantBottomSheet(
     val hasDynamicOptions = product.options.isNotEmpty()
 
     // Map lưu lựa chọn optionId -> optionValueId
-    val selectedOptionValues = remember(product.id, product.options) {
+    val selectedOptionValues = remember(product.id, product.options, product.variants, initialSelectedOptionValues) {
         val map = mutableStateMapOf<Long, Long>()
         if (hasDynamicOptions) {
+            val initialVariant = if (initialSelectedOptionValues.isNotEmpty()) {
+                product.findVariantByOptionValues(initialSelectedOptionValues.values)
+            } else null
+
+            val targetVariant = if (initialVariant != null && initialVariant.stockQuantity > 0) {
+                initialVariant
+            } else {
+                product.variants.firstOrNull { it.stockQuantity > 0 && it.optionValueIds.isNotEmpty() }
+                    ?: product.variants.firstOrNull()
+            }
+
             product.options.forEach { opt ->
                 val preselected = initialSelectedOptionValues[opt.id]
+                val matchingFromTarget = targetVariant?.optionValueIds?.let { ids ->
+                    opt.values.find { ids.contains(it.id) }?.id
+                }
                 val fallback = opt.values.firstOrNull()?.id
+
                 if (preselected != null && opt.values.any { it.id == preselected }) {
                     map[opt.id] = preselected
+                } else if (matchingFromTarget != null) {
+                    map[opt.id] = matchingFromTarget
                 } else if (fallback != null) {
                     map[opt.id] = fallback
                 }
@@ -121,22 +139,100 @@ fun ProductVariantBottomSheet(
         }
     }
 
-    var quantity by remember { mutableIntStateOf(initialQuantity.coerceAtLeast(1)) }
+    val isOutOfStock = if (hasDynamicOptions) {
+        currentVariant == null || currentVariant.stockQuantity <= 0
+    } else {
+        product.stock <= 0
+    }
+
+    val currentStock: Int = if (hasDynamicOptions) {
+        currentVariant?.stockQuantity ?: 0
+    } else {
+        product.stock
+    }
+    val maxStock: Int = if (isOutOfStock) 0 else currentStock
+
+    var quantity by remember {
+        mutableIntStateOf(if (isOutOfStock) 0 else initialQuantity.coerceIn(1, maxStock.coerceAtLeast(1)))
+    }
+
+    LaunchedEffect(isOutOfStock, maxStock) {
+        if (isOutOfStock) {
+            quantity = 0
+        } else if (quantity < 1 && maxStock > 0) {
+            quantity = 1
+        } else if (quantity > maxStock && maxStock > 0) {
+            quantity = maxStock
+        }
+    }
 
     // Tính toán giá và kho
     val unitPrice: Long = currentVariant?.salePrice ?: product.price
     val originalPrice: Long? = currentVariant?.price?.let { if (it > unitPrice) it else null } ?: product.originalPrice
     val discountPercent: Int = currentVariant?.discountPercent ?: product.discountPercent ?: 0
-    val maxStock: Int = (currentVariant?.stockQuantity ?: product.stock).coerceAtLeast(1)
 
-    if (quantity > maxStock && maxStock > 0) {
-        quantity = maxStock
-    }
-
-    val totalPrice = unitPrice * quantity
-    val formattedTotalPrice = "₫${currencyFormatter.format(totalPrice)}"
+    val totalPrice = if (isOutOfStock) 0L else (unitPrice * quantity)
+    val formattedTotalPrice = if (isOutOfStock) "0₫" else "₫${currencyFormatter.format(totalPrice)}"
     val formattedUnitPrice = "₫${currencyFormatter.format(unitPrice)}"
     val formattedOriginalPrice = originalPrice?.let { "₫${currencyFormatter.format(it)}" }
+
+    // Kiểm tra khả năng chọn của từng OptionValue
+    fun isOptionValueSelectable(optionId: Long, valueId: Long): Boolean {
+        // 1. Phải có ít nhất 1 biến thể chứa valueId này còn hàng (> 0)
+        val hasAnyStock = product.variants.any { v ->
+            v.stockQuantity > 0 && v.optionValueIds.contains(valueId)
+        }
+        if (!hasAnyStock) return false
+
+        // 2. Nếu chỉ có 1 nhóm option duy nhất
+        if (product.options.size <= 1) return true
+
+        // 3. Nếu không phải option đầu tiên (ví dụ Size phụ thuộc vào Màu sắc đã chọn)
+        val firstOption = product.options.firstOrNull()
+        if (firstOption != null && firstOption.id != optionId) {
+            val selectedFirstValId = selectedOptionValues[firstOption.id]
+            if (selectedFirstValId != null) {
+                val hasCombinationStock = product.variants.any { v ->
+                    v.stockQuantity > 0 &&
+                        v.optionValueIds.contains(selectedFirstValId) &&
+                        v.optionValueIds.contains(valueId)
+                }
+                if (!hasCombinationStock) return false
+            }
+        }
+
+        return true
+    }
+
+    // Xử lý khi người dùng click chọn OptionValue
+    fun onSelectOptionValue(optionId: Long, valueId: Long) {
+        selectedOptionValues[optionId] = valueId
+
+        // Sau khi chọn, nếu các option khác không còn tạo thành tổ hợp còn hàng
+        // thì tự động chuyển option khác sang giá trị còn hàng
+        product.options.forEach { otherOpt ->
+            if (otherOpt.id != optionId) {
+                val currentOtherValId = selectedOptionValues[otherOpt.id]
+                val combinationHasStock = product.variants.any { v ->
+                    v.stockQuantity > 0 &&
+                        v.optionValueIds.contains(valueId) &&
+                        v.optionValueIds.contains(currentOtherValId)
+                }
+                if (!combinationHasStock) {
+                    val fallbackVal = otherOpt.values.firstOrNull { valItem ->
+                        product.variants.any { v ->
+                            v.stockQuantity > 0 &&
+                                v.optionValueIds.contains(valueId) &&
+                                v.optionValueIds.contains(valItem.id)
+                        }
+                    }
+                    if (fallbackVal != null) {
+                        selectedOptionValues[otherOpt.id] = fallbackVal.id
+                    }
+                }
+            }
+        }
+    }
 
     // Chuỗi mô tả phân loại đã chọn
     val selectedSummaryText = if (hasDynamicOptions) {
@@ -278,13 +374,14 @@ fun ProductVariantBottomSheet(
                         Box(
                             modifier = Modifier
                                 .size(7.dp)
-                                .background(if (maxStock > 0) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
+                                .background(if (!isOutOfStock) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = if (maxStock > 0) "Kho: Còn $maxStock sản phẩm" else "Hết hàng",
+                            text = if (!isOutOfStock) "Kho: Còn $maxStock sản phẩm" else "Hết hàng",
                             fontSize = 12.5.sp,
-                            color = Color(0xFF555555)
+                            fontWeight = if (isOutOfStock) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isOutOfStock) Color(0xFFEF4444) else Color(0xFF555555)
                         )
                     }
 
@@ -349,18 +446,29 @@ fun ProductVariantBottomSheet(
                     ) {
                         option.values.forEach { optionValue ->
                             val isSelected = optionValue.id == selectedValId
+                            val isSelectable = isOptionValueSelectable(option.id, optionValue.id)
 
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) Color(0xFFFFF1EE) else Color(0xFFF3F4F6))
+                                    .background(
+                                        when {
+                                            isSelected -> Color(0xFFFFF1EE)
+                                            !isSelectable -> Color(0xFFF3F4F6).copy(alpha = 0.5f)
+                                            else -> Color(0xFFF3F4F6)
+                                        }
+                                    )
                                     .border(
                                         width = 1.dp,
-                                        color = if (isSelected) Color(0xFFEE4D2D) else Color.Transparent,
+                                        color = when {
+                                            isSelected -> Color(0xFFEE4D2D)
+                                            !isSelectable -> Color(0xFFE5E7EB).copy(alpha = 0.6f)
+                                            else -> Color.Transparent
+                                        },
                                         shape = RoundedCornerShape(8.dp)
                                     )
-                                    .clickable {
-                                        selectedOptionValues[option.id] = optionValue.id
+                                    .clickable(enabled = isSelectable) {
+                                        onSelectOptionValue(option.id, optionValue.id)
                                     }
                                     .padding(horizontal = 12.dp, vertical = 7.dp)
                                     .testTag("variant_option_${option.id}_${optionValue.id}")
@@ -389,7 +497,12 @@ fun ProductVariantBottomSheet(
                                         text = optionValue.value,
                                         fontSize = 13.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color(0xFFD32F2F) else TextPrimary
+                                        color = when {
+                                            !isSelectable -> Color(0xFF9CA3AF)
+                                            isSelected -> Color(0xFFD32F2F)
+                                            else -> TextPrimary
+                                        },
+                                        textDecoration = if (!isSelectable) TextDecoration.LineThrough else TextDecoration.None
                                     )
                                 }
                             }
@@ -438,7 +551,7 @@ fun ProductVariantBottomSheet(
                     Box(
                         modifier = Modifier
                             .size(34.dp)
-                            .clickable(enabled = quantity > 1) {
+                            .clickable(enabled = !isOutOfStock && quantity > 1) {
                                 if (quantity > 1) quantity--
                             }
                             .testTag("btn_decrease_quantity"),
@@ -448,7 +561,7 @@ fun ProductVariantBottomSheet(
                             text = "−",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (quantity > 1) TextPrimary else Color(0xFFD1D5DB)
+                            color = if (!isOutOfStock && quantity > 1) TextPrimary else Color(0xFFD1D5DB)
                         )
                     }
 
@@ -464,14 +577,14 @@ fun ProductVariantBottomSheet(
                             text = quantity.toString(),
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = if (isOutOfStock) Color(0xFF9CA3AF) else TextPrimary
                         )
                     }
 
                     Box(
                         modifier = Modifier
                             .size(34.dp)
-                            .clickable(enabled = quantity < maxStock) {
+                            .clickable(enabled = !isOutOfStock && quantity < maxStock) {
                                 if (quantity < maxStock) quantity++
                             }
                             .testTag("btn_increase_quantity"),
@@ -481,7 +594,7 @@ fun ProductVariantBottomSheet(
                             text = "+",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (quantity < maxStock) TextPrimary else Color(0xFFD1D5DB)
+                            color = if (!isOutOfStock && quantity < maxStock) TextPrimary else Color(0xFFD1D5DB)
                         )
                     }
                 }
@@ -518,24 +631,30 @@ fun ProductVariantBottomSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                val confirmButtonText = when (mode) {
+                val confirmButtonText = if (isOutOfStock) {
+                    "HẾT HÀNG"
+                } else when (mode) {
                     VariantSheetMode.BUY_NOW -> "MUA NGAY"
                     VariantSheetMode.ADD_TO_CART -> "THÊM VÀO GIỎ HÀNG"
                     VariantSheetMode.SELECT_ONLY -> "XÁC NHẬN"
                 }
 
-                val confirmButtonIcon = when (mode) {
-                    VariantSheetMode.ADD_TO_CART -> Icons.Outlined.ShoppingCart
+                val confirmButtonIcon = when {
+                    isOutOfStock -> null
+                    mode == VariantSheetMode.ADD_TO_CART -> Icons.Outlined.ShoppingCart
                     else -> Icons.Outlined.ShoppingBag
                 }
+
+                val confirmButtonBg = if (isOutOfStock) Color(0xFFE5E7EB) else Color(0xFFBA2211)
+                val confirmTextColor = if (isOutOfStock) Color(0xFF9CA3AF) else Color.White
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFBA2211))
-                        .clickable {
+                        .background(confirmButtonBg)
+                        .clickable(enabled = !isOutOfStock) {
                             if (onConfirmVariant != null) {
                                 onConfirmVariant(currentVariant, selectedSummaryText, quantity, mode)
                             } else {
@@ -549,16 +668,18 @@ fun ProductVariantBottomSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Icon(
-                            imageVector = confirmButtonIcon,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        if (confirmButtonIcon != null) {
+                            Icon(
+                                imageVector = confirmButtonIcon,
+                                contentDescription = null,
+                                tint = confirmTextColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         Text(
                             text = confirmButtonText,
-                            color = Color.White,
+                            color = confirmTextColor,
                             fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
