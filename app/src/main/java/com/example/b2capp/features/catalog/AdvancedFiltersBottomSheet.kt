@@ -144,33 +144,22 @@ fun AdvancedFiltersBottomSheet(
     val coroutineScope = rememberCoroutineScope()
 
     // State các tiêu chí lọc với fallback an toàn
-    var selectedCategories by remember { mutableStateOf(initialCriteria.selectedCategories) }
     var minPrice by remember { mutableFloatStateOf(initialCriteria.minPrice?.toFloat() ?: 0f) }
     var maxPrice by remember { mutableFloatStateOf(initialCriteria.maxPrice?.toFloat() ?: 1000000f) }
     var selectedPricePreset by remember { mutableStateOf(initialCriteria.selectedPricePreset) }
     var selectedBrands by remember { mutableStateOf(initialCriteria.selectedBrands) }
     var selectedStarRating by remember { mutableStateOf<Int?>(initialCriteria.starRatingMin) }
-    var isFreeShipping by remember { mutableStateOf(initialCriteria.isFreeShipping) }
-    var isDiscountSale by remember { mutableStateOf(initialCriteria.isDiscountSale) }
-    var isShopeeMall by remember { mutableStateOf(initialCriteria.isShopeeMall) }
 
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
 
     // Tính toán số lượng sản phẩm phù hợp giả lập dựa trên tiêu chí
     val calculatedProductCount = remember(
-        selectedCategories,
         minPrice,
         maxPrice,
         selectedBrands,
-        selectedStarRating,
-        isFreeShipping,
-        isDiscountSale,
-        isShopeeMall
+        selectedStarRating
     ) {
         var base = 124
-        if (selectedCategories.contains("Áo thun")) base += 18
-        if (isFreeShipping) base -= 10
-        if (isShopeeMall) base -= 42
         if (selectedBrands.contains("Coolmate")) base += 8
         base.coerceAtLeast(12)
     }
@@ -263,77 +252,7 @@ fun AdvancedFiltersBottomSheet(
                 contentPadding = PaddingValues(vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                // ==================== MỤC 1: DANH MỤC ====================
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Danh mục",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1F2937)
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Đã chọn: ",
-                                    fontSize = 12.5.sp,
-                                    color = Color(0xFF6B7280)
-                                )
-                                Text(
-                                    text = "${selectedCategories.size}",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CoralPrimary
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Hàng 1: Áo thun, Áo sơ mi, Áo polo, Áo hoodie
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("Áo thun", "Áo sơ mi", "Áo polo", "Áo hoodie").forEach { category ->
-                                val isSelected = selectedCategories.contains(category)
-                                CategoryFilterPill(
-                                    text = category,
-                                    isSelected = isSelected,
-                                    onClick = {
-                                        selectedCategories = if (isSelected) {
-                                            if (selectedCategories.size > 1) selectedCategories - category else selectedCategories
-                                        } else {
-                                            selectedCategories + category
-                                        }
-                                    }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Hàng 2: Áo khoác
-                        CategoryFilterPill(
-                            text = "Áo khoác",
-                            isSelected = selectedCategories.contains("Áo khoác"),
-                            onClick = {
-                                val cat = "Áo khoác"
-                                selectedCategories = if (selectedCategories.contains(cat)) {
-                                    if (selectedCategories.size > 1) selectedCategories - cat else selectedCategories
-                                } else {
-                                    selectedCategories + cat
-                                }
-                            }
-                        )
-                    }
-                }
-
-                // ==================== MỤC 2: KHOẢNG GIÁ (₫) ====================
+                // ==================== MỤC 1: KHOẢNG GIÁ (₫) ====================
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -492,38 +411,15 @@ fun AdvancedFiltersBottomSheet(
                     }
                 }
 
-                // ==================== MỤC 3: THƯƠNG HIỆU ====================
+                // ==================== MỤC 2: THƯƠNG HIỆU ====================
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Thương hiệu",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1F2937)
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { /* Mở rộng thêm */ }
-                            ) {
-                                Text(
-                                    text = "Xem thêm",
-                                    fontSize = 12.5.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1E5B94)
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = Color(0xFF1E5B94),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Thương hiệu",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2937)
+                        )
 
                         Spacer(modifier = Modifier.height(10.dp))
 
@@ -600,28 +496,12 @@ fun AdvancedFiltersBottomSheet(
                                     }
                                 }
                             )
-                            // Nút "Khác +"
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFEBF3FC))
-                                    .clickable { /* Xem thêm thương hiệu */ },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Khác +",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E5B94)
-                                )
-                            }
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
 
-                // ==================== MỤC 4: ĐÁNH GIÁ SAO ====================
+                // ==================== MỤC 3: ĐÁNH GIÁ SAO ====================
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -663,102 +543,11 @@ fun AdvancedFiltersBottomSheet(
                         }
                     }
                 }
-
-                // ==================== MỤC 5: DỊCH VỤ & KHUYẾN MÃI ====================
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Dịch vụ & Khuyến mãi",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1F2937)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // 1. Miễn phí vận chuyển [⚡ Freeship Xtra]
-                            ServicePromotionCard(
-                                title = "Miễn phí vận chuyển",
-                                isChecked = isFreeShipping,
-                                onCheckedChange = { isFreeShipping = it },
-                                badge = {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color(0xFF00897B))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.Bolt,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text(
-                                                text = "Freeship Xtra",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-                                }
-                            )
-
-                            // 2. Đang giảm giá [-40% SALE]
-                            ServicePromotionCard(
-                                title = "Đang giảm giá",
-                                isChecked = isDiscountSale,
-                                onCheckedChange = { isDiscountSale = it },
-                                badge = {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color(0xFFB91C1C))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Text(
-                                            text = "-40% SALE",
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            )
-
-                            // 3. Chính hãng Shopee Mall [MALL]
-                            ServicePromotionCard(
-                                title = "Chính hãng Shopee Mall",
-                                isChecked = isShopeeMall,
-                                onCheckedChange = { isShopeeMall = it },
-                                badge = {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color(0xFFDC2626))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Text(
-                                            text = "MALL",
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
             }
 
             HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 0.8.dp)
 
-            // ==================== 6. THANH HÀNH ĐỘNG CỐ ĐỊNH ĐÁY ====================
+            // ==================== THANH HÀNH ĐỘNG CỐ ĐỊNH ĐÁY ====================
             Surface(
                 color = SurfaceCard,
                 shadowElevation = 8.dp,
@@ -778,15 +567,11 @@ fun AdvancedFiltersBottomSheet(
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFF3F4F6))
                             .clickable {
-                                selectedCategories = emptySet()
                                 minPrice = 0f
                                 maxPrice = 1000000f
                                 selectedPricePreset = null
                                 selectedBrands = emptySet()
                                 selectedStarRating = null
-                                isFreeShipping = false
-                                isDiscountSale = false
-                                isShopeeMall = false
                             }
                             .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center
@@ -819,15 +604,11 @@ fun AdvancedFiltersBottomSheet(
                                 val effectiveMin = if (minPrice > 0f || selectedPricePreset != null) minPrice.toLong() else null
                                 val effectiveMax = if (maxPrice < 1000000f || selectedPricePreset != null) maxPrice.toLong() else null
                                 val criteria = AdvancedFilterCriteria(
-                                    selectedCategories = selectedCategories,
                                     minPrice = effectiveMin,
                                     maxPrice = effectiveMax,
                                     selectedPricePreset = selectedPricePreset,
                                     selectedBrands = selectedBrands,
-                                    starRatingMin = selectedStarRating,
-                                    isFreeShipping = isFreeShipping,
-                                    isDiscountSale = isDiscountSale,
-                                    isShopeeMall = isShopeeMall
+                                    starRatingMin = selectedStarRating
                                 )
                                 coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
                                     onApplyFilter(criteria)

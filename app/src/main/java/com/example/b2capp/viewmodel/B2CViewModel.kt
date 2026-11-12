@@ -2,6 +2,7 @@ package com.example.b2capp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import com.example.b2capp.B2CApplication
 import com.example.b2capp.core.model.CartItem
 import com.example.b2capp.core.model.OrderSuccessInfo
@@ -1146,7 +1147,7 @@ class B2CViewModel : ViewModel() {
     ) {
         val effectiveQuery = query.trim()
         val safeSortBy = when (sortBy.lowercase().trim()) {
-            "price", "sold", "rating", "created", "name" -> sortBy.lowercase().trim()
+            "price", "sold", "rating", "created", "name", "relevance" -> sortBy.lowercase().trim()
             else -> "created"
         }
         val safeSortDir = if (sortDir.equals("asc", ignoreCase = true)) "asc" else "desc"
@@ -1199,7 +1200,7 @@ class B2CViewModel : ViewModel() {
         // Chuẩn hóa và đặt giá trị mặc định để tránh lỗi khi thiếu trường
         val safeQuery = query?.trim()?.ifBlank { null }
         val safeSortBy = when (sortBy.lowercase().trim()) {
-            "price", "sold", "rating", "created", "name" -> sortBy.lowercase().trim()
+            "price", "sold", "rating", "created", "name", "relevance" -> sortBy.lowercase().trim()
             else -> "created"
         }
         val safeSortDir = if (sortDir.equals("asc", ignoreCase = true)) "asc" else "desc"
@@ -2206,6 +2207,87 @@ class B2CViewModel : ViewModel() {
                 val errorMsg = error.message ?: "Xác nhận thanh toán VNPAY không thành công!"
                 showErrorToast(errorMsg)
             }
+        }
+    }
+
+    /**
+     * Tự động kiểm tra trạng thái đơn hàng VNPay xem backend đã cập nhật PAID chưa.
+     * Dùng cho auto-polling khi người dùng quét mã QR hoặc thanh toán ngoài.
+     */
+    suspend fun checkPendingVnpayPaymentStatus(): Boolean {
+        val pending = _uiState.value.pendingVnpayOrder ?: return false
+        val result = orderRepository.getOrderDetail(pending.id)
+        val detail = result.getOrNull() ?: return false
+        if ("PAID".equals(detail.paymentStatus, ignoreCase = true) || "PAID".equals(detail.status, ignoreCase = true)) {
+            val recipient = detail.receiverName ?: pending.receiverName ?: _uiState.value.activeCheckoutAddress?.recipientName ?: ""
+            val phone = detail.receiverPhone ?: pending.receiverPhone ?: _uiState.value.activeCheckoutAddress?.phoneNumber ?: ""
+            val addressStr = detail.shippingAddress ?: pending.shippingAddress ?: _uiState.value.activeCheckoutAddress?.fullAddress ?: ""
+
+            _uiState.update { state ->
+                state.copy(
+                    isConfirmingVnpayPayment = false,
+                    showVnpayPaymentScreen = false,
+                    showCheckoutScreen = false,
+                    selectedVoucher = null,
+                    orderPreview = null,
+                    pendingVnpayOrder = null,
+                    detailedProductScreen = null,
+                    completedOrderSuccess = OrderSuccessInfo(
+                        rawOrderId = detail.id,
+                        orderId = detail.orderCode ?: "ORD-${detail.id}",
+                        paymentMethodName = "Cổng VNPAY",
+                        isOnlinePaid = true,
+                        orderTime = detail.createdAt ?: pending.createdAt ?: "",
+                        expectedDelivery = "Nhận hàng sau 2-4 ngày (Đồng kiểm khi nhận)",
+                        totalAmount = detail.totalAmount?.toLong() ?: pending.totalAmount?.toLong() ?: 0L,
+                        recipientName = recipient,
+                        recipientPhoneMasked = phone,
+                        deliveryAddress = addressStr,
+                        paymentUrl = detail.paymentUrl ?: pending.paymentUrl
+                    )
+                )
+            }
+            showToast("Thanh toán đơn hàng #${detail.orderCode ?: detail.id} thành công!")
+            refreshCartBadgeCount()
+            loadCartItems()
+            loadOrders()
+            loadAccountOrderSummary()
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Kiểm tra trạng thái thanh toán VNPay theo yêu cầu thủ công của người dùng (Không dùng mock).
+     */
+    fun checkVnpayPaymentStatusManual() {
+        val pending = _uiState.value.pendingVnpayOrder ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isConfirmingVnpayPayment = true) }
+            val isPaid = checkPendingVnpayPaymentStatus()
+            _uiState.update { it.copy(isConfirmingVnpayPayment = false) }
+            if (!isPaid) {
+                showToast("Hệ thống chưa ghi nhận thanh toán cho đơn hàng #${pending.orderCode ?: pending.id}. Vui lòng hoàn tất thanh toán trên cổng VNPAY.")
+            }
+        }
+    }
+
+    /**
+     * Gọi khi WebView trong app bắt được URL hoàn tất thanh toán từ VNPay
+     */
+    fun onVnpayReturnUrlReceived(status: String) {
+        if (status.equals("success", ignoreCase = true) || status.equals("00", ignoreCase = true)) {
+            viewModelScope.launch {
+                // Đợi 1-2 giây để đảm bảo Backend đã xử lý xong callback từ VNPay
+                delay(1200)
+                val isPaid = checkPendingVnpayPaymentStatus()
+                if (!isPaid) {
+                    delay(2000)
+                    checkPendingVnpayPaymentStatus()
+                }
+            }
+        } else {
+            showErrorToast("Giao dịch VNPAY đã bị hủy hoặc không thành công")
         }
     }
 

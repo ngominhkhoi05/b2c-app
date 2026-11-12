@@ -147,32 +147,31 @@ fun SearchResultsScreen(
     modifier: Modifier = Modifier
 ) {
     var searchInput by remember { mutableStateOf(query) }
-    var selectedSortTab by remember { mutableStateOf("Bán chạy") }
-    var isFreeshipFilterActive by remember { mutableStateOf(false) }
-    var isStarFilterActive by remember { mutableStateOf(false) }
-    var isMallFilterActive by remember { mutableStateOf(false) }
-    var isLocationFilterActive by remember { mutableStateOf(false) }
+    var selectedSortTab by remember { mutableStateOf("Liên quan") }
+    var priceSortAsc by remember { mutableStateOf<Boolean?>(null) } // true: asc, false: desc, null: inactive
     var isQueryFilterActive by remember { mutableStateOf(true) }
     var showAdvancedFilterSheet by remember { mutableStateOf(false) }
     var activeFilterCriteria by remember { mutableStateOf(AdvancedFilterCriteria()) }
 
     val focusManager = LocalFocusManager.current
 
-    // Hàm tiện ích thực hiện tìm kiếm kết hợp toàn bộ tiêu chí lọc
+    // Hàm tiện ích thực hiện tìm kiếm kết hợp toàn bộ tiêu chí lọc và sắp xếp
     fun triggerSearch(
         targetQuery: String = searchInput,
         sortTab: String = selectedSortTab,
-        criteria: AdvancedFilterCriteria = activeFilterCriteria,
-        starActive: Boolean = isStarFilterActive
+        isPriceAsc: Boolean? = priceSortAsc,
+        criteria: AdvancedFilterCriteria = activeFilterCriteria
     ) {
         val (sortBy, sortDir) = when (sortTab) {
             "Mới nhất" -> Pair("created", "desc")
             "Bán chạy" -> Pair("sold", "desc")
+            "Giá" -> if (isPriceAsc == false) Pair("price", "desc") else Pair("price", "asc")
             "Giá ↑" -> Pair("price", "asc")
             "Giá ↓" -> Pair("price", "desc")
-            else -> Pair("created", "desc")
+            "Liên quan" -> Pair("relevance", "desc")
+            else -> Pair("relevance", "desc")
         }
-        val effectiveRating = if (starActive) 4.0f else criteria.starRatingMin?.toFloat()
+        val effectiveRating = criteria.starRatingMin?.toFloat()
         viewModel.performSearch(
             query = targetQuery,
             sortBy = sortBy,
@@ -189,7 +188,7 @@ fun SearchResultsScreen(
         triggerSearch(targetQuery = query)
     }
 
-    val sortTabs = listOf("Liên quan", "Mới nhất", "Bán chạy", "Giá ↑", "Giá ↓")
+    val sortTabs = listOf("Liên quan", "Mới nhất", "Bán chạy", "Giá")
 
     Scaffold(
         modifier = modifier
@@ -286,7 +285,7 @@ fun SearchResultsScreen(
                         Spacer(modifier = Modifier.width(2.dp))
 
                         // Nút lọc có chấm đỏ chỉ thị bộ lọc đang hoạt động
-                        val hasActiveFilters = activeFilterCriteria.isActive || isFreeshipFilterActive || isStarFilterActive || isMallFilterActive || isLocationFilterActive
+                        val hasActiveFilters = activeFilterCriteria.isActive
                         Box(contentAlignment = Alignment.TopEnd) {
                             IconButton(
                                 onClick = { showAdvancedFilterSheet = true },
@@ -341,12 +340,12 @@ fun SearchResultsScreen(
                         }
                     }
 
-                    // 2. Thanh Sort Tabs (Liên quan, Mới nhất, Bán chạy, Giá ↑, Giá ↓)
+                    // 2. Thanh Sort Tabs (Liên quan, Mới nhất, Bán chạy, Giá ⇅)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         sortTabs.forEach { tabName ->
@@ -356,17 +355,49 @@ fun SearchResultsScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .clickable {
-                                        selectedSortTab = tabName
-                                        triggerSearch(sortTab = tabName)
+                                        if (tabName == "Giá") {
+                                            if (selectedSortTab == "Giá") {
+                                                // Đang ở tab Giá: bấm tiếp sẽ đảo chiều giá thấp <-> cao
+                                                val nextAsc = !(priceSortAsc ?: true)
+                                                priceSortAsc = nextAsc
+                                                triggerSearch(sortTab = "Giá", isPriceAsc = nextAsc)
+                                            } else {
+                                                selectedSortTab = "Giá"
+                                                val nextAsc = true
+                                                priceSortAsc = nextAsc
+                                                triggerSearch(sortTab = "Giá", isPriceAsc = nextAsc)
+                                            }
+                                        } else {
+                                            selectedSortTab = tabName
+                                            priceSortAsc = null
+                                            triggerSearch(sortTab = tabName, isPriceAsc = null)
+                                        }
                                     }
                                     .padding(vertical = 6.dp)
                             ) {
-                                Text(
-                                    text = tabName,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isTabSelected) Color(0xFFBA2211) else TextSecondary
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = tabName,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isTabSelected) Color(0xFFBA2211) else TextSecondary
+                                    )
+
+                                    if (tabName == "Giá") {
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        val arrow = when {
+                                            !isTabSelected -> "⇅"
+                                            priceSortAsc == false -> "↓"
+                                            else -> "↑"
+                                        }
+                                        Text(
+                                            text = arrow,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isTabSelected) Color(0xFFBA2211) else TextSecondary
+                                        )
+                                    }
+                                }
 
                                 Spacer(modifier = Modifier.height(3.dp))
 
@@ -383,153 +414,156 @@ fun SearchResultsScreen(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+                    // 3. Hàng Filter Chips chỉ hiển thị khi người dùng đã chọn điều kiện ở popup lọc
+                    if (activeFilterCriteria.isActive) {
+                        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
 
-                    // 3. Hàng Filter Chips (cuộn ngang)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Chip 1: Đang lọc: Từ khóa ✕
-                        if (searchInput.isNotBlank()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Chip: Khoảng giá
+                            if (activeFilterCriteria.minPrice != null || activeFilterCriteria.maxPrice != null) {
+                                val priceLabel = when {
+                                    activeFilterCriteria.selectedPricePreset != null -> activeFilterCriteria.selectedPricePreset!!
+                                    activeFilterCriteria.minPrice != null && activeFilterCriteria.maxPrice != null ->
+                                        "${formatShortPriceVnd(activeFilterCriteria.minPrice!!)} – ${formatShortPriceVnd(activeFilterCriteria.maxPrice!!)}"
+                                    activeFilterCriteria.minPrice != null -> "Từ ${formatShortPriceVnd(activeFilterCriteria.minPrice!!)}"
+                                    else -> "Đến ${formatShortPriceVnd(activeFilterCriteria.maxPrice!!)}"
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFFFF1EE))
+                                        .border(0.8.dp, Color(0xFFF87171), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Giá: $priceLabel",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFFBA2211)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = "Xóa lọc giá",
+                                            tint = Color(0xFFBA2211),
+                                            modifier = Modifier
+                                                .size(11.dp)
+                                                .clickable {
+                                                    val updated = activeFilterCriteria.copy(
+                                                        minPrice = null,
+                                                        maxPrice = null,
+                                                        selectedPricePreset = null
+                                                    )
+                                                    activeFilterCriteria = updated
+                                                    triggerSearch(criteria = updated)
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Chip: Thương hiệu
+                            activeFilterCriteria.selectedBrands.forEach { brand ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFFFF1EE))
+                                        .border(0.8.dp, Color(0xFFF87171), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = brand,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFFBA2211)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = "Xóa thương hiệu $brand",
+                                            tint = Color(0xFFBA2211),
+                                            modifier = Modifier
+                                                .size(11.dp)
+                                                .clickable {
+                                                    val updated = activeFilterCriteria.copy(
+                                                        selectedBrands = activeFilterCriteria.selectedBrands - brand
+                                                    )
+                                                    activeFilterCriteria = updated
+                                                    triggerSearch(criteria = updated)
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Chip: Đánh giá sao
+                            if (activeFilterCriteria.starRatingMin != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFFEF3C7))
+                                        .border(0.8.dp, Color(0xFFF59E0B), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Star,
+                                            contentDescription = null,
+                                            tint = StarRatingGold,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = "Từ ${activeFilterCriteria.starRatingMin}★ trở lên",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFFB45309)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = "Xóa lọc sao",
+                                            tint = Color(0xFFB45309),
+                                            modifier = Modifier
+                                                .size(11.dp)
+                                                .clickable {
+                                                    val updated = activeFilterCriteria.copy(starRatingMin = null)
+                                                    activeFilterCriteria = updated
+                                                    triggerSearch(criteria = updated)
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Nút xóa tất cả nếu có điều kiện lọc
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFFFF1EE))
-                                    .border(0.8.dp, Color(0xFFF87171), RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFF3F4F6))
+                                    .clickable {
+                                        val updated = AdvancedFilterCriteria()
+                                        activeFilterCriteria = updated
+                                        triggerSearch(criteria = updated)
+                                    }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Đang lọc: $searchInput",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFFBA2211)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = "Hủy lọc",
-                                        tint = Color(0xFFBA2211),
-                                        modifier = Modifier
-                                            .size(11.dp)
-                                            .clickable {
-                                                searchInput = ""
-                                                viewModel.onSearchQueryInputChanged("")
-                                                triggerSearch(targetQuery = "")
-                                            }
-                                    )
-                                }
-                            }
-                        }
-
-                        // Chip 2: ⚡ Freeship Xtra
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isFreeshipFilterActive) Color(0xFFE6F7F5) else Color(0xFFF3F4F6))
-                                .border(
-                                    0.8.dp,
-                                    if (isFreeshipFilterActive) Color(0xFF1E8275) else Color.Transparent,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { isFreeshipFilterActive = !isFreeshipFilterActive }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.FlashOn,
-                                    contentDescription = null,
-                                    tint = if (isFreeshipFilterActive) Color(0xFF1E8275) else Color(0xFF6B7280),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "Freeship Xtra",
+                                    text = "Xóa tất cả",
                                     fontSize = 11.sp,
-                                    fontWeight = if (isFreeshipFilterActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isFreeshipFilterActive) Color(0xFF1E8275) else Color(0xFF4B5563)
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF6B7280)
                                 )
                             }
-                        }
-
-                        // Chip 3: ★ 4★ trở lên
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isStarFilterActive) Color(0xFFFEF3C7) else Color(0xFFF3F4F6))
-                                .border(
-                                    0.8.dp,
-                                    if (isStarFilterActive) Color(0xFFF59E0B) else Color.Transparent,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable {
-                                    isStarFilterActive = !isStarFilterActive
-                                    triggerSearch(starActive = isStarFilterActive)
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.Star,
-                                    contentDescription = null,
-                                    tint = StarRatingGold,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "4★ trở lên",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isStarFilterActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isStarFilterActive) Color(0xFFB45309) else Color(0xFF4B5563)
-                                )
-                            }
-                        }
-
-                        // Chip 4: Shopee Mall
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isMallFilterActive) Color(0xFFFEECE8) else Color(0xFFF3F4F6))
-                                .border(
-                                    0.8.dp,
-                                    if (isMallFilterActive) Color(0xFFBA2211) else Color.Transparent,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { isMallFilterActive = !isMallFilterActive }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "Shopee Mall",
-                                fontSize = 11.sp,
-                                fontWeight = if (isMallFilterActive) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isMallFilterActive) Color(0xFFBA2211) else Color(0xFF4B5563)
-                            )
-                        }
-
-                        // Chip 5: Nơi bán: Hà Nội / TP.HCM
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isLocationFilterActive) Color(0xFFEFF6FF) else Color(0xFFF3F4F6))
-                                .border(
-                                    0.8.dp,
-                                    if (isLocationFilterActive) Color(0xFF3B82F6) else Color.Transparent,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { isLocationFilterActive = !isLocationFilterActive }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "TP. HCM & Hà Nội",
-                                fontSize = 11.sp,
-                                fontWeight = if (isLocationFilterActive) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isLocationFilterActive) Color(0xFF1D4ED8) else Color(0xFF4B5563)
-                            )
                         }
                     }
                 }
@@ -556,26 +590,35 @@ fun SearchResultsScreen(
             // 5. Danh sách sản phẩm kết quả tìm kiếm: lấy hoàn toàn từ API backend (không dùng dữ liệu mock)
             val rawProducts: List<ProductItem> = uiState.searchResults
 
-            // Lọc bổ sung theo các tiêu chí client-side
+            // Lọc và sắp xếp theo tab + tiêu chí lọc client-side
             val effectiveProducts = remember(
                 rawProducts,
-                isFreeshipFilterActive,
-                isMallFilterActive,
-                isStarFilterActive,
-                isLocationFilterActive,
-                activeFilterCriteria
+                activeFilterCriteria,
+                selectedSortTab,
+                priceSortAsc
             ) {
-                rawProducts.filter { product ->
-                    val matchFreeship = !isFreeshipFilterActive || product.isFreeShipping
-                    val matchMall = !isMallFilterActive || (product.rating >= 4.9f || product.shopName.contains("Mall", ignoreCase = true) || product.shopName.contains("Official", ignoreCase = true))
-                    val matchStar = !isStarFilterActive || product.rating >= 4.0f
-                    val matchLocation = !isLocationFilterActive || (product.shopLocation.contains("Hà Nội", ignoreCase = true) || product.shopLocation.contains("HCM", ignoreCase = true))
-                    val matchCategory = activeFilterCriteria.selectedCategories.isEmpty() ||
-                            activeFilterCriteria.selectedCategories.any { cat ->
-                                product.category.contains(cat, ignoreCase = true) ||
-                                product.name.contains(cat, ignoreCase = true)
-                            }
-                    matchFreeship && matchMall && matchStar && matchLocation && matchCategory
+                val starMin = activeFilterCriteria.starRatingMin
+                val pMin = activeFilterCriteria.minPrice
+                val pMax = activeFilterCriteria.maxPrice
+                val brands = activeFilterCriteria.selectedBrands
+
+                val filtered = rawProducts.filter { product ->
+                    val matchStar = starMin == null || product.rating >= starMin.toFloat()
+                    val matchPriceMin = pMin == null || product.price >= pMin
+                    val matchPriceMax = pMax == null || product.price <= pMax
+                    val matchBrand = brands.isEmpty() || brands.any { brand ->
+                        product.name.contains(brand, ignoreCase = true) || product.shopName.contains(brand, ignoreCase = true)
+                    }
+                    matchStar && matchPriceMin && matchPriceMax && matchBrand
+                }
+
+                when (selectedSortTab) {
+                    "Mới nhất" -> filtered.sortedByDescending { it.id.toLongOrNull() ?: 0L }
+                    "Bán chạy" -> filtered.sortedByDescending { it.soldCount }
+                    "Giá" -> if (priceSortAsc == false) filtered.sortedByDescending { it.price } else filtered.sortedBy { it.price }
+                    "Giá ↑" -> filtered.sortedBy { it.price }
+                    "Giá ↓" -> filtered.sortedByDescending { it.price }
+                    else -> filtered // "Liên quan" giữ nguyên thứ tự FTS relevance từ backend
                 }
             }
 
@@ -677,12 +720,8 @@ fun SearchResultsScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(
                                     onClick = {
-                                        isFreeshipFilterActive = false
-                                        isStarFilterActive = false
-                                        isMallFilterActive = false
-                                        isLocationFilterActive = false
                                         activeFilterCriteria = AdvancedFilterCriteria()
-                                        triggerSearch(criteria = AdvancedFilterCriteria(), starActive = false)
+                                        triggerSearch(criteria = AdvancedFilterCriteria())
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
                                     shape = RoundedCornerShape(8.dp)
@@ -777,13 +816,21 @@ fun SearchResultsScreen(
             onApplyFilter = { criteria ->
                 activeFilterCriteria = criteria
                 showAdvancedFilterSheet = false
-                if (criteria.isFreeShipping) isFreeshipFilterActive = true
-                if (criteria.isShopeeMall) isMallFilterActive = true
-                if (criteria.starRatingMin != null && criteria.starRatingMin >= 4) isStarFilterActive = true
                 viewModel.showToast("Đã áp dụng bộ lọc nâng cao!")
-                triggerSearch(criteria = criteria, starActive = isStarFilterActive)
+                triggerSearch(criteria = criteria)
             }
         )
+    }
+}
+
+private fun formatShortPriceVnd(amount: Long): String {
+    return if (amount >= 1_000_000) {
+        val millions = amount / 1_000_000.0
+        if (millions == millions.toLong().toDouble()) "${millions.toLong()}tr" else "${String.format(Locale.US, "%.1f", millions)}tr"
+    } else if (amount >= 1_000) {
+        "${amount / 1_000}k"
+    } else {
+        "${amount}₫"
     }
 }
 

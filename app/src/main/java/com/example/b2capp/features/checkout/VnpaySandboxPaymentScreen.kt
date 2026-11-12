@@ -1,4 +1,4 @@
-﻿package com.example.b2capp.features.checkout
+package com.example.b2capp.features.checkout
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -59,8 +59,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.Image
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +74,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.b2capp.viewmodel.B2CUiState
 import com.example.b2capp.viewmodel.B2CViewModel
 import com.example.b2capp.core.designsystem.theme.BorderDivider
@@ -77,9 +86,13 @@ import com.example.b2capp.core.designsystem.theme.SurfaceCard
 import com.example.b2capp.core.designsystem.theme.TextPrimary
 import com.example.b2capp.core.designsystem.theme.TextSecondary
 import com.example.b2capp.data.remote.dto.shopDisplayName
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.MultiFormatWriter
 import java.text.NumberFormat
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * Màn hình Cổng Thanh Toán VNPAY-QR / Sandbox Payment
@@ -123,6 +136,9 @@ fun VnpaySandboxPaymentScreen(
 ) {
     var selectedMainTab by remember { mutableIntStateOf(0) } // 0: VNPAY-QR, 1: Thẻ ATM/Bank, 2: Thẻ Quốc tế
     var countdownSeconds by remember { mutableIntStateOf(899) } // 14:59
+    var showInAppWebView by remember { mutableStateOf(false) }
+
+    val pendingOrder = uiState.pendingVnpayOrder
 
     // Đếm ngược thời gian giao dịch
     LaunchedEffect(Unit) {
@@ -132,12 +148,21 @@ fun VnpaySandboxPaymentScreen(
         }
     }
 
+    // Tự động kiểm tra định kỳ xem đơn hàng đã được thanh toán thành công (PAID) chưa
+    LaunchedEffect(pendingOrder?.id) {
+        val orderId = pendingOrder?.id ?: return@LaunchedEffect
+        while (isActive && countdownSeconds > 0) {
+            delay(3000)
+            val isPaid = viewModel.checkPendingVnpayPaymentStatus()
+            if (isPaid) break
+        }
+    }
+
     val minutes = countdownSeconds / 60
     val seconds = countdownSeconds % 60
     val formattedTime = String.format("%02d:%02d", minutes, seconds)
 
     val context = LocalContext.current
-    val pendingOrder = uiState.pendingVnpayOrder
     val orderCode = pendingOrder?.orderCode ?: if (pendingOrder != null) "ORD-${pendingOrder.id}" else "ORD-CHỜ XỬ LÝ"
 
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
@@ -537,15 +562,15 @@ fun VnpaySandboxPaymentScreen(
                         // Khung chứa Mã QR Code VNPAY chân thực
                         Box(
                             modifier = Modifier
-                                .size(230.dp)
+                                .size(240.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .border(1.5.dp, Color(0xFF005BAA), RoundedCornerShape(12.dp))
                                 .background(Color.White)
                                 .padding(12.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Hình vuông mô phỏng QR Code VNPAY với 3 góc định vị & tâm logo
-                            VnpayQrCodeGraphic()
+                            // Mã QR Code VNPAY thực tế được encode từ paymentUrl
+                            VnpayRealQrCodeView(qrContent = pendingOrder?.paymentUrl ?: "")
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -559,22 +584,16 @@ fun VnpaySandboxPaymentScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Nút mở trang thanh toán VNPAY trên trình duyệt nếu có paymentUrl
+                        // Nút mở cổng thanh toán VNPAY bằng WebView trực tiếp trong App
                         if (!pendingOrder?.paymentUrl.isNullOrBlank()) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(44.dp)
+                                    .height(46.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .border(1.2.dp, Color(0xFF005BAA), RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF0F7FF))
+                                    .background(Color(0xFF005BAA))
                                     .clickable {
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(pendingOrder!!.paymentUrl))
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            viewModel.showErrorToast("Không thể mở trình duyệt: ${e.message}")
-                                        }
+                                        showInAppWebView = true
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -582,30 +601,30 @@ fun VnpaySandboxPaymentScreen(
                                     Icon(
                                         imageVector = Icons.Default.OpenInNew,
                                         contentDescription = null,
-                                        tint = Color(0xFF005BAA),
-                                        modifier = Modifier.size(16.dp)
+                                        tint = Color.White,
+                                        modifier = Modifier.size(17.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "MỞ CỔNG VNPAY TRÊN TRÌNH DUYỆT",
+                                        text = "MỞ CỔNG VNPAY THANH TOÁN (TRONG APP)",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF005BAA)
+                                        color = Color.White
                                     )
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 
-                        // Nút lớn "XÁC NHẬN ĐÃ THANH TOÁN (VNPAY)"
+                        // Nút kiểm tra trạng thái thanh toán thật từ Backend (Không dùng Mock)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (uiState.isConfirmingVnpayPayment) Color(0xFF888888) else Color(0xFFB82414))
+                                .background(if (uiState.isConfirmingVnpayPayment) Color(0xFF888888) else Color(0xFF00897B))
                                 .clickable(enabled = !uiState.isConfirmingVnpayPayment) {
-                                    viewModel.confirmVnpayPayment()
+                                    viewModel.checkVnpayPaymentStatusManual()
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -625,7 +644,7 @@ fun VnpaySandboxPaymentScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "XÁC NHẬN ĐÃ THANH TOÁN VNPAY",
+                                        text = "TÔI ĐÃ THANH TOÁN XONG (KIỂM TRA)",
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
@@ -1039,6 +1058,104 @@ fun VnpaySandboxPaymentScreen(
                 }
             }
         }
+
+        // Dialog WebView hiển thị trực tiếp cổng thanh toán VNPAY trong App
+        if (showInAppWebView && !pendingOrder?.paymentUrl.isNullOrBlank()) {
+            Dialog(
+                onDismissRequest = { showInAppWebView = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.White
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .background(Color(0xFF005BAA))
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { showInAppWebView = false },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = Color.White
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = "Cổng thanh toán VNPAY",
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Kết nối bảo mật 256-bit SSL",
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        AndroidView(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            factory = { ctx ->
+                                WebView(ctx).apply {
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    settings.loadWithOverviewMode = true
+                                    settings.useWideViewPort = true
+                                    settings.setSupportZoom(true)
+                                    webViewClient = object : WebViewClient() {
+                                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                            val url = request?.url?.toString() ?: return false
+                                            if (url.startsWith("intent://") || url.startsWith("tel:") || url.startsWith("mailto:")) {
+                                                try {
+                                                    val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                                                    ctx.startActivity(intent)
+                                                    return true
+                                                } catch (e: Exception) {
+                                                    return true
+                                                }
+                                            }
+                                            return false
+                                        }
+
+                                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                            super.onPageStarted(view, url, favicon)
+                                            if (url != null) {
+                                                if (url.contains("/payment/return") || url.contains("vnp_ResponseCode")) {
+                                                    if (url.contains("status=success") || url.contains("vnp_ResponseCode=00")) {
+                                                        showInAppWebView = false
+                                                        viewModel.onVnpayReturnUrlReceived("success")
+                                                    } else if (url.contains("status=failed") || url.contains("status=error") || url.contains("vnp_ResponseCode=24")) {
+                                                        showInAppWebView = false
+                                                        viewModel.onVnpayReturnUrlReceived("failed")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    loadUrl(pendingOrder!!.paymentUrl!!)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1083,79 +1200,69 @@ private fun PaymentMainTabButton(
 }
 
 /**
- * Đồ họa QR Code VNPAY giả lập chân thực
+ * Hiển thị mã QR Code thực tế được sinh từ paymentUrl của VNPAY bằng thư viện ZXing
  */
 @Composable
-private fun VnpayQrCodeGraphic() {
+private fun VnpayRealQrCodeView(qrContent: String) {
+    val qrBitmap = remember(qrContent) {
+        if (qrContent.isNotBlank()) {
+            generateQrBitmap(qrContent, 600)
+        } else null
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
-        // Khung QR Code với vạch đỏ giữa
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                QrCornerSquare()
-                QrCornerSquare()
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .background(Color(0xFFE31B23))
+        if (qrBitmap != null) {
+            Image(
+                bitmap = qrBitmap.asImageBitmap(),
+                contentDescription = "Mã QR Thanh Toán VNPAY",
+                modifier = Modifier.fillMaxSize()
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            // Logo VNPAY ở tâm mã QR
+            Card(
+                shape = RoundedCornerShape(4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(0.6.dp, Color(0xFF005BAA))
             ) {
-                QrCornerSquare()
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .background(Color(0xFF111827), RoundedCornerShape(4.dp))
-                )
-            }
-        }
-
-        // Tâm Logo VNPAY QR PAY
-        Card(
-            shape = RoundedCornerShape(6.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            border = BorderStroke(0.8.dp, Color(0xFF005BAA))
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = "VN",
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                         color = Color(0xFF005BAA)
                     )
                     Text(
                         text = "PAY",
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                         color = Color(0xFFE31B23)
                     )
                 }
+            }
+        } else {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(32.dp),
+                    color = Color(0xFF005BAA),
+                    strokeWidth = 3.dp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "QR PAY",
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF374151)
+                    text = "Đang tạo mã QR VNPAY...",
+                    fontSize = 11.sp,
+                    color = Color(0xFF6B7280)
                 )
             }
         }
@@ -1163,29 +1270,26 @@ private fun VnpayQrCodeGraphic() {
 }
 
 /**
- * Góc vuông QR Code
+ * Sinh Bitmap QR Code từ chuỗi ký tự bằng ZXing
  */
-@Composable
-private fun QrCornerSquare() {
-    Box(
-        modifier = Modifier
-            .size(42.dp)
-            .background(Color(0xFF005BAA), RoundedCornerShape(6.dp))
-            .padding(6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White, RoundedCornerShape(3.dp))
-                .padding(4.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF005BAA), RoundedCornerShape(2.dp))
-            )
+private fun generateQrBitmap(content: String, sizePx: Int = 512): Bitmap? {
+    return try {
+        val hints = mapOf(
+            EncodeHintType.MARGIN to 1,
+            EncodeHintType.CHARACTER_SET to "UTF-8"
+        )
+        val bitMatrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
+        val width = bitMatrix.width
+        val height = bitMatrix.height
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                bmp.setPixel(x, y, if (bitMatrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
         }
+        bmp
+    } catch (e: Exception) {
+        null
     }
 }
 
