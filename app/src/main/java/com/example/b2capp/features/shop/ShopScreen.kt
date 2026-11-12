@@ -54,7 +54,6 @@ private enum class ShopSortOption(val title: String) {
  * - Danh sách sản phẩm của Shop (dạng lưới 2 cột sử dụng ProductCard từ API backend).
  * - Click vào sản phẩm mở trang chi tiết sản phẩm.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShopScreen(
     shopInfo: ShopInfo,
@@ -78,42 +77,7 @@ fun ShopScreen(
     }
 
     Scaffold(
-        containerColor = BackgroundApp,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = shopInfo.shopName,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Quay lại",
-                            tint = TextPrimary
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Làm mới",
-                            tint = TextSecondary
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SurfaceCard
-                )
-            )
-        }
+        containerColor = BackgroundApp
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -129,6 +93,7 @@ fun ShopScreen(
                             colors = listOf(Color(0xFF0E3B64), Color(0xFF1E5B94))
                         )
                     )
+                    .statusBarsPadding()
                     .padding(16.dp)
             ) {
                 Column {

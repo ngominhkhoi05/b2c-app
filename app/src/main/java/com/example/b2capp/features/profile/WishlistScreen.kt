@@ -811,7 +811,7 @@ fun WishlistScreen(
 fun WishlistProductCard(
     item: WishlistItemData,
     onRemove: () -> Unit,
-    onAddToCart: () -> Unit,
+    onAddToCart: () -> Unit = {},
     onCardClick: () -> Unit,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
@@ -841,34 +841,6 @@ fun WishlistProductCard(
             isWishlisted = true,
             onWishlistClick = onRemove,
             onClick = onCardClick,
-            bottomAction = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(30.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFFFF3F0))
-                        .border(0.8.dp, Color(0xFFFDE8E4), RoundedCornerShape(6.dp))
-                        .clickable { onAddToCart() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.ShoppingBag,
-                            contentDescription = null,
-                            tint = Color(0xFFBA2211),
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Thêm vào giỏ",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFBA2211)
-                        )
-                    }
-                }
-            },
             modifier = Modifier.fillMaxWidth()
         )
 

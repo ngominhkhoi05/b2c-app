@@ -3949,6 +3949,7 @@ class B2CViewModel : ViewModel() {
         rating: Float = 4.9f,
         shopSlug: String? = null
     ) {
+        val closingConvId = _uiState.value.activeShopChat?.conversationId
         val initialInfo = ShopInfo(
             shopName = shopName,
             sellerId = sellerId,
@@ -3962,8 +3963,14 @@ class B2CViewModel : ViewModel() {
                 activeShopInfo = initialInfo,
                 shopProducts = emptyList(),
                 isShopProductsLoading = true,
-                detailedProductScreen = null
+                detailedProductScreen = null,
+                activeShopChat = null
             )
+        }
+        if (closingConvId != null) {
+            viewModelScope.launch {
+                chatRepository.markConversationAsRead(closingConvId)
+            }
         }
         loadShopProfileAndProducts(
             shopName = shopName,
