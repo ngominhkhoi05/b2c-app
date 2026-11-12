@@ -1,5 +1,10 @@
 package com.example.b2capp.features.checkout
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,14 +35,18 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Card
@@ -58,6 +67,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import coil.compose.AsyncImage
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -184,16 +198,65 @@ fun VnpaySandboxPaymentScreen(
     val formattedTime = String.format("%02d:%02d", minutes, seconds)
 
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val orderCode = pendingOrder?.orderCode ?: if (pendingOrder != null) "ORD-${pendingOrder.id}" else "ORD-CHỜ XỬ LÝ"
 
     val currencyFormatter = remember { NumberFormat.getNumberInstance(Locale("vi", "VN")) }
     val vnpayTotal = pendingOrder?.totalAmount?.toLong()
         ?: uiState.orderPreview?.totalAmount?.toLong()
         ?: (uiState.checkoutItemsSubtotal + 30000L - (uiState.selectedVoucher?.let { viewModel.computeDiscountAmount(it, uiState.checkoutItemsSubtotal.toDouble()).toLong() } ?: 0L)).coerceAtLeast(0L)
-    val firstShopName = pendingOrder?.items?.firstOrNull()?.productName
+
+    val displayShopName = pendingOrder?.shopName?.ifBlank { null }
         ?: uiState.checkoutCartItems.firstOrNull()?.shopDisplayName
         ?: "Cửa hàng chính hãng"
-    val avatarLetters = firstShopName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").uppercase().ifBlank { "VN" }
+
+    val avatarLetters = displayShopName
+        .split(" ")
+        .filter { it.isNotBlank() }
+        .mapNotNull { it.firstOrNull()?.toString() }
+        .take(2)
+        .joinToString("")
+        .uppercase()
+        .ifBlank { "VN" }
+
+    var isProductsExpanded by remember { mutableStateOf(false) }
+
+    val orderProducts = remember(pendingOrder, uiState.checkoutCartItems) {
+        val fromPendingOrder = pendingOrder?.items?.map { item ->
+            VnpayDisplayProduct(
+                name = item.productName ?: "Sản phẩm",
+                variantName = item.variantName?.ifBlank { null },
+                imageUrl = item.imageUrl?.ifBlank { null },
+                quantity = item.quantity.coerceAtLeast(1),
+                unitPrice = item.unitPrice
+                    ?: (if (item.quantity > 0) item.totalPrice?.div(item.quantity) else null)
+                    ?: 0.0
+            )
+        }
+        if (!fromPendingOrder.isNullOrEmpty()) {
+            fromPendingOrder
+        } else if (uiState.checkoutCartItems.isNotEmpty()) {
+            uiState.checkoutCartItems.map { item ->
+                VnpayDisplayProduct(
+                    name = item.productName ?: "Sản phẩm",
+                    variantName = item.variantName?.ifBlank { null },
+                    imageUrl = item.thumbnailUrl?.ifBlank { null },
+                    quantity = item.quantity.coerceAtLeast(1),
+                    unitPrice = item.priceSnapshot ?: 0.0
+                )
+            }
+        } else {
+            listOf(
+                VnpayDisplayProduct(
+                    name = "Đơn hàng #$orderCode",
+                    variantName = null,
+                    imageUrl = null,
+                    quantity = 1,
+                    unitPrice = vnpayTotal.toDouble()
+                )
+            )
+        }
+    }
 
     Column(
         modifier = modifier
@@ -272,7 +335,7 @@ fun VnpaySandboxPaymentScreen(
             }
         }
 
-        // 2. Thông tin thương hiệu Coolmate Official Store & VNPAY Header
+        // 2. Thông tin thương hiệu Cửa hàng & VNPAY Header
         Surface(
             color = SurfaceCard,
             modifier = Modifier.fillMaxWidth()
@@ -284,19 +347,22 @@ fun VnpaySandboxPaymentScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFE5E7EB)),
+                            .background(Color(0xFF005BAA).copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = avatarLetters,
-                            fontSize = 13.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1F2937)
+                            color = Color(0xFF005BAA)
                         )
                     }
 
@@ -305,10 +371,12 @@ fun VnpaySandboxPaymentScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = firstShopName,
-                                fontSize = 14.5.sp,
+                                text = displayShopName,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF111827)
+                                color = Color(0xFF111827),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
@@ -320,27 +388,37 @@ fun VnpaySandboxPaymentScreen(
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Đơn hàng trực tuyến #$orderCode",
-                            fontSize = 12.sp,
+                            text = "Đơn hàng trực tuyến • Cổng VNPAY",
+                            fontSize = 11.5.sp,
                             color = Color(0xFF6B7280)
                         )
                     }
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 // Logo VNPAY
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "VN",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFF005BAA)
-                    )
-                    Text(
-                        text = "PAY",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFFE31B23)
-                    )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFF3F4F6))
+                        .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "VN",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF005BAA)
+                        )
+                        Text(
+                            text = "PAY",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFFE31B23)
+                        )
+                    }
                 }
             }
         }
@@ -355,7 +433,7 @@ fun VnpaySandboxPaymentScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 3. Thẻ Mã đơn hàng & Số tiền thanh toán
+            // 3. Thẻ Chi tiết Đơn hàng & Số tiền thanh toán
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -368,22 +446,115 @@ fun VnpaySandboxPaymentScreen(
                             .fillMaxWidth()
                             .padding(14.dp)
                     ) {
+                        // Header card: Tiêu đề + Mã đơn hàng + nút Copy
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Mã đơn hàng:",
-                                fontSize = 13.5.sp,
-                                color = Color(0xFF6B7280)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.ShoppingBag,
+                                    contentDescription = null,
+                                    tint = CoralPrimary,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Thông tin đơn hàng",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF111827)
+                                )
+                            }
+
+                            // Badge mã đơn + nút copy
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFF3F4F6))
+                                    .clickable {
+                                        clipboardManager.setText(AnnotatedString(orderCode))
+                                        viewModel.showSuccessToast("Đã sao chép mã đơn hàng: $orderCode")
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "#$orderCode",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF374151)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Sao chép mã đơn",
+                                    tint = Color(0xFF6B7280),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+
+                        // Danh sách sản phẩm trong đơn
+                        if (orderProducts.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Sản phẩm đầu tiên
+                            VnpayProductItemRow(
+                                product = orderProducts.first(),
+                                currencyFormatter = currencyFormatter
                             )
-                            Text(
-                                text = orderCode,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF111827)
-                            )
+
+                            // Các sản phẩm còn lại (nếu có nhiều sản phẩm)
+                            if (orderProducts.size > 1) {
+                                AnimatedVisibility(
+                                    visible = isProductsExpanded,
+                                    enter = fadeIn() + expandVertically(),
+                                    exit = fadeOut() + shrinkVertically()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        orderProducts.drop(1).forEach { product ->
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            HorizontalDivider(color = Color(0xFFF8FAFC), thickness = 0.8.dp)
+                                            VnpayProductItemRow(
+                                                product = product,
+                                                currencyFormatter = currencyFormatter
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { isProductsExpanded = !isProductsExpanded }
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isProductsExpanded) "Thu gọn bớt" else "Xem thêm ${orderProducts.size - 1} sản phẩm khác",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF005BAA)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Icon(
+                                        imageVector = if (isProductsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = Color(0xFF005BAA),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -1318,5 +1489,128 @@ private fun SecurityBadgeItem(text: String) {
             fontWeight = FontWeight.SemiBold,
             color = Color(0xFF4B5563)
         )
+    }
+}
+
+/**
+ * Model hiển thị sản phẩm gọn gàng trên màn hình thanh toán VNPAY
+ */
+private data class VnpayDisplayProduct(
+    val name: String,
+    val variantName: String?,
+    val imageUrl: String?,
+    val quantity: Int,
+    val unitPrice: Double
+)
+
+/**
+ * Hàng hiển thị chi tiết 1 sản phẩm: Ảnh thumbnail, Tên, Phân loại, Đơn giá & Số lượng
+ */
+@Composable
+private fun VnpayProductItemRow(
+    product: VnpayDisplayProduct,
+    currencyFormatter: NumberFormat,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Thumbnail ảnh sản phẩm
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFF3F4F6))
+                .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            val fallbackRes = com.example.R.drawable.folded_black_tshirt_1793956682242
+            if (!product.imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = product.name,
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(id = fallbackRes),
+                    error = painterResource(id = fallbackRes),
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = fallbackRes),
+                    contentDescription = product.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Thông tin: Tên, Phân loại, Giá & Số lượng
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = product.name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF111827),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 17.sp
+            )
+
+            if (!product.variantName.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFFF3F4F6))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "Phân loại: ${product.variantName}",
+                        fontSize = 11.sp,
+                        color = Color(0xFF6B7280),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (product.unitPrice > 0) {
+                    Text(
+                        text = "₫${currencyFormatter.format(product.unitPrice.toLong())}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF111827)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFFF1F5F9))
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "x${product.quantity}",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF4B5563)
+                    )
+                }
+            }
+        }
     }
 }
