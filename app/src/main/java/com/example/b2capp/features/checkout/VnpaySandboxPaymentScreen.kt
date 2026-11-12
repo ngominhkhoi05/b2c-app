@@ -61,10 +61,16 @@ import androidx.compose.ui.graphics.Color
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.net.http.SslError
+import android.webkit.CookieManager
+import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.Image
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -136,7 +142,6 @@ fun VnpaySandboxPaymentScreen(
 ) {
     var selectedMainTab by remember { mutableIntStateOf(0) } // 0: VNPAY-QR, 1: Thẻ ATM/Bank, 2: Thẻ Quốc tế
     var countdownSeconds by remember { mutableIntStateOf(899) } // 14:59
-    var showInAppWebView by remember { mutableStateOf(false) }
 
     val pendingOrder = uiState.pendingVnpayOrder
 
@@ -155,6 +160,22 @@ fun VnpaySandboxPaymentScreen(
             delay(3000)
             val isPaid = viewModel.checkPendingVnpayPaymentStatus()
             if (isPaid) break
+        }
+    }
+
+    // Ngay khi người dùng quay lại từ trình duyệt Chrome, lập tức kiểm tra kết quả thanh toán
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (pendingOrder?.id != null) {
+                    viewModel.checkVnpayPaymentStatusManual()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -584,16 +605,23 @@ fun VnpaySandboxPaymentScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Nút mở cổng thanh toán VNPAY bằng WebView trực tiếp trong App
+                        // Nút mở cổng thanh toán VNPAY trên trình duyệt Chrome (Chính thức, bảo mật 100%)
                         if (!pendingOrder?.paymentUrl.isNullOrBlank()) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(46.dp)
+                                    .height(48.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color(0xFF005BAA))
                                     .clickable {
-                                        showInAppWebView = true
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(pendingOrder.paymentUrl)).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            viewModel.showErrorToast("Không thể mở trình duyệt: ${e.message}")
+                                        }
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -602,18 +630,18 @@ fun VnpaySandboxPaymentScreen(
                                         imageVector = Icons.Default.OpenInNew,
                                         contentDescription = null,
                                         tint = Color.White,
-                                        modifier = Modifier.size(17.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "MỞ CỔNG VNPAY THANH TOÁN (TRONG APP)",
-                                        fontSize = 13.sp,
+                                        text = "MỞ CỔNG VNPAY ĐỂ THANH TOÁN",
+                                        fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
 
                         // Nút kiểm tra trạng thái thanh toán thật từ Backend (Không dùng Mock)
@@ -1055,104 +1083,6 @@ fun VnpaySandboxPaymentScreen(
                         fontSize = 10.5.sp,
                         color = Color(0xFF9CA3AF)
                     )
-                }
-            }
-        }
-
-        // Dialog WebView hiển thị trực tiếp cổng thanh toán VNPAY trong App
-        if (showInAppWebView && !pendingOrder?.paymentUrl.isNullOrBlank()) {
-            Dialog(
-                onDismissRequest = { showInAppWebView = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .statusBarsPadding()
-                                .background(Color(0xFF005BAA))
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = { showInAppWebView = false },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Đóng",
-                                        tint = Color.White
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Column {
-                                    Text(
-                                        text = "Cổng thanh toán VNPAY",
-                                        color = Color.White,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Kết nối bảo mật 256-bit SSL",
-                                        color = Color.White.copy(alpha = 0.8f),
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        AndroidView(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            factory = { ctx ->
-                                WebView(ctx).apply {
-                                    settings.javaScriptEnabled = true
-                                    settings.domStorageEnabled = true
-                                    settings.loadWithOverviewMode = true
-                                    settings.useWideViewPort = true
-                                    settings.setSupportZoom(true)
-                                    webViewClient = object : WebViewClient() {
-                                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                            val url = request?.url?.toString() ?: return false
-                                            if (url.startsWith("intent://") || url.startsWith("tel:") || url.startsWith("mailto:")) {
-                                                try {
-                                                    val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
-                                                    ctx.startActivity(intent)
-                                                    return true
-                                                } catch (e: Exception) {
-                                                    return true
-                                                }
-                                            }
-                                            return false
-                                        }
-
-                                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                            super.onPageStarted(view, url, favicon)
-                                            if (url != null) {
-                                                if (url.contains("/payment/return") || url.contains("vnp_ResponseCode")) {
-                                                    if (url.contains("status=success") || url.contains("vnp_ResponseCode=00")) {
-                                                        showInAppWebView = false
-                                                        viewModel.onVnpayReturnUrlReceived("success")
-                                                    } else if (url.contains("status=failed") || url.contains("status=error") || url.contains("vnp_ResponseCode=24")) {
-                                                        showInAppWebView = false
-                                                        viewModel.onVnpayReturnUrlReceived("failed")
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    loadUrl(pendingOrder!!.paymentUrl!!)
-                                }
-                            }
-                        )
-                    }
                 }
             }
         }
