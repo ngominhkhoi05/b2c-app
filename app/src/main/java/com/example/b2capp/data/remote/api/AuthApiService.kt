@@ -2,6 +2,7 @@ package com.example.b2capp.data.remote.api
 
 import com.example.b2capp.data.remote.dto.ApiResponse
 import com.example.b2capp.data.remote.dto.AuthResponseDto
+import com.example.b2capp.data.remote.dto.GoogleLoginRequestDto
 import com.example.b2capp.data.remote.dto.LoginRequestDto
 import com.example.b2capp.data.remote.dto.RefreshTokenRequestDto
 import com.example.b2capp.data.remote.dto.RegisterRequestDto
@@ -17,6 +18,12 @@ interface AuthApiService {
     @POST("api/v1/auth/login")
     suspend fun login(
         @Body request: LoginRequestDto
+    ): Response<ApiResponse<AuthResponseDto>>
+
+    // Đăng nhập / đăng ký bằng Google ID Token
+    @POST("api/v1/auth/google")
+    suspend fun loginWithGoogle(
+        @Body request: GoogleLoginRequestDto
     ): Response<ApiResponse<AuthResponseDto>>
 
     // Đăng ký tài khoản người mua (BUYER) mới

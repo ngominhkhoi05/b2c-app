@@ -28,6 +28,14 @@ data class LoginRequestDto(
 )
 
 /**
+ * Yêu cầu Đăng nhập / Đăng ký bằng Google ID Token (POST /api/v1/auth/google)
+ */
+@JsonClass(generateAdapter = true)
+data class GoogleLoginRequestDto(
+    @Json(name = "idToken") val idToken: String
+)
+
+/**
  * Yêu cầu Đăng ký tài khoản người mua (POST /api/v1/auth/register)
  */
 @JsonClass(generateAdapter = true)

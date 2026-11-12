@@ -68,7 +68,7 @@ interface UserApiService {
     @POST("api/v1/users/change-password")
     suspend fun changePassword(
         @Body request: ChangePasswordRequestDto
-    ): Response<ApiResponse<Void>>
+    ): Response<ApiResponse<Unit>>
 
     /**
      * Lấy danh sách địa chỉ nhận hàng của người dùng hiện tại
@@ -112,7 +112,7 @@ interface UserApiService {
     @DELETE("api/v1/users/addresses/{id}")
     suspend fun deleteAddress(
         @Path("id") addressId: Long
-    ): Response<ApiResponse<Void>>
+    ): Response<ApiResponse<Unit>>
 
     /**
      * Đặt địa chỉ làm mặc định

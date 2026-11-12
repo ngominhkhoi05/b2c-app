@@ -52,16 +52,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import com.example.b2capp.core.auth.GoogleAuthHelper
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -207,6 +212,8 @@ fun SignUpScreen(
 
     var isPasswordVisible by remember { mutableStateOf(false) }
     var agreeToTerms by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val isPasswordMatching = password.isNotEmpty() && password == confirmPassword
 
@@ -810,8 +817,22 @@ fun SignUpScreen(
                             .background(Color.White)
                             .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(10.dp))
                             .clickable {
-                                viewModel.login("google_user@gmail.com")
-                                onSignUpSuccess()
+                                coroutineScope.launch {
+                                    val result = GoogleAuthHelper.signInWithGoogle(context)
+                                    result.fold(
+                                        onSuccess = { idToken ->
+                                            viewModel.loginWithGoogle(idToken) {
+                                                onSignUpSuccess()
+                                            }
+                                        },
+                                        onFailure = { error ->
+                                            val msg = error.message ?: "Đăng ký/Đăng nhập Google thất bại"
+                                            if (!msg.contains("huỷ", ignoreCase = true)) {
+                                                viewModel.showErrorToast(msg)
+                                            }
+                                        }
+                                    )
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -827,18 +848,15 @@ fun SignUpScreen(
                         }
                     }
 
-                    // Nút Apple
+                    // Nút Apple (đã làm mờ và vô hiệu hoá)
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(46.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White)
+                            .background(Color(0xFFF3F4F6))
                             .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(10.dp))
-                            .clickable {
-                                viewModel.login("apple_user@icloud.com")
-                                onSignUpSuccess()
-                            },
+                            .alpha(0.4f),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -848,7 +866,7 @@ fun SignUpScreen(
                                 text = "Apple",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
+                                color = TextSecondary
                             )
                         }
                     }

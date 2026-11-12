@@ -46,13 +46,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import com.example.b2capp.core.auth.GoogleAuthHelper
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -97,6 +102,8 @@ fun SignInScreen(
     var emailOrPhone by remember { mutableStateOf("nguyenvana@gmail.com") }
     var password by remember { mutableStateOf("12345678") }
     var isPasswordVisible by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier
@@ -451,8 +458,22 @@ fun SignInScreen(
                                     .background(Color.White)
                                     .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(10.dp))
                                     .clickable {
-                                        viewModel.login("google_user@gmail.com")
-                                        onSignInSuccess()
+                                        coroutineScope.launch {
+                                            val result = GoogleAuthHelper.signInWithGoogle(context)
+                                            result.fold(
+                                                onSuccess = { idToken ->
+                                                    viewModel.loginWithGoogle(idToken) {
+                                                        onSignInSuccess()
+                                                    }
+                                                },
+                                                onFailure = { error ->
+                                                    val msg = error.message ?: "Đăng nhập Google thất bại"
+                                                    if (!msg.contains("huỷ", ignoreCase = true)) {
+                                                        viewModel.showErrorToast(msg)
+                                                    }
+                                                }
+                                            )
+                                        }
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -468,18 +489,15 @@ fun SignInScreen(
                                 }
                             }
 
-                            // Nút Apple
+                            // Nút Apple (đã làm mờ và vô hiệu hoá)
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(44.dp)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.White)
+                                    .background(Color(0xFFF3F4F6))
                                     .border(0.8.dp, Color(0xFFE5E7EB), RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        viewModel.login("apple_user@icloud.com")
-                                        onSignInSuccess()
-                                    },
+                                    .alpha(0.4f),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -489,7 +507,7 @@ fun SignInScreen(
                                         text = "Apple",
                                         fontSize = 13.5.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = TextPrimary
+                                        color = TextSecondary
                                     )
                                 }
                             }

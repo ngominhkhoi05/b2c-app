@@ -134,8 +134,7 @@ enum class SearchBadgeType {
  *    - Áo thun kẻ sọc Vintage form regular fit chất đũi... (Yêu thích, -15%, 135.000₫, 4.7 (620), TP. HCM)
  *    - Áo thun in họa tiết Typography phản quang (MALL, -35%, 165.000₫, 4.9 (2.1k), Hà Nội)
  * 6. Nút "Xem thêm 1.234 sản phẩm ˇ".
- * 7. Vòng xoay đồng bộ "Đang tự động đồng bộ ưu đãi tốt nhất".
- * 8. BottomBar 5 tabs.
+ * 7. BottomBar 5 tabs.
  */
 @Composable
 fun SearchResultsScreen(
@@ -196,24 +195,8 @@ fun SearchResultsScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("search_results_screen"),
-        bottomBar = {
-            AppBottomBar(
-                selectedTab = uiState.currentTab,
-                onTabSelected = { tabId ->
-                    viewModel.closeSearchResults()
-                    viewModel.reloadTab(tabId)
-                },
-                cartBadgeCount = uiState.totalCartCount
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(Color(0xFFF8F9FA))
-        ) {
-            // 1. Top Bar: Nút Back, Thanh tìm kiếm, Nút Filter, Giỏ hàng
+        topBar = {
+            // 1. Top Bar & Header: Gọn gàng, tránh double padding status bar, giảm chiều cao các hàng
             Surface(
                 color = SurfaceCard,
                 modifier = Modifier.fillMaxWidth()
@@ -223,13 +206,13 @@ fun SearchResultsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Nút Back mũi tên trái
                         IconButton(
                             onClick = onBackClick,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -242,7 +225,7 @@ fun SearchResultsScreen(
                         Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp)
+                                .height(36.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFFF0F2F5))
                                 .padding(horizontal = 10.dp),
@@ -252,10 +235,10 @@ fun SearchResultsScreen(
                                 imageVector = Icons.Outlined.Search,
                                 contentDescription = "Tìm kiếm",
                                 tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
 
                             Box(
                                 modifier = Modifier.weight(1f),
@@ -300,49 +283,49 @@ fun SearchResultsScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
 
                         // Nút lọc có chấm đỏ chỉ thị bộ lọc đang hoạt động
                         val hasActiveFilters = activeFilterCriteria.isActive || isFreeshipFilterActive || isStarFilterActive || isMallFilterActive || isLocationFilterActive
                         Box(contentAlignment = Alignment.TopEnd) {
                             IconButton(
                                 onClick = { showAdvancedFilterSheet = true },
-                                modifier = Modifier.size(38.dp)
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Tune,
                                     contentDescription = "Bộ lọc",
                                     tint = if (hasActiveFilters) CoralPrimary else TextPrimary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                             if (hasActiveFilters) {
                                 Box(
                                     modifier = Modifier
-                                        .padding(top = 8.dp, end = 8.dp)
+                                        .padding(top = 7.dp, end = 7.dp)
                                         .size(6.dp)
                                         .background(Color(0xFFBA2211), CircleShape)
                                 )
                             }
                         }
 
-                        // Nút giỏ hàng có badge 3
+                        // Nút giỏ hàng có badge
                         Box(contentAlignment = Alignment.TopEnd) {
                             IconButton(
                                 onClick = onNavigateToCart,
-                                modifier = Modifier.size(38.dp)
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.ShoppingCart,
                                     contentDescription = "Giỏ hàng",
                                     tint = TextPrimary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                             if (uiState.totalCartCount > 0) {
                                 Box(
                                     modifier = Modifier
-                                        .padding(top = 4.dp, end = 4.dp)
+                                        .padding(top = 3.dp, end = 3.dp)
                                         .size(16.dp)
                                         .background(Color(0xFFBA2211), CircleShape),
                                     contentAlignment = Alignment.Center
@@ -376,20 +359,20 @@ fun SearchResultsScreen(
                                         selectedSortTab = tabName
                                         triggerSearch(sortTab = tabName)
                                     }
-                                    .padding(vertical = 10.dp)
+                                    .padding(vertical = 6.dp)
                             ) {
                                 Text(
                                     text = tabName,
-                                    fontSize = 13.5.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isTabSelected) Color(0xFFBA2211) else TextSecondary
                                 )
 
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(3.dp))
 
                                 Box(
                                     modifier = Modifier
-                                        .width(if (isTabSelected) 28.dp else 0.dp)
+                                        .width(if (isTabSelected) 24.dp else 0.dp)
                                         .height(2.dp)
                                         .background(
                                             if (isTabSelected) Color(0xFFBA2211) else Color.Transparent,
@@ -407,23 +390,23 @@ fun SearchResultsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Chip 1: Đang lọc: Từ khóa ✕
                         if (searchInput.isNotBlank()) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(Color(0xFFFFF1EE))
-                                    .border(0.8.dp, Color(0xFFF87171), RoundedCornerShape(14.dp))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .border(0.8.dp, Color(0xFFF87171), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = "Đang lọc: $searchInput",
-                                        fontSize = 11.5.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = Color(0xFFBA2211)
                                     )
@@ -433,7 +416,7 @@ fun SearchResultsScreen(
                                         contentDescription = "Hủy lọc",
                                         tint = Color(0xFFBA2211),
                                         modifier = Modifier
-                                            .size(12.dp)
+                                            .size(11.dp)
                                             .clickable {
                                                 searchInput = ""
                                                 viewModel.onSearchQueryInputChanged("")
@@ -447,27 +430,27 @@ fun SearchResultsScreen(
                         // Chip 2: ⚡ Freeship Xtra
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(if (isFreeshipFilterActive) Color(0xFFE6F7F5) else Color(0xFFF3F4F6))
                                 .border(
                                     0.8.dp,
                                     if (isFreeshipFilterActive) Color(0xFF1E8275) else Color.Transparent,
-                                    RoundedCornerShape(14.dp)
+                                    RoundedCornerShape(12.dp)
                                 )
                                 .clickable { isFreeshipFilterActive = !isFreeshipFilterActive }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Filled.FlashOn,
                                     contentDescription = null,
                                     tint = if (isFreeshipFilterActive) Color(0xFF1E8275) else Color(0xFF6B7280),
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "Freeship Xtra",
-                                    fontSize = 11.5.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = if (isFreeshipFilterActive) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isFreeshipFilterActive) Color(0xFF1E8275) else Color(0xFF4B5563)
                                 )
@@ -477,30 +460,30 @@ fun SearchResultsScreen(
                         // Chip 3: ★ 4★ trở lên
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(if (isStarFilterActive) Color(0xFFFEF3C7) else Color(0xFFF3F4F6))
                                 .border(
                                     0.8.dp,
                                     if (isStarFilterActive) Color(0xFFF59E0B) else Color.Transparent,
-                                    RoundedCornerShape(14.dp)
+                                    RoundedCornerShape(12.dp)
                                 )
                                 .clickable {
                                     isStarFilterActive = !isStarFilterActive
                                     triggerSearch(starActive = isStarFilterActive)
                                 }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Filled.Star,
                                     contentDescription = null,
                                     tint = StarRatingGold,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "4★ trở lên",
-                                    fontSize = 11.5.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = if (isStarFilterActive) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isStarFilterActive) Color(0xFFB45309) else Color(0xFF4B5563)
                                 )
@@ -510,19 +493,19 @@ fun SearchResultsScreen(
                         // Chip 4: Shopee Mall
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(if (isMallFilterActive) Color(0xFFFEECE8) else Color(0xFFF3F4F6))
                                 .border(
                                     0.8.dp,
                                     if (isMallFilterActive) Color(0xFFBA2211) else Color.Transparent,
-                                    RoundedCornerShape(14.dp)
+                                    RoundedCornerShape(12.dp)
                                 )
                                 .clickable { isMallFilterActive = !isMallFilterActive }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = "Shopee Mall",
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (isMallFilterActive) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isMallFilterActive) Color(0xFFBA2211) else Color(0xFF4B5563)
                             )
@@ -531,19 +514,19 @@ fun SearchResultsScreen(
                         // Chip 5: Nơi bán: Hà Nội / TP.HCM
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(if (isLocationFilterActive) Color(0xFFEFF6FF) else Color(0xFFF3F4F6))
                                 .border(
                                     0.8.dp,
                                     if (isLocationFilterActive) Color(0xFF3B82F6) else Color.Transparent,
-                                    RoundedCornerShape(14.dp)
+                                    RoundedCornerShape(12.dp)
                                 )
                                 .clickable { isLocationFilterActive = !isLocationFilterActive }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = "TP. HCM & Hà Nội",
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (isLocationFilterActive) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isLocationFilterActive) Color(0xFF1D4ED8) else Color(0xFF4B5563)
                             )
@@ -551,6 +534,24 @@ fun SearchResultsScreen(
                     }
                 }
             }
+        },
+        bottomBar = {
+            AppBottomBar(
+                selectedTab = uiState.currentTab,
+                onTabSelected = { tabId ->
+                    viewModel.closeSearchResults()
+                    viewModel.reloadTab(tabId)
+                },
+                cartBadgeCount = uiState.totalCartCount
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(Color(0xFFF8F9FA))
+        ) {
 
             // 5. Danh sách sản phẩm kết quả tìm kiếm: lấy hoàn toàn từ API backend (không dùng dữ liệu mock)
             val rawProducts: List<ProductItem> = uiState.searchResults
@@ -761,28 +762,8 @@ fun SearchResultsScreen(
                     }
                 }
 
-                // 7. Đồng bộ ưu đãi footer
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            color = Color(0xFFBA2211),
-                            strokeWidth = 1.8.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Đang tự động đồng bộ ưu đãi tốt nhất",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }

@@ -28,6 +28,7 @@ object NetworkConfig {
 
     private val listeners = mutableListOf<(String) -> Unit>()
 
+    
     /**
      * Lấy Base URL hiện tại (đã đảm bảo luôn kết thúc bằng '/').
      */

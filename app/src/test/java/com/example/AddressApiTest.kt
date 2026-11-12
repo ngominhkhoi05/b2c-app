@@ -274,8 +274,8 @@ class AddressApiTest {
             override suspend fun getAddress(addressId: Long) = throw NotImplementedError()
             override suspend fun updateAddress(addressId: Long, request: AddressRequestDto) = throw NotImplementedError()
 
-            override suspend fun deleteAddress(addressId: Long): Response<ApiResponse<Void>> {
-                return Response.success(ApiResponse(code = 200, data = null))
+            override suspend fun deleteAddress(addressId: Long): Response<ApiResponse<Unit>> {
+                return Response.success(ApiResponse(code = 200, data = Unit))
             }
 
             override suspend fun setDefaultAddress(addressId: Long) = throw NotImplementedError()

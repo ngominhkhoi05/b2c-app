@@ -109,13 +109,15 @@ fun CategoriesScreen(
 ) {
     var searchInput by remember { mutableStateOf("") }
 
-    // Tự động tải danh mục từ API nếu chưa có
+    // Tự động tải danh mục và lập tức load sản phẩm của danh mục đầu tiên khi vào màn hình
     LaunchedEffect(Unit) {
-        if (uiState.browserCategories.isEmpty() || uiState.selectedBrowserCategory == null) {
+        if (uiState.browserCategories.isEmpty()) {
             viewModel.loadBrowserCategories(autoSelectFirst = true)
-        } else if (uiState.browserProducts.isEmpty()) {
-            val selectedId = uiState.selectedBrowserSubCategoryId ?: uiState.selectedBrowserCategory?.id
-            viewModel.loadBrowserProducts(selectedId)
+        } else {
+            val targetCategory = uiState.selectedBrowserCategory ?: uiState.browserCategories.first()
+            if (uiState.selectedBrowserCategory?.id != targetCategory.id || uiState.browserProducts.isEmpty()) {
+                viewModel.selectBrowserCategory(targetCategory)
+            }
         }
     }
 

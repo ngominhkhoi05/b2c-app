@@ -593,7 +593,20 @@ fun ProductDetailsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         // Logo Coolmate + Tên Shop + Trạng thái hoạt động
-                        Row(verticalAlignment = Alignment.Top) {
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    viewModel.openShopScreen(
+                                        shopName = product.shopName,
+                                        sellerId = product.sellerId,
+                                        shopLocation = product.shopLocation,
+                                        shopSlug = product.shopSlug,
+                                        shopLogoUrl = product.shopLogoUrl
+                                    )
+                                }
+                        ) {
                             val shopTitle = product.shopName.ifBlank { "Coolmate Official" }
                             val shopInitials = shopTitle.split(" ").mapNotNull { it.firstOrNull()?.uppercaseChar() }.take(2).joinToString("").ifBlank { "CM" }
 
@@ -656,30 +669,57 @@ fun ProductDetailsScreen(
                             }
                         }
 
-                        // Nút Chat (đứng cùng hàng với tên shop, bám sát lên trên)
-                        Box(
-                            modifier = Modifier
-                                .height(28.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .border(1.dp, Color(0xFFD32F2F), RoundedCornerShape(6.dp))
-                                .clickable { viewModel.openShopChat(shopName = product.shopName, product = product, sellerId = product.sellerId) }
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.ChatBubbleOutline,
-                                    contentDescription = null,
-                                    tint = Color(0xFFD32F2F),
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                        // Nút Xem Shop & Chat
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .height(28.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .border(1.dp, NavySecondary, RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        viewModel.openShopScreen(
+                                            shopName = product.shopName,
+                                            sellerId = product.sellerId,
+                                            shopLocation = product.shopLocation,
+                                            shopSlug = product.shopSlug,
+                                            shopLogoUrl = product.shopLogoUrl
+                                        )
+                                    }
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
-                                    text = "Chat",
-                                    fontSize = 12.sp,
+                                    text = "Xem Shop",
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFD32F2F)
+                                    color = NavySecondary
                                 )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .height(28.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .border(1.dp, Color(0xFFD32F2F), RoundedCornerShape(6.dp))
+                                    .clickable { viewModel.openShopChat(shopName = product.shopName, product = product, sellerId = product.sellerId) }
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.ChatBubbleOutline,
+                                        contentDescription = null,
+                                        tint = Color(0xFFD32F2F),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Chat",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFD32F2F)
+                                    )
+                                }
                             }
                         }
                     }

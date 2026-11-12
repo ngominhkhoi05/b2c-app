@@ -12,6 +12,7 @@ import com.example.b2capp.core.model.ProductOptionValueItem
 import com.example.b2capp.core.model.ProductVariantItem
 import com.example.b2capp.core.model.ReviewItem
 import com.example.b2capp.core.model.ShopChatInfo
+import com.example.b2capp.core.model.ShopInfo
 import com.example.b2capp.core.model.UserAddress
 import com.example.b2capp.core.model.UserProfile
 import com.example.b2capp.core.model.toDomain
@@ -43,6 +44,7 @@ import com.example.b2capp.data.repository.OrderRepository
 import com.example.b2capp.data.repository.PaymentRepository
 import com.example.b2capp.data.repository.PromotionRepository
 import com.example.b2capp.data.repository.ReviewRepository
+import com.example.b2capp.data.repository.ShopRepository
 import com.example.b2capp.data.repository.UserRepository
 import com.example.b2capp.data.repository.WishlistRepository
 import com.example.b2capp.core.network.RealtimeChatEvent
@@ -102,6 +104,9 @@ data class B2CUiState(
     val isShopConversationsLoading: Boolean = false,
     val shopConversationsError: String? = null,
     val activeShopChat: ShopChatInfo? = null,
+    val activeShopInfo: ShopInfo? = null,
+    val shopProducts: List<ProductItem> = emptyList(),
+    val isShopProductsLoading: Boolean = false,
     val showCheckoutScreen: Boolean = false,
     val showVnpayPaymentScreen: Boolean = false,
     val pendingVnpayOrder: OrderDetailDto? = null,
@@ -267,6 +272,7 @@ class B2CViewModel : ViewModel() {
     private val chatRepository: ChatRepository by lazy { ChatRepository() }
     private val wishlistRepository: WishlistRepository by lazy { WishlistRepository() }
     private val reviewRepository: ReviewRepository by lazy { ReviewRepository() }
+    private val shopRepository: ShopRepository by lazy { ShopRepository() }
     private val tokenManager: TokenManager by lazy { TokenManager.getInstance() }
     private val _uiState = MutableStateFlow(B2CUiState())
     val uiState: StateFlow<B2CUiState> = _uiState.asStateFlow()
@@ -817,7 +823,12 @@ class B2CViewModel : ViewModel() {
     fun selectTab(tabIndex: Int) {
         _uiState.update { it.copy(currentTab = tabIndex) }
         if (tabIndex == 1) {
-            loadBrowserCategories()
+            val firstCat = _uiState.value.browserCategories.firstOrNull()
+            if (firstCat != null) {
+                selectBrowserCategory(firstCat)
+            } else {
+                loadBrowserCategories(autoSelectFirst = true)
+            }
         } else if (tabIndex == 2) {
             loadCartItems()
         } else if (tabIndex == 3) {
@@ -838,13 +849,16 @@ class B2CViewModel : ViewModel() {
         _uiState.update { state ->
             val base = state.copy(currentTab = tabIndex, tabReloadKey = state.tabReloadKey + 1)
             when (tabIndex) {
-                // Danh mục: xóa lựa chọn hiện tại -> CategoriesScreen tự tải lại danh mục và chọn danh mục đầu tiên
-                1 -> base.copy(
-                    selectedBrowserCategory = null,
-                    selectedBrowserSubCategoryId = null,
-                    browserProducts = emptyList(),
-                    browserCategoryErrorMessage = null
-                )
+                // Danh mục: lập tức mở danh mục đầu tiên và xóa danh sách sản phẩm cũ
+                1 -> {
+                    val firstCat = state.browserCategories.firstOrNull()
+                    base.copy(
+                        selectedBrowserCategory = firstCat,
+                        selectedBrowserSubCategoryId = null,
+                        browserProducts = emptyList(),
+                        browserCategoryErrorMessage = null
+                    )
+                }
                 // Đơn mua: đặt lại tab trạng thái về "Tất cả" và xóa bộ lọc nâng cao
                 3 -> base.copy(
                     selectedOrdersTab = "Tất cả",
@@ -856,8 +870,16 @@ class B2CViewModel : ViewModel() {
         }
         when (tabIndex) {
             0 -> loadHomeData(isRefresh = true) // HomeScreen chỉ tự tải khi chưa có dữ liệu
+            1 -> {
+                val firstCat = _uiState.value.browserCategories.firstOrNull()
+                if (firstCat != null) {
+                    loadBrowserProducts(firstCat.id)
+                } else {
+                    loadBrowserCategories(autoSelectFirst = true)
+                }
+            }
             4 -> loadAddresses()                 // AccountScreen tự tải hồ sơ + tổng hợp đơn hàng
-            // 1, 2, 3: màn hình tự gọi API trong LaunchedEffect khi được dựng lại
+            // 2, 3: màn hình tự gọi API trong LaunchedEffect khi được dựng lại
         }
     }
 
@@ -885,11 +907,13 @@ class B2CViewModel : ViewModel() {
             val categories = homeRepository.getCategoriesForBrowser()
             val currentSelected = _uiState.value.selectedBrowserCategory
             val toSelect = when {
-                currentSelected != null && categories.any { it.id == currentSelected.id } ->
-                    categories.first { it.id == currentSelected.id }
                 autoSelectFirst && categories.isNotEmpty() ->
                     categories.first()
-                else -> currentSelected
+                currentSelected != null && categories.any { it.id == currentSelected.id } ->
+                    categories.first { it.id == currentSelected.id }
+                categories.isNotEmpty() ->
+                    categories.first()
+                else -> null
             }
 
             _uiState.update {
@@ -901,7 +925,7 @@ class B2CViewModel : ViewModel() {
                 )
             }
 
-            if (toSelect != null && _uiState.value.browserProducts.isEmpty()) {
+            if (toSelect != null) {
                 loadBrowserProducts(toSelect.id)
             }
         }
@@ -1558,7 +1582,9 @@ class B2CViewModel : ViewModel() {
                                     images = parsedImages,
                                     options = parsedOptions,
                                     variants = parsedVariants,
-                                    sellerId = detail.sellerId ?: product.sellerId
+                                    sellerId = detail.sellerId ?: product.sellerId,
+                                    shopSlug = detail.shopSlug ?: product.shopSlug,
+                                    shopLogoUrl = detail.shopLogoUrl ?: product.shopLogoUrl
                                 )
                                 state.copy(detailedProductScreen = enriched, isProductDetailLoading = false)
                             } else {
@@ -2519,6 +2545,71 @@ class B2CViewModel : ViewModel() {
     }
 
     /**
+     * Đăng nhập hoặc đăng ký bằng Google ID Token qua API Backend
+     */
+    fun loginWithGoogle(
+        idToken: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        if (idToken.isBlank()) {
+            showErrorToast("Google ID Token không hợp lệ")
+            return
+        }
+
+        _uiState.update { it.copy(isAuthLoading = true, authErrorMessage = null) }
+
+        viewModelScope.launch {
+            val result = authRepository.loginWithGoogle(idToken.trim())
+            result.fold(
+                onSuccess = { auth ->
+                    val displayName = auth.fullName?.ifBlank { null } ?: auth.email ?: "Người dùng"
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = true,
+                            isAuthLoading = false,
+                            authErrorMessage = null,
+                            showSignInScreen = false,
+                            showSignUpScreen = false,
+                            showForgotPasswordScreen = false,
+                            userProfile = state.userProfile.copy(
+                                fullName = auth.fullName ?: state.userProfile.fullName,
+                                email = auth.email ?: state.userProfile.email
+                            ),
+                            toastMessage = "Đăng nhập Google thành công! Chào mừng $displayName.",
+                            currentToast = createToastData(
+                                "Đăng nhập Google thành công! Chào mừng $displayName.",
+                                ToastType.SUCCESS
+                            )
+                        )
+                    }
+                    refreshCartBadgeCount()
+                    loadCartItems()
+                    loadOrders()
+                    loadAccountOrderSummary()
+                    loadUserProfile()
+                    loadAddresses()
+                    refreshWishlistCount()
+                    loadWishlist()
+                    loadShopConversations(forceRefresh = true)
+                    connectRealtimeWebSocket()
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    val errorMsg = error.message ?: "Đăng nhập bằng Google thất bại"
+                    _uiState.update { state ->
+                        state.copy(
+                            isAuthLoading = false,
+                            authErrorMessage = errorMsg,
+                            toastMessage = errorMsg,
+                            currentToast = createToastData(errorMsg, ToastType.ERROR)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
      * Đăng ký tài khoản người mua mới qua API Backend
      */
     fun registerWithApi(
@@ -3266,25 +3357,29 @@ class B2CViewModel : ViewModel() {
             return
         }
 
-        if (oldPass.isBlank()) {
+        val cleanOld = oldPass.trim()
+        val cleanNew = newPass.trim()
+        val cleanConfirm = confirmPass.trim()
+
+        if (cleanOld.isBlank()) {
             showErrorToast("Vui lòng nhập mật khẩu hiện tại")
             onComplete?.invoke(false)
             return
         }
 
-        if (newPass.length < 8) {
+        if (cleanNew.length < 8) {
             showErrorToast("Mật khẩu mới phải có tối thiểu 8 ký tự")
             onComplete?.invoke(false)
             return
         }
 
-        if (newPass == oldPass) {
+        if (cleanNew == cleanOld) {
             showErrorToast("Mật khẩu mới không được trùng với mật khẩu hiện tại")
             onComplete?.invoke(false)
             return
         }
 
-        if (newPass != confirmPass) {
+        if (cleanNew != cleanConfirm) {
             showErrorToast("Mật khẩu xác nhận không khớp")
             onComplete?.invoke(false)
             return
@@ -3293,13 +3388,14 @@ class B2CViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isChangingPassword = true) }
             val request = ChangePasswordRequestDto(
-                currentPassword = oldPass,
-                newPassword = newPass,
-                confirmPassword = confirmPass
+                currentPassword = cleanOld,
+                newPassword = cleanNew,
+                confirmPassword = cleanConfirm
             )
             val result = userRepository.changePassword(request)
             result.onSuccess {
                 val msg = "Đổi mật khẩu thành công!"
+                showSuccessToast(msg)
                 _uiState.update {
                     it.copy(
                         isChangingPassword = false,
@@ -3312,11 +3408,15 @@ class B2CViewModel : ViewModel() {
             }.onFailure { error ->
                 val rawMsg = error.message ?: "Đổi mật khẩu thất bại"
                 val errorMsg = when {
-                    rawMsg.contains("Current password is incorrect", ignoreCase = true) -> "Mật khẩu hiện tại không chính xác"
-                    rawMsg.contains("New password must be different", ignoreCase = true) -> "Mật khẩu mới không được trùng với mật khẩu hiện tại"
-                    rawMsg.contains("do not match", ignoreCase = true) -> "Mật khẩu xác nhận không khớp"
+                    rawMsg.contains("Current password is incorrect", ignoreCase = true) ||
+                    rawMsg.contains("hiện tại không chính xác", ignoreCase = true) -> "Mật khẩu hiện tại không chính xác"
+                    rawMsg.contains("New password must be different", ignoreCase = true) ||
+                    rawMsg.contains("phải khác", ignoreCase = true) -> "Mật khẩu mới phải khác mật khẩu hiện tại"
+                    rawMsg.contains("do not match", ignoreCase = true) ||
+                    rawMsg.contains("không khớp", ignoreCase = true) -> "Mật khẩu xác nhận không khớp"
                     else -> rawMsg
                 }
+                showErrorToast(errorMsg)
                 _uiState.update {
                     it.copy(
                         isChangingPassword = false,
@@ -3839,5 +3939,113 @@ class B2CViewModel : ViewModel() {
 
     fun clearToast() {
         _uiState.update { it.copy(toastMessage = null, currentToast = null) }
+    }
+
+    fun openShopScreen(
+        shopName: String,
+        sellerId: Long? = null,
+        shopLogoUrl: String? = null,
+        shopLocation: String = "Việt Nam",
+        rating: Float = 4.9f,
+        shopSlug: String? = null
+    ) {
+        val initialInfo = ShopInfo(
+            shopName = shopName,
+            sellerId = sellerId,
+            shopSlug = shopSlug,
+            shopLogoUrl = shopLogoUrl,
+            shopLocation = shopLocation,
+            rating = rating
+        )
+        _uiState.update {
+            it.copy(
+                activeShopInfo = initialInfo,
+                shopProducts = emptyList(),
+                isShopProductsLoading = true,
+                detailedProductScreen = null
+            )
+        }
+        loadShopProfileAndProducts(
+            shopName = shopName,
+            sellerId = sellerId,
+            shopSlug = shopSlug
+        )
+    }
+
+    fun closeShopScreen() {
+        _uiState.update { it.copy(activeShopInfo = null, shopProducts = emptyList()) }
+    }
+
+    fun loadShopProfileAndProducts(
+        shopName: String,
+        sellerId: Long?,
+        shopSlug: String? = null,
+        sort: String? = null
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isShopProductsLoading = true) }
+
+            val identifier = shopSlug?.ifBlank { null }
+                ?: sellerId?.toString()
+                ?: shopName
+
+            // 1. Tải thông tin hồ sơ Shop từ API Backend (GET /api/v1/public/shops/{slugOrId})
+            launch {
+                val profileResult = shopRepository.getShopProfile(identifier)
+                profileResult.onSuccess { shopInfo ->
+                    _uiState.update { state ->
+                        if (state.activeShopInfo != null &&
+                            (state.activeShopInfo.sellerId == sellerId ||
+                             state.activeShopInfo.shopName.equals(shopName, ignoreCase = true) ||
+                             state.activeShopInfo.shopSlug == shopSlug)) {
+                            state.copy(activeShopInfo = shopInfo)
+                        } else {
+                            state
+                        }
+                    }
+                }
+            }
+
+            // 2. Tải danh sách sản phẩm thực tế của Shop từ API Backend (KHÔNG dùng Mock)
+            try {
+                val productsResult = shopRepository.getShopProducts(
+                    slug = shopSlug,
+                    sellerId = sellerId,
+                    page = 0,
+                    size = 50,
+                    sort = sort
+                )
+
+                productsResult.onSuccess { products ->
+                    _uiState.update {
+                        it.copy(
+                            shopProducts = products,
+                            isShopProductsLoading = false
+                        )
+                    }
+                }.onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            shopProducts = emptyList(),
+                            isShopProductsLoading = false
+                        )
+                    }
+                    showErrorToast("Không thể tải sản phẩm của Shop: ${error.localizedMessage ?: "Lỗi kết nối"}")
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        shopProducts = emptyList(),
+                        isShopProductsLoading = false
+                    )
+                }
+                showErrorToast("Lỗi khi tải sản phẩm của shop: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun loadShopProducts(shopName: String, sellerId: Long?) {
+        val currentSlug = _uiState.value.activeShopInfo?.shopSlug
+        loadShopProfileAndProducts(shopName = shopName, sellerId = sellerId, shopSlug = currentSlug)
     }
 }

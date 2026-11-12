@@ -5,6 +5,7 @@ import com.example.b2capp.data.local.TokenManager
 import com.example.b2capp.data.remote.ApiClient
 import com.example.b2capp.data.remote.api.UserApiService
 import com.example.b2capp.data.remote.dto.AuthResponseDto
+import com.example.b2capp.data.remote.dto.GoogleLoginRequestDto
 import com.example.b2capp.data.remote.dto.LoginRequestDto
 import com.example.b2capp.data.remote.dto.RegisterRequestDto
 import com.example.b2capp.data.remote.dto.UserProfileDto
@@ -29,6 +30,32 @@ class AuthRepository(
         try {
             val response = ApiClient.unauthenticatedAuthApiService.login(
                 LoginRequestDto(email = email, password = password)
+            )
+
+            if (response.isSuccessful) {
+                val authData = response.body()?.data
+                if (authData != null) {
+                    tokenManager.saveAuthResponse(authData)
+                    Result.success(authData)
+                } else {
+                    Result.failure(Exception("Không nhận được dữ liệu xác thực từ máy chủ"))
+                }
+            } else {
+                val errorMsg = ApiClient.parseErrorMessage(response.errorBody()?.string())
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Không thể kết nối đến máy chủ: ${e.localizedMessage ?: "Vui lòng kiểm tra kết nối mạng và Base URL"}"))
+        }
+    }
+
+    /**
+     * Đăng nhập hoặc đăng ký bằng Google ID Token
+     */
+    suspend fun loginWithGoogle(idToken: String): Result<AuthResponseDto> = withContext(Dispatchers.IO) {
+        try {
+            val response = ApiClient.unauthenticatedAuthApiService.loginWithGoogle(
+                GoogleLoginRequestDto(idToken = idToken)
             )
 
             if (response.isSuccessful) {

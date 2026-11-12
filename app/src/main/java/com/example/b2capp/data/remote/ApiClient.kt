@@ -6,6 +6,9 @@ import com.example.b2capp.data.remote.api.AuthApiService
 import com.example.b2capp.data.remote.dto.ApiErrorResponse
 import com.example.b2capp.data.remote.interceptor.AuthInterceptor
 import com.example.b2capp.data.remote.interceptor.TokenAuthenticator
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.JsonReader
+import com.squareup.moshi.JsonWriter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
@@ -13,6 +16,40 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
+
+/**
+ * Custom Moshi Adapter cho Kotlin [Unit] và Java [Void] để Retrofit / Moshi có thể serialize / deserialize
+ * các endpoint trả về ApiResponse<Unit> hoặc ApiResponse<Void> mà không bị lỗi "Unable to create converter".
+ */
+class UnitJsonAdapter : JsonAdapter<Unit>() {
+    override fun fromJson(reader: JsonReader): Unit {
+        if (reader.peek() == JsonReader.Token.NULL) {
+            reader.nextNull<Unit?>()
+        } else {
+            reader.skipValue()
+        }
+        return Unit
+    }
+
+    override fun toJson(writer: JsonWriter, value: Unit?) {
+        writer.nullValue()
+    }
+}
+
+class VoidJsonAdapter : JsonAdapter<Void>() {
+    override fun fromJson(reader: JsonReader): Void? {
+        if (reader.peek() == JsonReader.Token.NULL) {
+            reader.nextNull<Void?>()
+        } else {
+            reader.skipValue()
+        }
+        return null
+    }
+
+    override fun toJson(writer: JsonWriter, value: Void?) {
+        writer.nullValue()
+    }
+}
 
 /**
  * Singleton quản lý cấu hình Network Client (OkHttp & Retrofit) dùng chung cho toàn bộ ứng dụng:
@@ -25,6 +62,8 @@ object ApiClient {
 
     val moshi: Moshi by lazy {
         Moshi.Builder()
+            .add(Unit::class.java, UnitJsonAdapter())
+            .add(Void::class.java, VoidJsonAdapter())
             .add(KotlinJsonAdapterFactory())
             .build()
     }
@@ -119,6 +158,12 @@ object ApiClient {
     fun <T> createService(serviceClass: Class<T>): T {
         return getUnauthenticatedRetrofit().create(serviceClass)
     }
+
+    /**
+     * ShopApiService công khai (hồ sơ shop, danh sách sản phẩm của shop)
+     */
+    val shopApiService: com.example.b2capp.data.remote.api.ShopApiService
+        get() = createService(com.example.b2capp.data.remote.api.ShopApiService::class.java)
 
     /**
      * ReviewApiService công khai (xem đánh giá sản phẩm)
