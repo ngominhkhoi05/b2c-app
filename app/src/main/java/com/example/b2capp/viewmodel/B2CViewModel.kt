@@ -829,7 +829,27 @@ class B2CViewModel : ViewModel() {
     }
 
     fun selectTab(tabIndex: Int) {
-        _uiState.update { it.copy(currentTab = tabIndex) }
+        _uiState.update { state ->
+            state.copy(
+                currentTab = tabIndex,
+                detailedProductScreen = null,
+                activeShopInfo = null,
+                searchResultQuery = null,
+                showWishlistScreen = false,
+                showShopMessages = false,
+                activeShopChat = null,
+                detailedOrderTrackingScreen = null,
+                showProductReviewsScreen = false,
+                showWriteReviewScreen = false,
+                showAddressBookScreen = false,
+                showAddressEditorScreen = false,
+                showEditProfileScreen = false,
+                showChangePasswordScreen = false,
+                showCheckoutScreen = false,
+                showVnpayPaymentScreen = false,
+                completedOrderSuccess = null
+            )
+        }
         if (tabIndex == 1) {
             val currentSelected = _uiState.value.selectedBrowserCategory
             if (currentSelected != null) {
@@ -863,7 +883,26 @@ class B2CViewModel : ViewModel() {
      */
     fun reloadTab(tabIndex: Int) {
         _uiState.update { state ->
-            val base = state.copy(currentTab = tabIndex, tabReloadKey = state.tabReloadKey + 1)
+            val base = state.copy(
+                currentTab = tabIndex,
+                tabReloadKey = state.tabReloadKey + 1,
+                detailedProductScreen = null,
+                activeShopInfo = null,
+                searchResultQuery = null,
+                showWishlistScreen = false,
+                showShopMessages = false,
+                activeShopChat = null,
+                detailedOrderTrackingScreen = null,
+                showProductReviewsScreen = false,
+                showWriteReviewScreen = false,
+                showAddressBookScreen = false,
+                showAddressEditorScreen = false,
+                showEditProfileScreen = false,
+                showChangePasswordScreen = false,
+                showCheckoutScreen = false,
+                showVnpayPaymentScreen = false,
+                completedOrderSuccess = null
+            )
             when (tabIndex) {
                 // Danh mục: khi người dùng ấn vào tab "Danh mục" ở BottomBar -> tự mở danh mục đầu tiên và xóa danh sách sản phẩm cũ
                 1 -> {

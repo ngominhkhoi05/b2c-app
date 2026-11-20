@@ -84,7 +84,7 @@ fun ShopScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // 1. Shop Header Card / Banner
+            // 1. Shop Header Card / Banner (Siêu gọn gàng & siêu tối ưu chiều cao)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,7 +94,7 @@ fun ShopScreen(
                         )
                     )
                     .statusBarsPadding()
-                    .padding(16.dp)
+                    .padding(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 6.dp)
             ) {
                 Column {
                     Row(
@@ -102,11 +102,25 @@ fun ShopScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Left: Logo + Info Column
+                        // Left: Back button + Logo + Info Column
                         Row(
                             modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            IconButton(
+                                onClick = onBackClick,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Quay lại",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(2.dp))
+
                             val shopInitials = shopInfo.shopName.split(" ")
                                 .mapNotNull { it.firstOrNull()?.uppercaseChar() }
                                 .take(2)
@@ -118,85 +132,83 @@ fun ShopScreen(
                                     model = shopInfo.shopLogoUrl,
                                     contentDescription = shopInfo.shopName,
                                     modifier = Modifier
-                                        .size(56.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
-                                        .border(2.dp, Color.White, CircleShape)
+                                        .border(1.dp, Color.White, CircleShape)
                                 )
                             } else {
                                 Box(
                                     modifier = Modifier
-                                        .size(56.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
                                         .background(SurfaceCard)
-                                        .border(2.dp, Color.White, CircleShape),
+                                        .border(1.dp, Color.White, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = shopInitials,
                                         color = NavySecondary,
-                                        fontSize = 20.sp,
+                                        fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = shopInfo.shopName,
-                                        fontSize = 15.sp,
+                                        fontSize = 13.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     if (shopInfo.verified) {
                                         Box(
                                             modifier = Modifier
                                                 .background(Color(0xFFB82414), RoundedCornerShape(3.dp))
-                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                .padding(horizontal = 3.dp, vertical = 0.5.dp)
                                         ) {
                                             Text(
                                                 text = "Mall",
                                                 color = Color.White,
-                                                fontSize = 8.5.sp,
+                                                fontSize = 8.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(4.dp))
-
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.Default.LocationOn,
                                         contentDescription = null,
                                         tint = Color(0xFFA7F3D0),
-                                        modifier = Modifier.size(13.dp)
+                                        modifier = Modifier.size(11.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Spacer(modifier = Modifier.width(1.dp))
                                     Text(
                                         text = shopInfo.shopLocation,
-                                        fontSize = 11.5.sp,
+                                        fontSize = 10.5.sp,
                                         color = Color(0xFFE5E7EB),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
                                         imageVector = Icons.Default.Star,
                                         contentDescription = null,
                                         tint = Color(0xFFFFC107),
-                                        modifier = Modifier.size(13.dp)
+                                        modifier = Modifier.size(11.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Spacer(modifier = Modifier.width(1.dp))
                                     Text(
                                         text = "${shopInfo.rating}",
-                                        fontSize = 11.5.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
@@ -204,40 +216,40 @@ fun ShopScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
                         // Right: Chat Shop Button
                         Button(
                             onClick = onChatClick,
-                            modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(28.dp),
+                            shape = RoundedCornerShape(6.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.ChatBubbleOutline,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(12.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
                             Text(
                                 text = "Chat",
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // 4 Stat Metrics: Sản phẩm, Người theo dõi, Phản hồi, Tốc độ
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                            .padding(vertical = 8.dp, horizontal = 12.dp),
+                            .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                            .padding(vertical = 4.dp, horizontal = 6.dp),
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
                         ShopStatHeaderItem(
@@ -428,13 +440,13 @@ private fun ShopStatHeaderItem(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White
         )
         Text(
             text = label,
-            fontSize = 10.sp,
+            fontSize = 9.5.sp,
             color = Color.White.copy(alpha = 0.8f)
         )
     }
@@ -445,7 +457,7 @@ private fun ShopStatDivider() {
     Box(
         modifier = Modifier
             .width(1.dp)
-            .height(22.dp)
+            .height(16.dp)
             .background(Color.White.copy(alpha = 0.25f))
     )
 }
